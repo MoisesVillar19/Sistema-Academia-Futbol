@@ -67,57 +67,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "Abrir {#MyAppName} ahora"; Flags: nowait postinstall skipifsilent
 
 [Code]
-function GetOneDrivePath(Param: String): String;
-var
-  Path: String;
-begin
-  Path := GetEnv('OneDrive');
-  if Path = '' then Path := GetEnv('OneDriveConsumer');
-  if Path = '' then Path := GetEnv('OneDriveCommercial');
-  if (Path = '') or (not DirExists(Path)) then
-    Path := ExpandConstant('{userdocs}\OneDrive');
-  if DirExists(Path) then
-    Result := Path
-  else
-    Result := '';
-end;
-
+// Sin auto-config: el dueño de config.ini es setup_red.bat (red LAN) o el
+// picker interno (Configuración → Respaldo). OneDrive eliminado a propósito.
+// Si ya existe config.ini (actualización), jamás se toca.
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  ConfigPath, OneDrivePath, DBPath: String;
-  Lines: TArrayOfString;
 begin
-  if CurStep = ssPostInstall then
-  begin
-    // No sobreescribir config.ini si ya existe (actualización)
-    ConfigPath := ExpandConstant('{app}\config.ini');
-    if FileExists(ConfigPath) then exit;
-
-    OneDrivePath := GetOneDrivePath('');
-    if OneDrivePath <> '' then
-    begin
-      // Crear estructura OneDrive central
-      if not DirExists(OneDrivePath + '\Academia') then CreateDir(OneDrivePath + '\Academia');
-      if not DirExists(OneDrivePath + '\Academia\fotos') then CreateDir(OneDrivePath + '\Academia\fotos');
-      if not DirExists(OneDrivePath + '\Academia\comprobantes') then CreateDir(OneDrivePath + '\Academia\comprobantes');
-      if not DirExists(OneDrivePath + '\BackupsAcademia') then CreateDir(OneDrivePath + '\BackupsAcademia');
-      DBPath := OneDrivePath + '\Academia\academia.db';
-      SetArrayLength(Lines, 7);
-      Lines[0] := '[database]';
-      Lines[1] := 'path=' + DBPath;
-      Lines[2] := '';
-      Lines[3] := '[backup]';
-      Lines[4] := 'dir=' + OneDrivePath + '\BackupsAcademia';
-      Lines[5] := '';
-      Lines[6] := '[rutas]';
-      SaveStringsToFile(ConfigPath, Lines, False);
-      // fotos/comprobantes se resuelven via OneDrive\Academia\fotos si no están en config
-    end
-    else
-    begin
-      // Fallback local (sin OneDrive) — no crear, la app usará database\academia.db
-      if not DirExists(ExpandConstant('{localappdata}\BackupsAcademia')) then
-        CreateDir(ExpandConstant('{localappdata}\BackupsAcademia'));
-    end;
-  end;
+  // reservado para pasos futuros
 end;

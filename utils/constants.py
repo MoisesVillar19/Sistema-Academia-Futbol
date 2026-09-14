@@ -28,36 +28,8 @@ def _leer_version() -> str:
 
 __version__ = _leer_version()
 
-# ── Detección de OneDrive ──────────────────────────────────────
-def detectar_onedrive() -> str | None:
-    for var in ("OneDrive", "OneDriveConsumer", "OneDriveCommercial"):
-        ruta = os.environ.get(var)
-        if ruta and os.path.isdir(ruta):
-            return ruta
-    ruta_fallback = os.path.join(os.path.expanduser("~"), "OneDrive")
-    if os.path.isdir(ruta_fallback):
-        return ruta_fallback
-    return None
-
-
 def _obtener_ruta_backup() -> str:
-    ruta_onedrive = detectar_onedrive()
-    if ruta_onedrive:
-        try:
-            cand = os.path.join(ruta_onedrive, "BackupsAcademia")
-            os.makedirs(cand, exist_ok=True)
-            # test escritura
-            test = os.path.join(cand, ".write_test")
-            with open(test, "w", encoding="utf-8") as f:
-                f.write("ok")
-            try:
-                os.remove(test)
-            except Exception:
-                pass
-            return cand
-        except Exception:
-            pass
-    # fallback LOCALAPPDATA (escribible en Program Files)
+    # LOCALAPPDATA (escribible en Program Files)
     local = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
     if local:
         try:
@@ -96,8 +68,9 @@ CONFIG_VISUAL_PATH = _resolver_config_visual_path()
 
 BACKUP_DIR = _obtener_ruta_backup()
 
-# ── Base de datos (OneDrive central, flexible) ───────────────────
-# Orden: config.ini (wizard) → OneDrive\Academia\academia.db → APP_DIR/database (dev)
+# ── Base de datos (red LAN o local, sin OneDrive) ────────────────
+# Orden: config.ini (setup_red.bat o picker) → LOCALAPPDATA (frozen) o
+# APP_DIR/database (dev). OneDrive eliminado a propósito (permisos).
 def _leer_config_ini(clave: str, seccion: str = "database") -> str | None:
     for base in (APP_DIR, os.path.join(APP_DIR, "_internal") if _FROZEN else APP_DIR):
         ini = os.path.join(base, "config.ini")
@@ -120,23 +93,24 @@ def _resolver_db_path() -> str:
     p = _leer_config_ini("path", "database") or os.getenv("DB_PATH")
     if p:
         return p if os.path.isabs(p) else os.path.join(APP_DIR, p)
-    od = detectar_onedrive()
-    if od:
-        # OneDrive central por defecto (BD no se mueve)
-        cand = os.path.join(od, "Academia", DB_NAME)
-        return cand
+    if _FROZEN:
+        # Instalado sin config: base local escribible (setup_red la mueve al share)
+        local = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
+        if local:
+            return os.path.join(local, "AcademiaFutbol", DB_NAME)
     return os.path.join(APP_DIR, "database", DB_NAME)
 
 DB_PATH = _resolver_db_path()
 
-# Carpetas OneDrive centralizadas (fotos/comprobantes)
+# Carpetas centralizadas (fotos/comprobantes): config.ini o caída local
 def _resolver_dir(clave: str, fallback: str) -> str:
     p = _leer_config_ini(clave, "rutas") or _leer_config_ini("dir", clave)
     if p:
         return p if os.path.isabs(p) else os.path.join(APP_DIR, p)
-    od = detectar_onedrive()
-    if od and clave in ("fotos", "comprobantes"):
-        return os.path.join(od, "Academia", clave)
+    if _FROZEN:
+        local = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
+        if local:
+            return os.path.join(local, "AcademiaFutbol", fallback)
     return os.path.join(APP_DIR, fallback)
 
 FOTOS_DIR = _resolver_dir("fotos", "fotos")

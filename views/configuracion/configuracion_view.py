@@ -116,10 +116,10 @@ class ConfiguracionView(ctk.CTkFrame):
         if config.get("backup_automatico", 1):
             self.backup_switch.select()
         self._crear_campo(sec5, "frecuencia_backup", "Frecuencia (días)", str(config.get("frecuencia_backup", 7)), help="Si 7, crea backup si pasaron ≥7 días sin uno")
-        self._crear_campo(sec5, "ruta_backup", "Ruta de backup", config.get("ruta_backup", "backups/"), help="OneDrive\\BackupsAcademia recomendado")
+        self._crear_campo(sec5, "ruta_backup", "Ruta de backup", config.get("ruta_backup", "backups/"), help="Recomendado: carpeta compartida (ej. \\\\SERVIDOR\\AcademiaDatos\\BackupsAcademia)")
         from utils.ui_helpers import crear_boton_interactivo as _btn_path
         _btn_path(sec5, text="📁 Examinar…", width=130, command=self._elegir_ruta_backup, fg_color="#E5E7EB", hover_color="#DDD6E5", text_color="#1F0A33").pack(anchor="w", padx=10, pady=(0, 4))
-        self._crear_campo(sec5, "correo_onedrive", "Correo OneDrive", config.get("correo_onedrive", ""), help="Cuenta que sincroniza academia.db")
+        self._crear_campo(sec5, "correo_onedrive", "Correo contacto (opcional)", config.get("correo_onedrive", ""), help="Solo referencia del responsable")
         # BD en red (separado de entries: vive en config.ini, no en tabla CONFIGURACION)
         try:
             from utils.constants import DB_PATH
@@ -129,8 +129,10 @@ class ConfiguracionView(ctk.CTkFrame):
         _frame_bd = ctk.CTkFrame(sec5, fg_color="transparent")
         _frame_bd.pack(fill="x", padx=10, pady=(6, 3))
         ctk.CTkLabel(_frame_bd, text="Base de datos en uso:", width=200, anchor="w", font=ctk.CTkFont(size=12)).pack(side="left")
-        self.entry_ruta_bd = ctk.CTkEntry(_frame_bd, width=260, border_width=1, border_color="#E5E7EB")
+        self.entry_ruta_bd = ctk.CTkEntry(_frame_bd, width=260, border_width=1, border_color="#E5E7EB",
+                                           placeholder_text="\\\\SERVIDOR\\AcademiaDatos\\academia.db")
         self.entry_ruta_bd.insert(0, _ruta_bd_actual)
+        ctk.CTkLabel(sec5, text="↳ Ej: \\\\192.168.1.50\\AcademiaDatos\\academia.db — la misma en las 4 PCs.", font=ctk.CTkFont(size=10), text_color="#9CA3AF", justify="left", wraplength=600).pack(anchor="w", padx=10, pady=(0,2))
         self.entry_ruta_bd.pack(side="left", padx=5)
         ctk.CTkLabel(sec5, text="↳ En red: \\\\SERVIDOR\\Academia\\academia.db (todas las PCs igual). Cambiar requiere reiniciar.", font=ctk.CTkFont(size=10), text_color="#9CA3AF", justify="left", wraplength=600).pack(anchor="w", padx=10, pady=(0,2))
         _btns_bd = ctk.CTkFrame(sec5, fg_color="transparent")
@@ -148,7 +150,7 @@ class ConfiguracionView(ctk.CTkFrame):
             self._nota(sec5, f"Estado actual: {_modo} • accesible: {'SÍ' if _st['accesible'] else 'NO'} • journal: {_st['journal']} • tamaño: {_tam}")
         except Exception:
             pass
-        self._nota(sec5, "Botón Respaldo en sidebar crea backup manual en OneDrive inmediatamente.")
+        self._nota(sec5, "Botón Respaldo en sidebar crea backup manual en la carpeta configurada inmediatamente.")
         self._nota(sec5, "Restaurar sobreescribe academia.db actual — requiere reiniciar la app. Hora muestra (UTC-5).")
         # Lista backups + restaurar/verificar/rotar
         try:

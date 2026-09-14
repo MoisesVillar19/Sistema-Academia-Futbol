@@ -6,13 +6,10 @@ from logging.handlers import RotatingFileHandler
 
 
 def _resolver_log_dir() -> str:
-    """Resuelve directorio de logs escribible (OneDrive -> LOCALAPPDATA -> APP_DIR -> temp)."""
+    """Resuelve directorio de logs escribible (LOCALAPPDATA -> APP_DIR -> temp)."""
     candidatos: list[str] = []
     try:
-        from utils.constants import APP_DIR, detectar_onedrive
-        od = detectar_onedrive()
-        if od:
-            candidatos.append(os.path.join(od, "Academia", "logs"))
+        from utils.constants import APP_DIR
         # LOCALAPPDATA es escribible aun en Program Files
         local = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
         if local:
