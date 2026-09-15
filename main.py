@@ -472,8 +472,26 @@ class App(ctk.CTk):
 
 
 def initialize_system() -> None:
-    create_tables()
-    seed_database()
+    import sqlite3
+    import time
+    from utils.logger import logger
+    ultimo_error: Exception | None = None
+    for intento in range(3):
+        try:
+            create_tables()
+            seed_database()
+            return
+        except sqlite3.OperationalError as e:
+            # Red LAN: otra PC escribiendo al arrancar a la vez → esperar y reintentar
+            ultimo_error = e
+            if "locked" in str(e).lower() and intento < 2:
+                espera = 2 * (intento + 1)
+                logger.warning(f"BD bloqueada al iniciar (arranque simultáneo), reintento {intento + 1}/3 en {espera}s")
+                time.sleep(espera)
+                continue
+            raise
+    if ultimo_error is not None:
+        raise ultimo_error
 
 
 def verificar_acceso_bd() -> None:

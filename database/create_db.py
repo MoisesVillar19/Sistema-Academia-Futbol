@@ -543,6 +543,7 @@ def seed_tarifas_desde_config(cursor=None) -> None:
             return cur.lastrowid
 
         def _tar(id_cat, nombre, monto):
+            import sqlite3 as _sq
             row = cursor.execute("SELECT id_tarifa FROM tarifa WHERE nombre=? AND id_categoria=?", (nombre, id_cat)).fetchone()
             try:
                 monto_f = float(monto or 0)
@@ -550,7 +551,10 @@ def seed_tarifas_desde_config(cursor=None) -> None:
                 return
             if row or monto_f <= 0:
                 return
-            cursor.execute("INSERT INTO tarifa (id_categoria, nombre, monto, descripcion, activo) VALUES (?,?,?,?,1)", (id_cat, nombre, monto_f, "Migrado desde Precios Flexibles"))
+            try:
+                cursor.execute("INSERT INTO tarifa (id_categoria, nombre, monto, descripcion, activo) VALUES (?,?,?,?,1)", (id_cat, nombre, monto_f, "Migrado desde Precios Flexibles"))
+            except _sq.IntegrityError:
+                pass  # carrera: otra PC lo creó primero
 
         id_serv = _cat("Servicios", "SERVICIO")
         id_camp = _cat("Campeonatos", "CAMPEONATO")
