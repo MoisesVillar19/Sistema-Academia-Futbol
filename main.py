@@ -501,15 +501,44 @@ def verificar_acceso_bd() -> None:
     sys.exit(1)
 
 
-def main() -> None:
+def _dialogo_fatal(mensaje: str) -> None:
     try:
+        import tkinter as tk
+        from tkinter import messagebox
+        r = tk.Tk()
+        r.withdraw()
+        messagebox.showerror("AcademiaFutbol no pudo iniciar", mensaje)
+        r.destroy()
+    except Exception:
+        pass
+
+
+def main() -> None:
+    from utils.crashlog import instalar as _instalar_diag, registrar_fase, ruta_error_log
+    _ruta_log = _instalar_diag()
+    try:
+        registrar_fase("inicio")
         verificar_acceso_bd()
+        registrar_fase("acceso_bd_ok")
         initialize_system()
+        registrar_fase("bd_lista")
         app = App()
+        registrar_fase("ventana_lista")
         app.after(2000, lambda: update_view.verificar_y_mostrar(app))
         app.mainloop()
+        registrar_fase("cierre_normal")
+    except SystemExit:
+        raise
     except Exception as e:
-        print(f"Error al inicializar el sistema: {e}")
+        import traceback
+        detalle = traceback.format_exc()
+        print(f"Error al inicializar el sistema: {e}\n{detalle}")
+        try:
+            with open(_ruta_log, "a", encoding="utf-8") as f:
+                f.write(f"\nFALLO ARRANQUE:\n{detalle}\n")
+        except Exception:
+            pass
+        _dialogo_fatal(f"No se pudo iniciar:\n\n{e}\n\nDetalle en:\n{_ruta_log}")
     finally:
         close_connection()
 
