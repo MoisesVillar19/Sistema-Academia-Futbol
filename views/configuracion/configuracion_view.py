@@ -144,10 +144,14 @@ class ConfiguracionView(ctk.CTkFrame):
         self.label_bd_status.pack(anchor="w", padx=10, pady=2)
         try:
             from database.connection import estado_bd
+            from utils.constants import FOTOS_DIR, COMPROBANTES_DIR, BACKUP_DIR
             _st = estado_bd()
             _tam = f"{_st['bytes']/1048576:.1f}MB" if _st["bytes"] else "—"
             _modo = "RED compartida" if _st["es_red"] else "local"
             self._nota(sec5, f"Estado actual: {_modo} • accesible: {'SÍ' if _st['accesible'] else 'NO'} • journal: {_st['journal']} • tamaño: {_tam}")
+            self._nota(sec5, f"Fotos: {FOTOS_DIR}")
+            self._nota(sec5, f"Comprobantes: {COMPROBANTES_DIR}")
+            self._nota(sec5, f"Backups: {BACKUP_DIR} (requiere reiniciar tras Guardar ruta)")
         except Exception:
             pass
         self._nota(sec5, "Botón Respaldo en sidebar crea backup manual en la carpeta configurada inmediatamente.")
@@ -392,15 +396,43 @@ class ConfiguracionView(ctk.CTkFrame):
             if not cp.has_section("database"):
                 cp.add_section("database")
             cp.set("database", "path", ruta)
+            # Derivar carpetas hermanas (fotos/comprobantes/backups) junto a la BD:
+            # si no, cada PC las guarda en local y no se comparten.
+            hermanas = self._carpetas_hermanas(ruta)
+            for dest in hermanas.values():
+                try:
+                    os.makedirs(dest, exist_ok=True)
+                except Exception:
+                    pass
+            try:
+                if not cp.has_section("rutas"):
+                    cp.add_section("rutas")
+                for clave in ("fotos", "comprobantes"):
+                    if not cp.has_option("rutas", clave):
+                        cp.set("rutas", clave, hermanas[clave])
+                if not cp.has_section("backup"):
+                    cp.add_section("backup")
+                if not cp.has_option("backup", "dir"):
+                    cp.set("backup", "dir", hermanas["backup"])
+            except Exception:
+                pass
             with open(ini, "w", encoding="utf-8") as f:
                 cp.write(f)
             messagebox.showinfo("Ruta BD", f"Guardada en config.ini.\n\nReinicia la app para usar:\n{ruta}")
             try:
-                self.label_bd_status.configure(text="✅ Guardada. Reinicia la app.", text_color="green")
+                self.label_bd_status.configure(text="✅ Guardada (BD + fotos + backups). Reinicia la app.", text_color="green")
             except Exception:
                 pass
         except Exception as e:
             messagebox.showerror("Ruta BD", f"No se pudo escribir config.ini: {e}")
+
+    @staticmethod
+    def _carpetas_hermanas(ruta_bd: str) -> dict:
+        import os
+        padre = os.path.dirname(os.path.abspath(ruta_bd))
+        return {"fotos": os.path.join(padre, "fotos"),
+                "comprobantes": os.path.join(padre, "comprobantes"),
+                "backup": os.path.join(padre, "BackupsAcademia")}
 
     def _elegir_ruta_backup(self):
         from tkinter import filedialog

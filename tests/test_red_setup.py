@@ -24,6 +24,28 @@ def test_probar_ruta_bd_carpeta_inexistente(tmp_path):
     assert "No se accede" in msg
 
 
+def test_carpetas_hermanas_derivan_del_share():
+    from views.configuracion.configuracion_view import ConfiguracionView
+    h = ConfiguracionView._carpetas_hermanas("\\\\SRV\\Datos\\academia.db")
+    assert h["fotos"].endswith("fotos")
+    assert h["comprobantes"].endswith("comprobantes")
+    assert h["backup"].endswith("BackupsAcademia")
+    assert all(v.startswith("\\\\SRV\\Datos") for v in h.values())
+
+
+def test_guardar_ruta_crea_hermanas(tmp_path):
+    import configparser
+    from views.configuracion.configuracion_view import ConfiguracionView
+    base = tmp_path / "share"
+    base.mkdir()
+    ruta = str(base / "academia.db")
+    h = ConfiguracionView._carpetas_hermanas(ruta)
+    for dest in h.values():
+        import os
+        os.makedirs(dest, exist_ok=True)
+        assert os.path.isdir(dest)
+
+
 def test_guardian_pasa_en_local():
     import main as app_main
     assert app_main.verificar_acceso_bd() is None
