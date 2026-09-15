@@ -17,7 +17,23 @@ class InventarioView(ctk.CTkFrame):
         self._crear_widgets()
         self._cargar_combo_categorias()
         self._cargar_productos()
-        event_bus.subscribe("producto_actualizado", lambda *a, **kw: self.after(200, lambda: self._recargar_actual()))
+        self._bus_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_actual())
+        event_bus.subscribe("producto_actualizado", self._bus_handler)
+
+    def destroy(self):
+        # Sin esto cada visita acumulaba un suscriptor zombi que retenía la
+        # vista destruida y disparaba recargas fantasma en cada evento.
+        try:
+            if hasattr(self, "_bus_handler"):
+                event_bus.unsubscribe("producto_actualizado", self._bus_handler)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_debouncer"):
+                self._debouncer.cancel()
+        except Exception:
+            pass
+        super().destroy()
 
     def _crear_widgets(self):
         self.tabview = ctk.CTkTabview(self)

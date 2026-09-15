@@ -69,11 +69,29 @@ def _hook_hilos(args) -> None:
 
 
 _fd_faulthandler = None
+_TOPE_BYTES = 200 * 1024
+
+
+def _podar():
+    """Mantiene error_log.txt acotado (conserva la cola reciente)."""
+    ruta = ruta_error_log()
+    try:
+        if os.path.getsize(ruta) <= _TOPE_BYTES:
+            return
+        with open(ruta, "rb") as f:
+            f.seek(-_TOPE_BYTES, os.SEEK_END)
+            cola = f.read().decode("utf-8", errors="ignore")
+        corte = cola.find("\n" + "=" * 60)
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("...[recortado]...\n" + (cola[corte + 1:] if corte >= 0 else cola))
+    except Exception:
+        pass
 
 
 def instalar() -> str:
     """Instala hooks y faulthandler. Idempotente. Retorna ruta del log."""
     global _instalado, _fd_faulthandler
+    _podar()
     ruta = ruta_error_log()
     try:
         # el fd debe quedar ABIERTO (faulthandler escribe en crashes duros)

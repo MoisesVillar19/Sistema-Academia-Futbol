@@ -23,7 +23,23 @@ class PagoView(ctk.CTkFrame):
         self._q_actual = ""
         self._crear_widgets()
         self._cargar_pagos()
-        event_bus.subscribe("pago_registrado", lambda *a, **k: self.after(200, lambda: self._recargar_actual()))
+        self._bus_handler = lambda *a, **k: self.after(200, lambda: self._recargar_actual())
+        event_bus.subscribe("pago_registrado", self._bus_handler)
+
+    def destroy(self):
+        # Sin esto cada visita acumulaba un suscriptor zombi que retenía la
+        # vista destruida y disparaba recargas fantasma en cada evento.
+        try:
+            if hasattr(self, "_bus_handler"):
+                event_bus.unsubscribe("pago_registrado", self._bus_handler)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_debouncer"):
+                self._debouncer.cancel()
+        except Exception:
+            pass
+        super().destroy()
 
     def _crear_widgets(self):
         self.tabview = ctk.CTkTabview(self)

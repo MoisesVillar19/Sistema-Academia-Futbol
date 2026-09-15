@@ -18,7 +18,23 @@ class MatriculaView(ctk.CTkFrame):
         self._q_actual = ""
         self._crear_widgets()
         self._cargar_matriculas()
-        event_bus.subscribe("matricula_creada", lambda *a, **kw: self.after(200, lambda: self._recargar_actual()))
+        self._bus_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_actual())
+        event_bus.subscribe("matricula_creada", self._bus_handler)
+
+    def destroy(self):
+        # Sin esto cada visita acumulaba un suscriptor zombi que retenía la
+        # vista destruida y disparaba recargas fantasma en cada evento.
+        try:
+            if hasattr(self, "_bus_handler"):
+                event_bus.unsubscribe("matricula_creada", self._bus_handler)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_debouncer"):
+                self._debouncer.cancel()
+        except Exception:
+            pass
+        super().destroy()
 
     def _on_busqueda_cambiar(self, event=None):
         self._q_actual = self.entry_busqueda.get().strip()
