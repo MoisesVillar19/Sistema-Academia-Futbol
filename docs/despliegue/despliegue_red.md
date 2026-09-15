@@ -1,5 +1,9 @@
 # Despliegue en Red LAN — 4 PCs, BD única (Modelo A+C)
 
+> Evaluación honesta de la arquitectura (bitácora de incidentes, riesgos
+> inherentes y punto de quiebre a cliente-servidor):
+> `../desarrollo/red_lan_evaluacion.md`. Leer antes de culpar a la red.
+
 > Topología decidida: una PC hace de servidor con carpeta compartida;
 > las 4 PCs abren el **mismo** `academia.db` por UNC. Sin copias, sin merges.
 
