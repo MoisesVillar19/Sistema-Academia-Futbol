@@ -1,7 +1,7 @@
 # Plan Inventario UX + Búsquedas + Perfil + Config granular + Botones Guardar
 
-> Estado: PLANIFICADO (no implementado). Decisiones del usuario ya tomadas
-> en cada bloque. Ejecutar por bloques, con tests y commit por bloque.
+> Estado: EJECUTADO 2026-09-21 (bloques A → C → B → D, commit por bloque,
+> suite 419 tests en verde). Ver notas de ejecución al final.
 
 ## Decisiones tomadas
 
@@ -72,3 +72,28 @@ D4. Tests: gates (secretaria con/sin `catalogos`, admin todo), render por
 
 A → C (bugs) → B → D. Commit por bloque + suite completa (>330 tests) en
 verde antes de pasar al siguiente. Release ZIP solo al cerrar D.
+
+## Notas de ejecución 2026-09-21 (desviaciones y conflictos detectados)
+
+- A1: además del combo de compra, el combo de Movimiento tenía el mismo bug
+  (vacío hasta el primer uso); se carga también al instanciar.
+- A2: Pagos y Matrículas YA tenían Debouncer + intento de paginado (el plan
+  los listaba como pendientes). Solo faltaban Estudiantes (sin debounce,
+  sin normalizar) y Apoderados (sin buscador: se agregó en su pestaña).
+  "Carnet" no es columna: vive en `persona.dni` con `tipo_documento=CARNET`,
+  así que buscar por documento ya lo cubre (DNI 8 + carnet 9 dígitos).
+- A3: `pago_repository.buscar_paginado` y `matricula_repository.buscar_paginado`
+  NO existían (las vistas caían siempre al fallback); se implementaron junto
+  al de producto. B2 extendió el de producto con `id_categoria_producto`.
+- C2: no se reutilizó `CambiarPasswordView` como pedía el plan: su `_on_cerrar`
+  hace `sys.exit` (flujo obligatorio de primer acceso); incrustarlo cerraría
+  la app. `MiPerfilDialog` implementa el cambio vía `login_controller`.
+- C1: el clic abre MiPerfil (diálogo, todos los roles), no Usuarios.
+- B3 sin conflicto: `inventario_service.editar_producto` ya preservaba
+  `stock_actual`; solo faltaba la UI solo-lectura.
+- D1: `catalogos` se agregó al default de SECRETARIA (seed idempotente
+  `INSERT OR IGNORE` lo migra en BD existentes). Quitarlo es reversible desde
+  Usuarios → Permisos. `actualizar_configuracion`/backups/restaurar siguen
+  exigiendo `configuracion` (ADMIN).
+- D3: sección Apariencia ganó botón propio "Guardar apariencia" para que
+  solo-catálogos pueda persistirla sin el Guardar global (oculto sin permiso).
