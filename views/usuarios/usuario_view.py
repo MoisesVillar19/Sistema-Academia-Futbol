@@ -32,8 +32,8 @@ class CrearUsuarioDialog(ctk.CTkToplevel):
             text_color="#3D1559",
         ).pack(anchor="w", pady=(0, 15))
 
-        ctk.CTkLabel(frame, text="DNI de la persona:", font=ctk.CTkFont(size=12)).pack(anchor="w")
-        self.entry_dni = ctk.CTkEntry(frame, width=390, height=38, placeholder_text="8 dígitos")
+        ctk.CTkLabel(frame, text="Documento de la persona:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        self.entry_dni = ctk.CTkEntry(frame, width=390, height=38, placeholder_text="DNI (8) o carnet (9)")
         self.entry_dni.pack(anchor="w", pady=(0, 10))
 
         ctk.CTkLabel(frame, text="Nombre de usuario:", font=ctk.CTkFont(size=12)).pack(anchor="w")

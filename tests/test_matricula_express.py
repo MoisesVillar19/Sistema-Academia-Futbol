@@ -93,6 +93,48 @@ def test_tab_rapida_render_y_toggle(crear_vista, usuario_admin, ctk_root):
     vista._on_exp_tipo("NUEVO")
 
 
+def test_express_con_carnet_extranjeria():
+    ok, msg, ids = matricula_service.matricula_express(
+        _base(dni="123456789", tipo_documento="CARNET"))
+    assert ok, msg
+    from repositories import persona_repository
+    persona = persona_repository.obtener_por_dni("123456789")
+    assert persona is not None
+    assert persona["tipo_documento"] == "CARNET"
+    est = estudiante_repository.obtener_por_id(ids["id_estudiante"])
+    assert est is not None
+
+
+def test_express_carnet_longitud_por_tipo():
+    ok, msg, _ = matricula_service.matricula_express(
+        _base(dni="12345678", tipo_documento="CARNET"))
+    assert ok is False and "Carnet" in msg
+    ok, msg, _ = matricula_service.matricula_express(
+        _base(dni="123456789", tipo_documento="DNI"))
+    assert ok is False and "DNI" in msg
+    ok, _, _ = matricula_service.matricula_express(
+        _base(dni="12345678", tipo_documento="PASAPORTE"))
+    assert ok is False
+    # default sin tipo sigue siendo DNI de 8
+    ok, msg, _ = matricula_service.matricula_express(_base(dni="71717172"))
+    assert ok, msg
+
+
+def test_express_tipodoc_en_vista(crear_vista, usuario_admin, ctk_root):
+    import pytest
+    pytest.importorskip("customtkinter")
+    from views.matriculas.matricula_view import MatriculaView
+    vista = crear_vista(MatriculaView)
+    assert vista.combo_exp_tipodoc.get() == "DNI"
+    vista.combo_exp_tipodoc.set("CARNET")
+    vista._on_exp_tipodoc("CARNET")
+    ctk_root.update_idletasks()
+    assert "Carnet" in vista.label_exp_doc.cget("text")
+    vista.combo_exp_tipodoc.set("DNI")
+    vista._on_exp_tipodoc("DNI")
+    assert "DNI" in vista.label_exp_doc.cget("text")
+
+
 def test_express_atomico_sin_cuota_huerfana():
     # monto 0 inválido: no debe crear ni estudiante ni matrícula
     ok, _, _ = matricula_service.matricula_express(_base(dni="76767676", monto="0"))

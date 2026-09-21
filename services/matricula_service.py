@@ -281,8 +281,9 @@ def _tarifa_inscripcion_default() -> dict | None:
 def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict | None]:
     """Matrícula en 1 paso: crea/usa estudiante + matrícula + pago primera cuota.
 
-    data: tipo (NUEVO/ANTIGUO), nombres, apellidos, dni, monto (str|float|None),
-          metodo_pago (YAPE/EFECTIVO), comprobante_path (obligatorio si YAPE).
+    data: tipo (NUEVO/ANTIGUO), nombres, apellidos, dni, tipo_documento (DNI/CARNET),
+          monto (str|float|None), metodo_pago (YAPE/EFECTIVO),
+          comprobante_path (obligatorio si YAPE).
     NUEVO: monto default 120 editable, es_nuevo=1 (regala uniforme vía RN-051).
     ANTIGUO: monto obligatorio editable, sin descuento, es_nuevo=0.
     Todo atómico (transacción única). Apoderado queda pendiente.
@@ -297,7 +298,13 @@ def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict 
     dni = (data.get("dni") or "").strip()
     if not nombres or not apellidos:
         return False, "Nombres y apellidos son obligatorios", None
-    if len(dni) != 8 or not dni.isdigit():
+    from utils.validators import validate_documento
+    tipo_doc = (data.get("tipo_documento") or "DNI").strip().upper()
+    if tipo_doc not in ("DNI", "CARNET"):
+        return False, "Tipo de documento no válido. Use DNI o CARNET", None
+    if not validate_documento(dni, tipo_doc):
+        if tipo_doc == "CARNET":
+            return False, "El Carnet debe tener 9 dígitos", None
         return False, "El DNI debe tener 8 dígitos", None
     metodo = (data.get("metodo_pago") or "").strip().upper()
     if metodo not in ("YAPE", "EFECTIVO"):
@@ -331,7 +338,7 @@ def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict 
             if id_estudiante is None:
                 ok_e, msg_e, id_estudiante = estudiante_service.crear_estudiante({
                     "dni": dni, "nombres": nombres, "apellidos": apellidos,
-                    "tipo_documento": "DNI",
+                    "tipo_documento": tipo_doc,
                     "es_nuevo": 1 if tipo == "NUEVO" else 0,
                 }, id_usuario=id_usuario)
                 if not ok_e:

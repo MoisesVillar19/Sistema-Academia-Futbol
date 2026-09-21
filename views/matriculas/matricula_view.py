@@ -94,7 +94,14 @@ class MatriculaView(ctk.CTkFrame):
 
         row2 = ctk.CTkFrame(cuerpo, fg_color="transparent")
         row2.pack(fill="x", anchor="w", pady=3)
-        ctk.CTkLabel(row2, text="DNI (8 dígitos) *").pack(side="left")
+        self.label_exp_doc = ctk.CTkLabel(row2, text="DNI (8 dígitos) *")
+        self.label_exp_doc.pack(side="left")
+        self.combo_exp_tipodoc = ctk.CTkComboBox(
+            row2, width=110, values=["DNI", "CARNET"],
+            command=self._on_exp_tipodoc,
+        )
+        self.combo_exp_tipodoc.set("DNI")
+        self.combo_exp_tipodoc.pack(side="left", padx=5)
         self.entry_exp_dni = ctk.CTkEntry(row2, placeholder_text="12345678", width=140)
         self.entry_exp_dni.pack(side="left", padx=10)
         ctk.CTkLabel(row2, text="Monto S/ *").pack(side="left", padx=(10, 0))
@@ -137,6 +144,18 @@ class MatriculaView(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _on_exp_tipodoc(self, selection):
+        sel = selection if isinstance(selection, str) else self.combo_exp_tipodoc.get()
+        try:
+            if sel == "CARNET":
+                self.label_exp_doc.configure(text="Carnet (9 dígitos) *")
+                self.entry_exp_dni.configure(placeholder_text="123456789")
+            else:
+                self.label_exp_doc.configure(text="DNI (8 dígitos) *")
+                self.entry_exp_dni.configure(placeholder_text="12345678")
+        except Exception:
+            pass
+
     def _elegir_comprobante_exp(self):
         from tkinter import filedialog
         import os
@@ -152,6 +171,7 @@ class MatriculaView(ctk.CTkFrame):
                 "nombres": self.entry_exp_nombres.get().strip(),
                 "apellidos": self.entry_exp_apellidos.get().strip(),
                 "dni": self.entry_exp_dni.get().strip(),
+                "tipo_documento": self.combo_exp_tipodoc.get(),
                 "monto": self.entry_exp_monto.get().strip() or None,
                 "metodo_pago": self.combo_exp_metodo.get(),
                 "comprobante_path": self._exp_comprobante}
@@ -184,13 +204,13 @@ class MatriculaView(ctk.CTkFrame):
 
         sec_filtros = crear_seccion(
             self.tab_lista, titulo="Búsqueda", icono="🔍",
-            descripcion="Busca por DNI, Carnet o nombre de estudiante.",
+            descripcion="Busca por documento, carnet o nombre de estudiante.",
             nro=2,
         )
         filtros = ctk.CTkFrame(sec_filtros, fg_color="transparent")
         filtros.pack(fill="x", padx=10, pady=(0, 8))
         self.entry_busqueda = ctk.CTkEntry(
-            filtros, placeholder_text="Buscar por DNI, Carnet o nombre...",
+            filtros, placeholder_text="Buscar por documento, carnet o nombre...",
             width=250,
         )
         self.entry_busqueda.pack(side="left", padx=5)

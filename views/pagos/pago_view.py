@@ -75,7 +75,7 @@ class PagoView(ctk.CTkFrame):
         crear_boton_interactivo(filtros, text="🔍 Buscar", width=90, command=self._buscar_por_fecha, fg_color="#7C3AED").pack(side="left", padx=5)
         crear_boton_interactivo(filtros, text="🧹 Limpiar", width=90, fg_color="#E5E7EB", hover_color="#DDD6E5", text_color="#1F0A33", command=self._limpiar_fechas).pack(side="left", padx=5)
         ctk.CTkLabel(filtros, text="|", text_color="#E5E7EB").pack(side="left", padx=8)
-        self.entry_busqueda = ctk.CTkEntry(filtros, placeholder_text="🔍 Buscar por DNI, recibo o método...", width=260, border_color="#DDD6E5")
+        self.entry_busqueda = ctk.CTkEntry(filtros, placeholder_text="🔍 Buscar por documento, recibo o método...", width=260, border_color="#DDD6E5")
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))

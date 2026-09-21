@@ -61,7 +61,7 @@ class EstudianteView(ctk.CTkFrame):
         # ── Sección 2: filtros ──
         sec_filtros = crear_seccion(
             self.tab_lista, titulo="Filtros y búsqueda", icono="🔍",
-            descripcion="Filtra por estado o busca por nombre, DNI o Carnet.",
+             descripcion="Filtra por estado o busca por nombre, documento o carnet.",
             nro=2,
         )
         filtros = ctk.CTkFrame(sec_filtros, fg_color="transparent")
@@ -75,7 +75,7 @@ class EstudianteView(ctk.CTkFrame):
         self.filtro_estado.pack(side="left", padx=(0, 10))
 
         self.entry_busqueda = ctk.CTkEntry(
-            filtros, placeholder_text="Buscar por nombre, DNI o Carnet...",
+            filtros, placeholder_text="Buscar por nombre, documento o carnet...",
             width=250,
         )
         self.entry_busqueda.pack(side="left", padx=5)
@@ -109,9 +109,9 @@ class EstudianteView(ctk.CTkFrame):
         self.combo_tipo_doc.set("DNI")
         self.combo_tipo_doc.pack(side="left", padx=(0, 10))
 
-        self.label_dni_est = ctk.CTkLabel(row_doc, text="DNI *", font=ctk.CTkFont(size=12))
+        self.label_dni_est = ctk.CTkLabel(row_doc, text="Documento *", font=ctk.CTkFont(size=12))
         self.label_dni_est.pack(side="left", padx=(0, 5))
-        self.entry_dni = ctk.CTkEntry(row_doc, placeholder_text="8 dígitos", width=200)
+        self.entry_dni = ctk.CTkEntry(row_doc, placeholder_text="DNI (8) o carnet (9)", width=200)
         self.entry_dni.pack(side="left")
 
         ctk.CTkLabel(cuerpo1, text="Nombres *", font=ctk.CTkFont(size=12)).pack(anchor="w")
@@ -193,9 +193,9 @@ class EstudianteView(ctk.CTkFrame):
         self.combo_tipo_doc_ap.set("DNI")
         self.combo_tipo_doc_ap.pack(side="left", padx=(0, 10))
 
-        self.label_dni_ap = ctk.CTkLabel(row_doc_ap, text="DNI *", font=ctk.CTkFont(size=12))
+        self.label_dni_ap = ctk.CTkLabel(row_doc_ap, text="Documento *", font=ctk.CTkFont(size=12))
         self.label_dni_ap.pack(side="left", padx=(0, 5))
-        self.entry_dni_ap = ctk.CTkEntry(row_doc_ap, placeholder_text="8 dígitos", width=200)
+        self.entry_dni_ap = ctk.CTkEntry(row_doc_ap, placeholder_text="DNI (8) o carnet (9)", width=200)
         self.entry_dni_ap.pack(side="left")
 
         ctk.CTkLabel(cuerpo4, text="Nombres *", font=ctk.CTkFont(size=12)).pack(anchor="w")
@@ -897,8 +897,8 @@ class EstudianteView(ctk.CTkFrame):
         combo_tipo_doc.set("DNI")
         combo_tipo_doc.pack(side="left", padx=(0, 10))
 
-        ctk.CTkLabel(row_doc, text="DNI *").pack(side="left", padx=(0, 5))
-        entry_dni = ctk.CTkEntry(row_doc, placeholder_text="8 dígitos", width=200)
+        ctk.CTkLabel(row_doc, text="Documento *").pack(side="left", padx=(0, 5))
+        entry_dni = ctk.CTkEntry(row_doc, placeholder_text="DNI (8) o carnet (9)", width=200)
         entry_dni.pack(side="left")
 
         ctk.CTkLabel(scroll, text="Nombres *").pack(anchor="w")
