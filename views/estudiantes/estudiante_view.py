@@ -1,5 +1,7 @@
 import customtkinter as ctk
 from controllers import estudiante_controller
+from utils.debounce import Debouncer
+from utils.busqueda import coincide
 from widgets.date_picker import DatePicker
 from utils.logger import logger
 import os
@@ -19,6 +21,19 @@ class EstudianteView(ctk.CTkFrame):
         self._id_apoderado_editando = None
         self._crear_widgets()
         self._cargar_estudiantes(activo=1, estado="ACTIVO")
+
+    def destroy(self):
+        try:
+            if hasattr(self, "_debouncer"):
+                self._debouncer.cancel()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_debouncer_apod"):
+                self._debouncer_apod.cancel()
+        except Exception:
+            pass
+        super().destroy()
 
     def _crear_widgets(self):
         self.tabview = ctk.CTkTabview(self)
@@ -64,7 +79,8 @@ class EstudianteView(ctk.CTkFrame):
             width=250,
         )
         self.entry_busqueda.pack(side="left", padx=5)
-        self.entry_busqueda.bind("<KeyRelease>", self._on_busqueda_cambiar)
+        self._debouncer = Debouncer(self, 300)
+        self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
         crear_nota(sec_filtros, "Tip: clic en ▾ Ver detalle de cada tarjeta para ver contacto y apoderados sin abrir el formulario.")
 
         self.scroll_estudiantes = ctk.CTkScrollableFrame(self.tab_lista)
@@ -251,9 +267,18 @@ class EstudianteView(ctk.CTkFrame):
         self.combo_estudiante.set("Seleccionar estudiante...")
         self.combo_estudiante.pack(anchor="w", padx=5, pady=5)
 
+        self.entry_busqueda_apod = ctk.CTkEntry(
+            self.tab_apoderados, placeholder_text="Buscar apoderado por nombre o documento...",
+            width=350,
+        )
+        self.entry_busqueda_apod.pack(anchor="w", padx=5, pady=(0, 5))
+        self._debouncer_apod = Debouncer(self, 300)
+        self.entry_busqueda_apod.bind("<KeyRelease>", lambda e: self._debouncer_apod.call(self._on_busqueda_apod_cambiar))
+
         self.scroll_apoderados = ctk.CTkScrollableFrame(self.tab_apoderados)
         self.scroll_apoderados.pack(fill="both", expand=True, padx=5, pady=5)
 
+        self._apoderados_actuales = []
         self._cargar_combo_estudiantes()
 
     def _cargar_estudiantes(self, activo=None, estado=None):
@@ -736,7 +761,9 @@ class EstudianteView(ctk.CTkFrame):
         self._on_busqueda_cambiar()
 
     def _on_busqueda_cambiar(self, event=None):
-        texto = self.entry_busqueda.get().strip().lower()
+        # Bloque A2: normaliza (tildes/espacios) y multi-campo; el documento
+        # cubre DNI (8) y carnet (9, vive en persona.dni con tipo CARNET).
+        texto = self.entry_busqueda.get().strip()
         filtro_estado = self.filtro_estado.get()
 
         activo = None
@@ -754,12 +781,12 @@ class EstudianteView(ctk.CTkFrame):
         todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
 
         if texto:
-            filtrados = []
-            for e in todos:
-                nombre = f"{e.get('nombres', '')} {e.get('apellidos', '')}".lower()
-                dni = str(e.get('dni', '')).lower()
-                if texto in nombre or texto in dni:
-                    filtrados.append(e)
+            filtrados = [
+                e for e in todos
+                if coincide(texto, e.get("nombres", ""), e.get("apellidos", ""),
+                            f"{e.get('nombres', '')} {e.get('apellidos', '')}",
+                            e.get("dni", ""))
+            ]
             self._renderizar_estudiantes(filtrados)
         else:
             self._renderizar_estudiantes(todos)
@@ -788,18 +815,39 @@ class EstudianteView(ctk.CTkFrame):
         self._estudiantes_map = {n: e["id_estudiante"] for n, e in zip(nombres, estudiantes)}
 
     def _cargar_apoderados_estudiante(self, selection):
-        for widget in self.scroll_apoderados.winfo_children():
-            widget.destroy()
-
         id_est = self._estudiantes_map.get(selection)
         if not id_est:
             return
 
-        apoderados = estudiante_controller.obtener_apoderados_por_estudiante(id_est)
+        self._apoderados_actuales = estudiante_controller.obtener_apoderados_por_estudiante(id_est)
+        self._id_est_apod_actual = id_est
+        self._renderizar_apoderados()
 
+    def _on_busqueda_apod_cambiar(self, event=None):
+        self._renderizar_apoderados()
+
+    def _renderizar_apoderados(self):
+        for widget in self.scroll_apoderados.winfo_children():
+            widget.destroy()
+
+        apoderados = list(getattr(self, "_apoderados_actuales", []) or [])
+        try:
+            texto = self.entry_busqueda_apod.get().strip()
+        except Exception:
+            texto = ""
+        if texto:
+            apoderados = [
+                ap for ap in apoderados
+                if coincide(texto, ap.get("nombres", ""), ap.get("apellidos", ""),
+                            f"{ap.get('nombres', '')} {ap.get('apellidos', '')}",
+                            ap.get("dni", ""), ap.get("parentesco", ""))
+            ]
+
+        id_est = getattr(self, "_id_est_apod_actual", None)
         if not apoderados:
             ctk.CTkLabel(
-                self.scroll_apoderados, text="Sin apoderados asociados",
+                self.scroll_apoderados,
+                text="Sin apoderados asociados" if not texto else "Sin coincidencias",
                 text_color="gray",
             ).pack(pady=10)
             return

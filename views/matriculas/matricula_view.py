@@ -364,10 +364,13 @@ class MatriculaView(ctk.CTkFrame):
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
         except Exception:
+            from utils.busqueda import coincide as _coincide
             rows = matricula_controller.listar_matriculas_activas()
             if self._q_actual:
-                ql = self._q_actual.lower()
-                rows = [m for m in rows if ql in (m.get("dni", "") or "").lower() or ql in (m.get("nombres", "") or "").lower() or ql in (m.get("apellidos", "") or "").lower()]
+                rows = [m for m in rows if _coincide(
+                    self._q_actual, m.get("dni", ""), m.get("nombres", ""),
+                    m.get("apellidos", ""),
+                    f"{m.get('nombres', '')} {m.get('apellidos', '')}")]
             total = len(rows)
             rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             self._total = total

@@ -93,6 +93,36 @@ def obtener_activas() -> list[dict]:
     )
 
 
+def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    """Búsqueda SQL real (documento/nombres/apellidos) con paginación.
+
+    Cubre el mismo conjunto que ``obtener_activas`` (matriculas activas).
+    """
+    base = """
+        FROM matricula m
+        JOIN tarifa t ON m.id_tarifa = t.id_tarifa
+        JOIN categoria c ON t.id_categoria = c.id_categoria
+        JOIN estudiante e ON m.id_estudiante = e.id_estudiante
+        JOIN persona p ON e.id_persona = p.id_persona
+        WHERE m.estado = 'ACTIVO' AND m.activo = 1
+    """
+    params: list = []
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        base += " AND (p.dni LIKE ? OR p.nombres LIKE ? OR p.apellidos LIKE ?)"
+        params.extend([like, like, like])
+    cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
+    total = cnt["c"] if cnt else 0
+    rows = fetch_all(
+        f"""SELECT m.*, t.nombre as tarifa_nombre, t.monto as tarifa_monto,
+                   c.nombre as categoria_nombre,
+                   p.nombres, p.apellidos, p.dni {base}
+            ORDER BY p.apellidos, p.nombres LIMIT ? OFFSET ?""",
+        tuple(params + [limit, offset]),
+    )
+    return rows, total
+
+
 def actualizar(matricula: Matricula) -> None:
     conn = get_connection()
     conn.execute(

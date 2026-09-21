@@ -14,9 +14,14 @@ class InventarioView(ctk.CTkFrame):
         self._per_page = 50
         self._total = 0
         self._q_actual = ""
+        self._productos_compra_map = {}
         self._crear_widgets()
         self._cargar_combo_categorias()
         self._cargar_productos()
+        # A1: el combo de compra quedaba en "Cargando..." hasta la primera
+        # compra; el de movimiento hasta el primer uso. Cargar al instanciar.
+        self._cargar_productos_compra()
+        self._cargar_combo_productos()
         self._bus_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_actual())
         event_bus.subscribe("producto_actualizado", self._bus_handler)
 
@@ -486,10 +491,11 @@ class InventarioView(ctk.CTkFrame):
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
         except Exception:
+            from utils.busqueda import coincide as _coincide
             todos = inventario_controller.listar_productos()
             if self._q_actual:
-                ql = self._q_actual.lower()
-                rows = [p for p in todos if ql in str(p.get('nombre', '')).lower() or ql in str(p.get('codigo', '')).lower()]
+                rows = [p for p in todos if _coincide(
+                    self._q_actual, p.get('nombre', ''), p.get('codigo', ''))]
                 total = len(rows)
                 rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             else:

@@ -97,6 +97,34 @@ def sumar_por_fecha(fecha_inicio: str, fecha_fin: str) -> float:
     return row["total"] if row else 0.0
 
 
+def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    """Búsqueda SQL real (recibo/método/documento/nombres) con paginación."""
+    base = """
+        FROM pago p
+        JOIN usuario u ON p.id_usuario = u.id_usuario
+        LEFT JOIN detalle_pago dp ON dp.id_pago = p.id_pago
+        LEFT JOIN cuota c ON c.id_cuota = dp.id_cuota
+        LEFT JOIN matricula m ON m.id_matricula = c.id_matricula
+        LEFT JOIN estudiante e ON e.id_estudiante = m.id_estudiante
+        LEFT JOIN persona per ON per.id_persona = e.id_persona
+        WHERE p.activo = 1
+    """
+    params: list = []
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        base += """ AND (p.numero_recibo LIKE ? OR p.metodo_pago LIKE ?
+                         OR per.dni LIKE ? OR per.nombres LIKE ? OR per.apellidos LIKE ?)"""
+        params.extend([like, like, like, like, like])
+    cnt = fetch_one(f"SELECT COUNT(DISTINCT p.id_pago) as c {base}", tuple(params))
+    total = cnt["c"] if cnt else 0
+    rows = fetch_all(
+        f"""SELECT DISTINCT p.*, u.username, per.dni, per.nombres, per.apellidos {base}
+            ORDER BY p.fecha_pago DESC LIMIT ? OFFSET ?""",
+        tuple(params + [limit, offset]),
+    )
+    return rows, total
+
+
 def buscar_por_texto(texto: str) -> list[dict]:
     like = f"%{texto}%"
     return fetch_all(

@@ -174,6 +174,31 @@ def actualizar(producto: Producto) -> None:
     conn.commit()
 
 
+def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    """Búsqueda SQL real por nombre/código con paginación (Bloque A3).
+
+    Devuelve (rows, total). Solo productos activos.
+    """
+    base = """
+        FROM producto p
+        JOIN categoria_producto cp ON p.id_categoria_producto = cp.id_categoria_producto
+        WHERE p.activo = 1
+    """
+    params: list = []
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        base += " AND (p.nombre LIKE ? OR p.codigo LIKE ?)"
+        params.extend([like, like])
+    cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
+    total = cnt["c"] if cnt else 0
+    rows = fetch_all(
+        f"""SELECT p.*, cp.nombre as categoria_nombre {base}
+            ORDER BY p.nombre LIMIT ? OFFSET ?""",
+        tuple(params + [limit, offset]),
+    )
+    return rows, total
+
+
 def soft_delete(id_producto: int) -> None:
     conn = get_connection()
     conn.execute(

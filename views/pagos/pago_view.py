@@ -214,10 +214,13 @@ class PagoView(ctk.CTkFrame):
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
         except Exception:
+            from utils.busqueda import coincide as _coincide
             rows = self._pagos_actuales if hasattr(self, '_pagos_actuales') else pago_controller.listar_pagos()
             if q:
-                ql = q.lower()
-                rows = [p for p in rows if ql in str(p.get('numero_recibo','')).lower() or ql in str(p.get('metodo_pago','')).lower() or ql in str(p.get('dni','')).lower() or ql in (str(p.get('nombres','')) + " " + str(p.get('apellidos',''))).lower()]
+                rows = [p for p in rows if _coincide(
+                    q, p.get('numero_recibo', ''), p.get('metodo_pago', ''),
+                    p.get('dni', ''), p.get('nombres', ''), p.get('apellidos', ''),
+                    f"{p.get('nombres', '')} {p.get('apellidos', '')}")]
             total = len(rows)
             rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             self._total = total
