@@ -9,7 +9,8 @@ from views.dashboard.dashboard_view import DashboardView
 TIPOS = ["alumnos", "vencidas", "por_vencer", "pagos_hoy", "ingresos_hoy",
          "ingresos_mes", "monto_vencido", "monto_por_vencer", "stock",
          "ventas_mes", "egresos_mes", "neto_mes", "nuevos_mes",
-         "antiguos_mes", "matriculas_mes", "mom"]
+         "antiguos_mes", "matriculas_mes", "mom",
+         "dinero_compras", "dinero_ventas", "dinero_ganancias"]
 
 
 @pytest.mark.parametrize("tipo", TIPOS)
@@ -63,7 +64,28 @@ def test_click_en_interior_de_card_abre_detalle(crear_vista, usuario_admin, ctk_
     ctk_root.update()
     rows = vista.cards_frame.winfo_children()
     assert rows, "no hay filas de cards"
-    btn = rows[0].winfo_children()[0]
+
+    def _textos(w):
+        out = []
+        try:
+            t = w.cget("text")
+            if t:
+                out.append(str(t))
+        except Exception:
+            pass
+        for ch in w.winfo_children():
+            out += _textos(ch)
+        return out
+
+    btn = None
+    for row in rows:
+        for card in row.winfo_children():
+            if any("Alumnos Activos" in t for t in _textos(card)):
+                btn = card
+                break
+        if btn is not None:
+            break
+    assert btn is not None, "no se encontró la card Alumnos Activos"
 
     # En CTk 6 los widgets son compuestos: el bind vive en el widget
     # interno visible. Se dispara el evento donde hay binding real.

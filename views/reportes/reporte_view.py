@@ -108,10 +108,16 @@ class ReporteView(ctk.CTkFrame):
             resultado["valor"] = (fecha_inicio, fecha_fin, ruta)
             dialog.destroy()
 
+        btn_row = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_row.pack(pady=20)
         ctk.CTkButton(
-            dialog, text="Seleccionar y Exportar", width=200,
+            btn_row, text="Seleccionar y Exportar", width=180,
             command=confirmar,
-        ).pack(pady=20)
+        ).pack(side="left", padx=5)
+        ctk.CTkButton(
+            btn_row, text="Cancelar", width=110, fg_color="gray",
+            command=dialog.destroy,
+        ).pack(side="left", padx=5)
 
         dialog.wait_window()
 

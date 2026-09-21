@@ -2,27 +2,60 @@ from database.connection import get_connection, fetch_one, fetch_all
 from models.producto import Producto
 
 
+def _tiene_columna(conn, tabla: str, columna: str) -> bool:
+    try:
+        return any(r[1] == columna for r in conn.execute(f"PRAGMA table_info({tabla})").fetchall())
+    except Exception:
+        return False
+
+
 def insertar(producto: Producto) -> int:
     conn = get_connection()
-    cursor = conn.execute(
-        """INSERT INTO producto
-           (id_categoria_producto, tipo_uso, codigo, nombre,
-            stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme, activo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            producto.id_categoria_producto,
-            producto.tipo_uso,
-            producto.codigo,
-            producto.nombre,
-            producto.stock_actual,
-            producto.stock_minimo,
-            producto.precio,
-            producto.precio_compra,
-            producto.precio_venta,
-            producto.id_tipo_uniforme,
-            producto.activo,
-        ),
-    )
+    if _tiene_columna(conn, "producto", "tipo_empaque"):
+        cursor = conn.execute(
+            """INSERT INTO producto
+               (id_categoria_producto, tipo_uso, codigo, nombre,
+                stock_actual, stock_minimo, precio, precio_compra, precio_venta,
+                tipo_empaque, cantidad_por_caja, precio_compra_total,
+                id_tipo_uniforme, activo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                producto.id_categoria_producto,
+                producto.tipo_uso,
+                producto.codigo,
+                producto.nombre,
+                producto.stock_actual,
+                producto.stock_minimo,
+                producto.precio,
+                producto.precio_compra,
+                producto.precio_venta,
+                producto.tipo_empaque or "Unidad",
+                producto.cantidad_por_caja or 1,
+                producto.precio_compra_total or 0,
+                producto.id_tipo_uniforme,
+                producto.activo,
+            ),
+        )
+    else:
+        cursor = conn.execute(
+            """INSERT INTO producto
+               (id_categoria_producto, tipo_uso, codigo, nombre,
+                stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme, activo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                producto.id_categoria_producto,
+                producto.tipo_uso,
+                producto.codigo,
+                producto.nombre,
+                producto.stock_actual,
+                producto.stock_minimo,
+                producto.precio,
+                producto.precio_compra,
+                producto.precio_venta,
+                producto.id_tipo_uniforme,
+                producto.activo,
+            ),
+        )
     conn.commit()
     return cursor.lastrowid
 
@@ -91,26 +124,53 @@ def existe_codigo(codigo: str, exclude_id: int | None = None) -> bool:
 
 def actualizar(producto: Producto) -> None:
     conn = get_connection()
-    conn.execute(
-        """UPDATE producto SET
-           id_categoria_producto = ?, tipo_uso = ?, codigo = ?, nombre = ?,
-           stock_actual = ?, stock_minimo = ?, precio = ?, precio_compra = ?, precio_venta = ?, id_tipo_uniforme = ?, activo = ?
-           WHERE id_producto = ?""",
-        (
-            producto.id_categoria_producto,
-            producto.tipo_uso,
-            producto.codigo,
-            producto.nombre,
-            producto.stock_actual,
-            producto.stock_minimo,
-            producto.precio,
-            producto.precio_compra,
-            producto.precio_venta,
-            producto.id_tipo_uniforme,
-            producto.activo,
-            producto.id_producto,
-        ),
-    )
+    if _tiene_columna(conn, "producto", "tipo_empaque"):
+        conn.execute(
+            """UPDATE producto SET
+               id_categoria_producto = ?, tipo_uso = ?, codigo = ?, nombre = ?,
+               stock_actual = ?, stock_minimo = ?, precio = ?, precio_compra = ?, precio_venta = ?,
+               tipo_empaque = ?, cantidad_por_caja = ?, precio_compra_total = ?,
+               id_tipo_uniforme = ?, activo = ?
+               WHERE id_producto = ?""",
+            (
+                producto.id_categoria_producto,
+                producto.tipo_uso,
+                producto.codigo,
+                producto.nombre,
+                producto.stock_actual,
+                producto.stock_minimo,
+                producto.precio,
+                producto.precio_compra,
+                producto.precio_venta,
+                producto.tipo_empaque or "Unidad",
+                producto.cantidad_por_caja or 1,
+                producto.precio_compra_total or 0,
+                producto.id_tipo_uniforme,
+                producto.activo,
+                producto.id_producto,
+            ),
+        )
+    else:
+        conn.execute(
+            """UPDATE producto SET
+               id_categoria_producto = ?, tipo_uso = ?, codigo = ?, nombre = ?,
+               stock_actual = ?, stock_minimo = ?, precio = ?, precio_compra = ?, precio_venta = ?, id_tipo_uniforme = ?, activo = ?
+               WHERE id_producto = ?""",
+            (
+                producto.id_categoria_producto,
+                producto.tipo_uso,
+                producto.codigo,
+                producto.nombre,
+                producto.stock_actual,
+                producto.stock_minimo,
+                producto.precio,
+                producto.precio_compra,
+                producto.precio_venta,
+                producto.id_tipo_uniforme,
+                producto.activo,
+                producto.id_producto,
+            ),
+        )
     conn.commit()
 
 

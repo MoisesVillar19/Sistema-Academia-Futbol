@@ -2,8 +2,9 @@ from services import beca_service, auth_service
 
 
 def _requerir_admin() -> tuple[bool, str]:
-    if not auth_service.es_admin():
-        return False, "Acceso denegado: solo un administrador gestiona becas"
+    # Becas viven en Tarifas: basta permiso "tarifas" (ADMIN siempre lo tiene)
+    if not auth_service.tiene_permiso("tarifas"):
+        return False, "Sin permiso para gestionar becas (módulo Tarifas)"
     return True, ""
 
 

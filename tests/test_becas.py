@@ -116,12 +116,34 @@ def test_beca_crud_admin(usuario_admin):
     assert any(b["id_beca"] == bid for b in beca_controller.listar_becas())
 
 
-def test_beca_secretaria_no_gestiona(usuario_secretaria):
+def test_beca_secretaria_gestiona_con_permiso_tarifas(usuario_secretaria):
     from controllers import beca_controller
-    exito, _, _ = beca_controller.crear_beca(
+    exito, _, bid = beca_controller.crear_beca(
         {"nombre": "X", "tipo": "PORCENTAJE", "valor": 5})
+    assert exito is True
+    exito, _ = beca_controller.desactivar_beca(bid)
+    assert exito is True
+
+
+def test_beca_sin_permiso_tarifas_rechazada(usuario_admin):
+    from controllers import beca_controller, usuario_controller
+    from services import usuario_service, auth_service
+    exito, _, bid = beca_controller.crear_beca(
+        {"nombre": "Y", "tipo": "PORCENTAJE", "valor": 5})
+    assert exito is True
+    exito, msg = usuario_controller.guardar_permisos_rol(
+        "SECRETARIA", ["dashboard", "pagos"])
+    assert exito is True
+    exito, temp, _ = usuario_service.crear_usuario(
+        {"dni": "90909090", "nombres": "S", "apellidos": "T"}, "sec_sin_tar", "SECRETARIA")
+    assert exito, temp
+    auth_service.logout()
+    assert auth_service.login("sec_sin_tar", temp) is not None
+    assert auth_service.tiene_permiso("tarifas") is False
+    exito, _ = beca_controller.desactivar_beca(bid)
     assert exito is False
-    exito, _ = beca_controller.desactivar_beca(1)
+    exito, _, _ = beca_controller.crear_beca(
+        {"nombre": "Z", "tipo": "PORCENTAJE", "valor": 5})
     assert exito is False
 
 

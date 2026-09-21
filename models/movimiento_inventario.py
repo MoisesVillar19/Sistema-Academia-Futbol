@@ -12,3 +12,5 @@ class MovimientoInventario:
     stock_nuevo: int = 0
     fecha_movimiento: str = ""
     motivo: str = ""
+    metodo_pago: str | None = None
+    monto_total: float = 0.0

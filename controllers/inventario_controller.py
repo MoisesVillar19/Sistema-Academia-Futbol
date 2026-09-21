@@ -36,6 +36,17 @@ def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
     return inventario_service.editar_producto(id_producto, data)
 
 
+def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
+    try:
+        cantidad = int(data.get("cantidad", 0))
+        if cantidad <= 0:
+            return False, "La cantidad debe ser mayor a 0", None
+        data["cantidad"] = cantidad
+    except (ValueError, TypeError):
+        return False, "Cantidad no válida", None
+    return inventario_service.registrar_compra(data)
+
+
 def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     tipo = data.get("tipo_movimiento", "")
     if not validate_tipo_movimiento(tipo):

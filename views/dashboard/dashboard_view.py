@@ -102,6 +102,22 @@ class DashboardView(ctk.CTkFrame):
         self.btn_actualizar.pack(side="right")
         self.titulo_label.configure(text="Dashboard")
 
+        try:
+            din = dashboard_controller.resumen_dinero()
+        except Exception:
+            din = None
+        if din:
+            row0 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
+            row0.pack(fill="x", pady=5)
+            self._crear_card_dinero(row0, "Compras (mes)", din["compras_yape"], din["compras_efectivo"],
+                                    "#F59E0B", lambda: self._mostrar_detalle("dinero_compras"))
+            self._crear_card_dinero(row0, "Ventas (mes)", din["ventas_yape"], din["ventas_efectivo"],
+                                    "#22C55E", lambda: self._mostrar_detalle("dinero_ventas"))
+            self._crear_card_dinero(row0, "Ganancias (mes)", din["ganancia_yape"], din["ganancia_efectivo"],
+                                    "#7C3AED", lambda: self._mostrar_detalle("dinero_ganancias"))
+            self._crear_card_dinero(row0, "Ganancia Total (mes)", din["ganancia_total"], None,
+                                    "#1F0A33", lambda: self._mostrar_detalle("dinero_ganancias"))
+
         row1 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
         row1.pack(fill="x", pady=5)
 
@@ -224,6 +240,46 @@ class DashboardView(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _crear_card_dinero(self, parent, titulo, valor_yape, valor_efectivo, color, comando):
+        # Card doble línea Yape/Efectivo con clic en todo el interior
+        card = ctk.CTkFrame(
+            parent, fg_color="white",
+            border_width=1, border_color="#E5E7EB",
+            corner_radius=12,
+        )
+        card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
+
+        frame_interno = ctk.CTkFrame(card, fg_color="transparent")
+        frame_interno.pack(expand=True, fill="both", padx=8, pady=8)
+
+        ctk.CTkLabel(frame_interno, text=titulo, font=ctk.CTkFont(size=13, weight="bold"), text_color="#6B5B7B").pack(pady=(6, 2))
+        if valor_efectivo is None:
+            ctk.CTkLabel(frame_interno, text=f"S/{valor_yape:.2f}", font=ctk.CTkFont(size=24, weight="bold"), text_color=color).pack(pady=(2, 2))
+        else:
+            ctk.CTkLabel(frame_interno, text=f"Yape S/{valor_yape:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 0))
+            ctk.CTkLabel(frame_interno, text=f"Efectivo S/{valor_efectivo:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 2))
+        ctk.CTkFrame(frame_interno, fg_color=color, height=3, corner_radius=2).pack(fill="x", padx=20, pady=(0, 4))
+
+        try:
+            def _hacer_clickeable(w):
+                try:
+                    w.bind("<Button-1>", lambda e: comando(), add="+")
+                except Exception:
+                    pass
+                try:
+                    w.configure(cursor="hand2")
+                except Exception:
+                    pass
+                try:
+                    hijos = w.winfo_children()
+                except Exception:
+                    return
+                for ch in hijos:
+                    _hacer_clickeable(ch)
+            _hacer_clickeable(card)
+        except Exception:
+            pass
+
     def _mostrar_detalle(self, tipo):
         from utils.ui_helpers import mostrar_cargando as _mc
         _detener = _mc(self, "Cargando detalle")
@@ -258,6 +314,9 @@ class DashboardView(ctk.CTkFrame):
             "antiguos_mes": "Alumnos Antiguos (Matrículas)",
             "matriculas_mes": "Matrículas del Mes",
             "mom": "Comparativa Mensual (vs mes anterior)",
+            "dinero_compras": "Compras del Mes (Yape/Efectivo)",
+            "dinero_ventas": "Ventas del Mes (Yape/Efectivo)",
+            "dinero_ganancias": "Ganancias del Mes (Yape/Efectivo)",
         }
         self.titulo_label.configure(text=titulos.get(tipo, "Detalle"))
 
@@ -299,6 +358,12 @@ class DashboardView(ctk.CTkFrame):
                 self._detalle_matriculas_mes()
             elif tipo == "mom":
                 self._detalle_mom()
+            elif tipo == "dinero_compras":
+                self._detalle_dinero_compras()
+            elif tipo == "dinero_ventas":
+                self._detalle_dinero_ventas()
+            elif tipo == "dinero_ganancias":
+                self._detalle_dinero_ganancias()
         except Exception as e:
             from utils.logger import logger
             logger.error(f"Dashboard detalle '{tipo}' fallo: {e}", exc_info=True)
@@ -644,6 +709,74 @@ class DashboardView(ctk.CTkFrame):
             filas,
             cap=31,
         )
+
+    def _detalle_dinero_compras(self):
+        movs = dashboard_controller.listar_compras_mes()
+        total = round(sum(_num(m.get("monto_total")) for m in movs), 2)
+        ctk.CTkLabel(self.detalle_frame, text=f"Total compras: S/{total:.2f} en {len(movs)} compras",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(10, 5))
+        if not movs:
+            ctk.CTkLabel(self.detalle_frame, text="Sin compras con método este mes").pack(pady=10)
+            return
+        hay_grafico = bool(MATPLOTLIB_DISPONIBLE)
+        if hay_grafico:
+            frame_g, frame_t = crear_bloque_grafico_tabla(self.detalle_frame)
+            dias, montos = self._agrupar_por_dia(movs, "fecha_movimiento", "monto_total")
+            self._crear_grafico_barras_simple(dias, montos, "Compras por Día", contenedor=frame_g, color_fijo="#F59E0B")
+            padre = frame_t
+        else:
+            padre = self.detalle_frame
+        crear_tabla_cards(
+            padre,
+            [("Producto", 180), ("Cant.", 60), ("Monto", 90), ("Método", 80), ("Fecha", 100)],
+            [[str(m.get("producto_nombre", "")),
+              str(m.get("cantidad", "")),
+              (f"S/{_num(m.get('monto_total')):.2f}", {"text_color": "#F59E0B", "weight": "bold"}),
+              str(m.get("metodo_pago", "")),
+              str((m.get("fecha_movimiento", "") or "")[:10])] for m in movs],
+            cap=30, nota_mas=f"Mostrando 30 de {len(movs)} compras")
+
+    def _detalle_dinero_ventas(self):
+        ventas = dashboard_controller.listar_ventas_dinero_mes()
+        total = round(sum(_num(v.get("monto_total")) for v in ventas), 2)
+        ctk.CTkLabel(self.detalle_frame, text=f"Total ventas: S/{total:.2f} en {len(ventas)} ventas",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(10, 5))
+        if not ventas:
+            ctk.CTkLabel(self.detalle_frame, text="Sin ventas Yape/Efectivo este mes").pack(pady=10)
+            return
+        hay_grafico = bool(MATPLOTLIB_DISPONIBLE)
+        if hay_grafico:
+            frame_g, frame_t = crear_bloque_grafico_tabla(self.detalle_frame)
+            dias, montos = self._agrupar_por_dia(ventas, "fecha_venta", "monto_total")
+            self._crear_grafico_barras_simple(dias, montos, "Ventas por Día", contenedor=frame_g, color_fijo="#22C55E")
+            padre = frame_t
+        else:
+            padre = self.detalle_frame
+        crear_tabla_cards(
+            padre,
+            [("Recibo", 140), ("Monto", 90), ("Método", 80), ("Fecha", 100)],
+            [[str(v.get("numero_recibo", "")),
+              (f"S/{_num(v.get('monto_total')):.2f}", {"text_color": "green", "weight": "bold"}),
+              str(v.get("metodo_pago", "")),
+              str(v.get("fecha_venta", ""))] for v in ventas],
+            cap=30, nota_mas=f"Mostrando 30 de {len(ventas)} ventas")
+
+    def _detalle_dinero_ganancias(self):
+        filas = dashboard_controller.listar_ganancias_mes()
+        total = round(sum(_num(f.get("ganancia")) for f in filas), 2)
+        ctk.CTkLabel(self.detalle_frame, text=f"Ganancia total: S/{total:.2f} en {len(filas)} ventas",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(10, 5))
+        if not filas:
+            ctk.CTkLabel(self.detalle_frame, text="Sin ganancias Yape/Efectivo este mes").pack(pady=10)
+            return
+        crear_tabla_cards(
+            self.detalle_frame,
+            [("Recibo", 140), ("Método", 80), ("Ingresos", 90), ("Ganancia", 90)],
+            [[str(f.get("recibo", "")),
+              str(f.get("metodo", "")),
+              f"S/{_num(f.get('ingresos')):.2f}",
+              (f"S/{_num(f.get('ganancia')):.2f}", {"text_color": "green", "weight": "bold"})] for f in filas],
+            cap=30, nota_mas=f"Mostrando 30 de {len(filas)} ventas")
 
     def _detalle_nuevos_mes(self):
         alumnos = dashboard_controller.listar_nuevos_mes()

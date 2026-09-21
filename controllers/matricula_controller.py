@@ -7,6 +7,10 @@ def _get_id_usuario() -> int:
     return auth_service.id_usuario_sesion_or_system()
 
 
+def matricula_express(data: dict) -> tuple[bool, str, dict | None]:
+    return matricula_service.matricula_express(data, id_usuario=_get_id_usuario())
+
+
 def crear_matricula(data: dict) -> tuple[bool, str, int | None]:
     if not data.get("id_estudiante"):
         return False, "El estudiante es obligatorio", None

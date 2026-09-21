@@ -102,6 +102,36 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
     except (ValueError, TypeError):
         precio_venta = precio
 
+    # Empaque y costo: unitario = total / cantidad (Unidad => 1)
+    TIPOS_EMPAQUE = ("Unidad", "Caja x12", "Caja x100", "Personalizado")
+    tipo_empaque = data.get("tipo_empaque", "Unidad")
+    if tipo_empaque not in TIPOS_EMPAQUE:
+        return False, f"Tipo de empaque no válido. Use: {', '.join(TIPOS_EMPAQUE)}", None
+    crudo_cant = data.get("cantidad_por_caja", 1)
+    if crudo_cant in (None, ""):
+        crudo_cant = 1
+    try:
+        cantidad_por_caja = int(crudo_cant)
+    except (ValueError, TypeError):
+        return False, "Cantidad por caja inválida", None
+    if tipo_empaque == "Unidad":
+        cantidad_por_caja = 1
+    if cantidad_por_caja <= 0:
+        return False, "Cantidad por caja debe ser mayor a 0", None
+    precio_total = data.get("precio_compra_total")
+    try:
+        precio_total = float(precio_total) if precio_total not in (None, "") else None
+    except (ValueError, TypeError):
+        return False, "Precio total de compra inválido", None
+    if precio_total is not None:
+        if precio_total <= 0:
+            return False, "Precio total de compra debe ser mayor a 0", None
+        precio_compra = round(precio_total / cantidad_por_caja, 2)
+    else:
+        precio_compra_total_calc = round(precio_compra * cantidad_por_caja, 2)
+        precio_total = precio_compra_total_calc
+    # Compat: precio_venta 0 permitido a nivel servicio (la UI rápida lo exige)
+
     producto = Producto(
         id_categoria_producto=id_categoria,
         tipo_uso=data.get("tipo_uso", "CONSUMO_INTERNO"),
@@ -112,9 +142,30 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
         precio=precio,
         precio_compra=precio_compra,
         precio_venta=precio_venta,
+        tipo_empaque=tipo_empaque,
+        cantidad_por_caja=cantidad_por_caja,
+        precio_compra_total=round(precio_total, 2),
         id_tipo_uniforme=data.get("id_tipo_uniforme"),
     )
     id_producto = producto_repository.insertar(producto)
+    # Stock inicial opcional: genera ENTRADA con costo y método (alimenta ganancias)
+    try:
+        stock_inicial = int(data.get("stock_inicial", 0) or 0)
+    except (ValueError, TypeError):
+        stock_inicial = 0
+    if stock_inicial > 0:
+        modo = data.get("modo_compra") or data.get("metodo_pago")
+        ok_m, msg_m, _ = registrar_movimiento({
+            "id_producto": id_producto,
+            "tipo_movimiento": "ENTRADA",
+            "cantidad": stock_inicial,
+            "motivo": data.get("motivo_compra", "Stock inicial"),
+            "metodo_pago": modo,
+            "monto_total": round(precio_compra * stock_inicial, 2),
+            "id_usuario": data.get("id_usuario", 1),
+        })
+        if not ok_m:
+            logger.warning(f"Stock inicial no registrado: {msg_m}")
 
     # S1 escalable: crear variantes si se especifica talla + stock_almacen
     try:
@@ -197,6 +248,41 @@ def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
     except (ValueError, TypeError):
         precio_venta = producto.get("precio_venta", precio)
 
+    tipo_empaque = data.get("tipo_empaque", producto.get("tipo_empaque", "Unidad"))
+    if tipo_empaque not in ("Unidad", "Caja x12", "Caja x100", "Personalizado"):
+        return False, "Tipo de empaque no válido", None
+    crudo_cant = data.get("cantidad_por_caja", producto.get("cantidad_por_caja", 1))
+    if crudo_cant in (None, ""):
+        crudo_cant = 1
+    try:
+        cantidad_por_caja = int(crudo_cant)
+    except (ValueError, TypeError):
+        return False, "Cantidad por caja inválida", None
+    if tipo_empaque == "Unidad":
+        cantidad_por_caja = 1
+    if cantidad_por_caja <= 0:
+        return False, "Cantidad por caja debe ser mayor a 0", None
+    precio_total = data.get("precio_compra_total", None)
+    if precio_total in (None, ""):
+        # legacy/omitido: usar guardado si > 0, si no recalcular del unitario
+        guardado = producto.get("precio_compra_total") or 0
+        try:
+            precio_total = float(guardado) if float(guardado) > 0 else None
+        except (ValueError, TypeError):
+            precio_total = None
+    else:
+        try:
+            precio_total = float(precio_total)
+        except (ValueError, TypeError):
+            return False, "Precio total de compra inválido", None
+    if precio_total is not None:
+        if precio_total <= 0:
+            return False, "Precio total de compra debe ser mayor a 0", None
+        precio_compra = round(precio_total / cantidad_por_caja, 2)
+    else:
+        precio_total = round(precio_compra * cantidad_por_caja, 2)
+    # Compat: precio_venta 0 permitido a nivel servicio (la UI rápida lo exige)
+
     producto_obj = Producto(
         id_producto=id_producto,
         id_categoria_producto=data.get("id_categoria_producto", producto["id_categoria_producto"]),
@@ -208,6 +294,9 @@ def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
         precio=precio,
         precio_compra=precio_compra,
         precio_venta=precio_venta,
+        tipo_empaque=tipo_empaque,
+        cantidad_por_caja=cantidad_por_caja,
+        precio_compra_total=round(precio_total, 2),
         id_tipo_uniforme=data.get("id_tipo_uniforme", producto.get("id_tipo_uniforme")),
         activo=producto["activo"],
     )
@@ -254,6 +343,17 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     producto_repository.actualizar_stock(id_producto, stock_nuevo)
 
     usuario = data.get("id_usuario", 1)
+    metodo_pago = data.get("metodo_pago")
+    if metodo_pago is not None:
+        metodo_pago = str(metodo_pago).strip().upper()
+        if metodo_pago not in ("YAPE", "EFECTIVO"):
+            return False, "Método no válido. Use Yape o Efectivo", None
+    try:
+        monto_total = float(data.get("monto_total", 0) or 0)
+    except (ValueError, TypeError):
+        return False, "Monto total inválido", None
+    if monto_total < 0:
+        return False, "Monto total no puede ser negativo", None
     movimiento = MovimientoInventario(
         id_producto=id_producto,
         id_usuario=usuario,
@@ -263,6 +363,8 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
         stock_nuevo=stock_nuevo,
         fecha_movimiento=get_now(),
         motivo=data.get("motivo", ""),
+        metodo_pago=metodo_pago,
+        monto_total=round(monto_total, 2),
     )
     id_movimiento = movimiento_inventario_repository.insertar(movimiento)
 
@@ -275,6 +377,40 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
 
     logger.info(f"Movimiento registrado: {tipo_movimiento} x{cantidad} producto={id_producto}")
     return True, f"Movimiento registrado. Stock: {stock_nuevo}", id_movimiento
+
+
+def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
+    """Compra a proveedor: ENTRADA con monto total y método (Yape/Efectivo).
+
+    Requerido para Total Compras por método y ganancias del dashboard.
+    """
+    metodo = str(data.get("metodo_pago", "") or "").strip().upper()
+    if metodo not in ("YAPE", "EFECTIVO"):
+        return False, "Método de compra no válido. Use Yape o Efectivo", None
+    try:
+        monto = float(data.get("monto_total", 0) or 0)
+    except (ValueError, TypeError):
+        return False, "Monto total inválido", None
+    if monto <= 0:
+        return False, "Monto total debe ser mayor a 0", None
+    return registrar_movimiento({
+        "id_producto": data.get("id_producto"),
+        "tipo_movimiento": "ENTRADA",
+        "cantidad": data.get("cantidad", 0),
+        "motivo": data.get("motivo", "Compra a proveedor"),
+        "metodo_pago": metodo,
+        "monto_total": round(monto, 2),
+        "id_usuario": data.get("id_usuario", 1),
+    })
+
+
+def calcular_unitario_y_ganancia(precio_total: float, cantidad_por_caja: int, precio_venta: float) -> dict:
+    """Cálculos de la ficha (misma fórmula que crear/editar producto)."""
+    cant = max(int(cantidad_por_caja or 1), 1)
+    unitario = round(float(precio_total or 0) / cant, 2)
+    gan_u = round(float(precio_venta or 0) - unitario, 2)
+    pct = round(gan_u / unitario * 100, 1) if unitario else 0
+    return {"unitario": unitario, "ganancia_unitaria": gan_u, "ganancia_pct": pct}
 
 
 def obtener_producto(id_producto: int) -> dict | None:

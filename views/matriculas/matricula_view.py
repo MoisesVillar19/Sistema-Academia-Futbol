@@ -53,11 +53,124 @@ class MatriculaView(ctk.CTkFrame):
 
         self.tab_lista = self.tabview.add("Matrículas")
         self.tab_form = self.tabview.add("Registrar")
+        self.tab_rapida = self.tabview.add("Rápida")
         self.tab_cuotas = self.tabview.add("Cuotas")
 
         self._crear_tab_lista()
         self._crear_tab_formulario()
+        self._crear_tab_rapida()
         self._crear_tab_cuotas()
+
+    def _crear_tab_rapida(self):
+        from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
+        scroll = ctk.CTkScrollableFrame(self.tab_rapida)
+        scroll.pack(fill="both", expand=True, padx=10, pady=10)
+
+        sec = crear_seccion(scroll, titulo="Matrícula rápida", icono="⚡",
+                            descripcion="Nombre + tipo + monto + pago en 1 clic. Apoderado se completa después en Estudiantes.",
+                            nro=1)
+        cuerpo = ctk.CTkFrame(sec, fg_color="transparent")
+        cuerpo.pack(fill="x", padx=10, pady=(0, 8))
+
+        ctk.CTkLabel(cuerpo, text="Tipo *").pack(anchor="w")
+        self.seg_exp_tipo = ctk.CTkSegmentedButton(
+            cuerpo, values=["NUEVO", "ANTIGUO"], command=self._on_exp_tipo)
+        self.seg_exp_tipo.set("NUEVO")
+        self.seg_exp_tipo.pack(anchor="w", pady=3)
+        self.label_exp_panel = ctk.CTkLabel(
+            cuerpo, text="🆕 Incluye uniforme + mensualidad • S/ 120 (editable)",
+            font=ctk.CTkFont(size=11, weight="bold"), text_color="#7C3AED",
+            wraplength=500, justify="left")
+        self.label_exp_panel.pack(anchor="w", pady=(0, 5))
+
+        row = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        row.pack(fill="x", anchor="w", pady=3)
+        ctk.CTkLabel(row, text="Nombres *").pack(side="left")
+        self.entry_exp_nombres = ctk.CTkEntry(row, placeholder_text="Nombres", width=190)
+        self.entry_exp_nombres.pack(side="left", padx=10)
+        ctk.CTkLabel(row, text="Apellidos *").pack(side="left")
+        self.entry_exp_apellidos = ctk.CTkEntry(row, placeholder_text="Apellidos", width=190)
+        self.entry_exp_apellidos.pack(side="left", padx=10)
+
+        row2 = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        row2.pack(fill="x", anchor="w", pady=3)
+        ctk.CTkLabel(row2, text="DNI (8 dígitos) *").pack(side="left")
+        self.entry_exp_dni = ctk.CTkEntry(row2, placeholder_text="12345678", width=140)
+        self.entry_exp_dni.pack(side="left", padx=10)
+        ctk.CTkLabel(row2, text="Monto S/ *").pack(side="left", padx=(10, 0))
+        self.entry_exp_monto = ctk.CTkEntry(row2, placeholder_text="120.00", width=120)
+        self.entry_exp_monto.pack(side="left", padx=10)
+        self.entry_exp_monto.insert(0, "120.00")
+        ctk.CTkLabel(row2, text="Pago *").pack(side="left", padx=(10, 0))
+        self.combo_exp_metodo = ctk.CTkComboBox(row2, width=130, values=["YAPE", "EFECTIVO"])
+        self.combo_exp_metodo.set("EFECTIVO")
+        self.combo_exp_metodo.pack(side="left", padx=10)
+
+        comp_row = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        comp_row.pack(fill="x", anchor="w", pady=3)
+        self.btn_exp_comp = ctk.CTkButton(comp_row, text="📎 Comprobante (Yape)", width=180,
+                                          command=self._elegir_comprobante_exp)
+        self.btn_exp_comp.pack(side="left", padx=5)
+        self.label_exp_comp = ctk.CTkLabel(comp_row, text="Sin comprobante", text_color="gray")
+        self.label_exp_comp.pack(side="left", padx=5)
+        self._exp_comprobante = None
+        crear_nota(sec, "Yape exige comprobante (RN-042). Efectivo no.")
+
+        footer = ctk.CTkFrame(scroll, fg_color="white", corner_radius=8)
+        footer.pack(fill="x", padx=5, pady=5)
+        self.label_exp_status = ctk.CTkLabel(footer, text="", font=ctk.CTkFont(size=12))
+        self.label_exp_status.pack(anchor="w", padx=10, pady=(8, 2))
+        crear_boton_interactivo(footer, text="Guardar y Matricular", width=180,
+                                command=self._guardar_express, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=(2, 8))
+
+    def _on_exp_tipo(self, selection):
+        sel = selection if isinstance(selection, str) else self.seg_exp_tipo.get()
+        try:
+            if sel == "NUEVO":
+                self.label_exp_panel.configure(
+                    text="🆕 Incluye uniforme + mensualidad • S/ 120 (editable)")
+                if not self.entry_exp_monto.get().strip():
+                    self.entry_exp_monto.insert(0, "120.00")
+            else:
+                self.label_exp_panel.configure(
+                    text="Solo mensualidad, sin uniforme • Monto libre (vacío no permitido)")
+        except Exception:
+            pass
+
+    def _elegir_comprobante_exp(self):
+        from tkinter import filedialog
+        import os
+        from utils.constants import COMPROBANTES_DIR
+        path = filedialog.askopenfilename(filetypes=[("Imagen", "*.jpg *.jpeg *.png"), ("Todos", "*.*")])
+        if path:
+            os.makedirs(COMPROBANTES_DIR, exist_ok=True)
+            self._exp_comprobante = path
+            self.label_exp_comp.configure(text=os.path.basename(path))
+
+    def _guardar_express(self):
+        data = {"tipo": self.seg_exp_tipo.get(),
+                "nombres": self.entry_exp_nombres.get().strip(),
+                "apellidos": self.entry_exp_apellidos.get().strip(),
+                "dni": self.entry_exp_dni.get().strip(),
+                "monto": self.entry_exp_monto.get().strip() or None,
+                "metodo_pago": self.combo_exp_metodo.get(),
+                "comprobante_path": self._exp_comprobante}
+        exito, msg, _ids = matricula_controller.matricula_express(data)
+        self.label_exp_status.configure(text=msg, text_color="green" if exito else "red")
+        if exito:
+            for e in (self.entry_exp_nombres, self.entry_exp_apellidos,
+                      self.entry_exp_dni, self.entry_exp_monto):
+                e.delete(0, "end")
+            self.entry_exp_monto.insert(0, "120.00")
+            self._exp_comprobante = None
+            self.label_exp_comp.configure(text="Sin comprobante")
+            try:
+                event_bus.publish("matricula_creada")
+                event_bus.publish("pago_registrado")
+            except Exception:
+                pass
+            self._cargar_matriculas()
+            self._cargar_combo_matriculas()
 
     def _crear_tab_lista(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo

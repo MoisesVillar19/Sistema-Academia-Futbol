@@ -200,6 +200,49 @@ def listar_matriculas_mes() -> list[dict]:
     return matricula_repository.listar_por_mes(ini, fin)
 
 
+def resumen_dinero() -> dict:
+    """Cards de dinero del mes: compras/ventas/ganancias por Yape/Efectivo.
+
+    Ganancia de ventas = Σ cant × (precio_unit − costo vigente). Aproximación
+    documentada (no costo histórico por venta).
+    """
+    from repositories import movimiento_inventario_repository, venta_repository
+    ini, fin = _rango_mes_actual()
+    compras = {r["metodo"]: float(r["total"] or 0)
+               for r in movimiento_inventario_repository.sumar_compras_por_metodo(ini, fin)}
+    ventas = {r["metodo"]: float(r["total"] or 0)
+              for r in venta_repository.ventas_por_metodo(ini, fin)}
+    gan = {r["metodo"]: float(r["ganancia"] or 0)
+           for r in venta_repository.ganancia_por_metodo(ini, fin)}
+    cy, ce = round(compras.get("YAPE", 0), 2), round(compras.get("EFECTIVO", 0), 2)
+    vy, ve = round(ventas.get("YAPE", 0), 2), round(ventas.get("EFECTIVO", 0), 2)
+    gy, ge = round(gan.get("YAPE", 0), 2), round(gan.get("EFECTIVO", 0), 2)
+    return {"compras_yape": cy, "compras_efectivo": ce,
+            "ventas_yape": vy, "ventas_efectivo": ve,
+            "ganancia_yape": gy, "ganancia_efectivo": ge,
+            "ganancia_total": round(gy + ge, 2),
+            "mes": ini[:7]}
+
+
+def listar_compras_mes() -> list[dict]:
+    from repositories import movimiento_inventario_repository
+    ini, fin = _rango_mes_actual()
+    return movimiento_inventario_repository.obtener_compras_con_metodo(ini, fin)
+
+
+def listar_ventas_dinero_mes() -> list[dict]:
+    from repositories import venta_repository
+    ini, fin = _rango_mes_actual()
+    return [v for v in venta_repository.obtener_todos(ini, fin)
+            if (v.get("metodo_pago") in ("YAPE", "EFECTIVO"))]
+
+
+def listar_ganancias_mes() -> list[dict]:
+    from repositories import venta_repository
+    ini, fin = _rango_mes_actual()
+    return venta_repository.detalle_ganancia_por_venta(ini, fin)
+
+
 def comparativa_mensual() -> dict:
     """Actual vs anterior día por día (pagos + ventas). Para la vista MoM real."""
     from datetime import datetime

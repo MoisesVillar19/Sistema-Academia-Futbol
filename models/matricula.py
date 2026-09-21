@@ -12,5 +12,6 @@ class Matricula:
     fecha_inicio: str = ""
     fecha_fin: str = ""
     dia_vencimiento: int = 1
+    tipo: str | None = None
     estado: str = "ACTIVO"
     activo: int = 1

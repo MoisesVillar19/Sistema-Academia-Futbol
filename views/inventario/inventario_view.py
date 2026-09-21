@@ -42,12 +42,14 @@ class InventarioView(ctk.CTkFrame):
         self.tab_productos = self.tabview.add("Productos")
         self.tab_categorias = self.tabview.add("Categorías")
         self.tab_form = self.tabview.add("Registrar Producto")
+        self.tab_compra = self.tabview.add("Registrar Compra")
         self.tab_movimiento = self.tabview.add("Movimiento")
         self.tab_historial = self.tabview.add("Historial")
 
         self._crear_tab_productos()
         self._crear_tab_categorias()
         self._crear_tab_formulario()
+        self._crear_tab_compra()
         self._crear_tab_movimiento()
         self._crear_tab_historial()
 
@@ -204,10 +206,28 @@ class InventarioView(ctk.CTkFrame):
         self.combo_tipo_uso.set("CONSUMO_INTERNO")
         self.combo_tipo_uso.pack(anchor="w", pady=(0, 5))
 
-        sec2 = crear_seccion(scroll, titulo="Stock y precios", icono="💰",
-                             descripcion="Mínimo para alertas; compra/venta para valorizado y ganancias.", nro=2)
+        sec2 = crear_seccion(scroll, titulo="Empaque y precios", icono="💰",
+                             descripcion="Caja: precio TOTAL pagado. La app calcula el unitario y la ganancia sola.",
+                             nro=2)
         cuerpo2 = ctk.CTkFrame(sec2, fg_color="transparent")
         cuerpo2.pack(fill="x", padx=10, pady=(0, 8))
+
+        row0 = ctk.CTkFrame(cuerpo2, fg_color="transparent")
+        row0.pack(fill="x", anchor="w", pady=3)
+
+        ctk.CTkLabel(row0, text="Tipo empaque:").pack(side="left")
+        self.combo_empaque = ctk.CTkComboBox(
+            row0, width=140,
+            values=["Unidad", "Caja x12", "Caja x100", "Personalizado"],
+            command=lambda v: self._actualizar_calculo(),
+        )
+        self.combo_empaque.set("Unidad")
+        self.combo_empaque.pack(side="left", padx=10)
+
+        ctk.CTkLabel(row0, text="Cant. por caja:").pack(side="left", padx=(10, 0))
+        self.entry_cant_caja = ctk.CTkEntry(row0, placeholder_text="1", width=80)
+        self.entry_cant_caja.pack(side="left", padx=10)
+        self.entry_cant_caja.bind("<KeyRelease>", lambda e: self._actualizar_calculo())
 
         row1 = ctk.CTkFrame(cuerpo2, fg_color="transparent")
         row1.pack(fill="x", anchor="w", pady=3)
@@ -223,13 +243,32 @@ class InventarioView(ctk.CTkFrame):
         row2 = ctk.CTkFrame(cuerpo2, fg_color="transparent")
         row2.pack(fill="x", anchor="w", pady=3)
 
-        ctk.CTkLabel(row2, text="Compra (S/):").pack(side="left")
-        self.entry_precio_compra = ctk.CTkEntry(row2, placeholder_text="0.00", width=100)
-        self.entry_precio_compra.pack(side="left", padx=10)
+        ctk.CTkLabel(row2, text="Total caja (S/) *:").pack(side="left")
+        self.entry_precio_total = ctk.CTkEntry(row2, placeholder_text="0.00", width=100)
+        self.entry_precio_total.pack(side="left", padx=10)
+        self.entry_precio_total.bind("<KeyRelease>", lambda e: self._actualizar_calculo())
 
-        ctk.CTkLabel(row2, text="Venta (S/):").pack(side="left", padx=(20, 0))
+        ctk.CTkLabel(row2, text="Venta x unidad (S/) *:").pack(side="left", padx=(20, 0))
         self.entry_precio_venta = ctk.CTkEntry(row2, placeholder_text="0.00", width=100)
         self.entry_precio_venta.pack(side="left", padx=10)
+        self.entry_precio_venta.bind("<KeyRelease>", lambda e: self._actualizar_calculo())
+
+        self.label_calculo = ctk.CTkLabel(
+            cuerpo2, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#7C3AED",
+        )
+        self.label_calculo.pack(anchor="w", pady=4)
+
+        rowm = ctk.CTkFrame(cuerpo2, fg_color="transparent")
+        rowm.pack(fill="x", anchor="w", pady=3)
+
+        ctk.CTkLabel(rowm, text="Modo compra:").pack(side="left")
+        self.combo_modo_compra = ctk.CTkComboBox(rowm, width=140, values=["YAPE", "EFECTIVO"])
+        self.combo_modo_compra.set("EFECTIVO")
+        self.combo_modo_compra.pack(side="left", padx=10)
+
+        ctk.CTkLabel(rowm, text="Stock inicial (uds):").pack(side="left", padx=(10, 0))
+        self.entry_stock_inicial = ctk.CTkEntry(rowm, placeholder_text="0", width=80)
+        self.entry_stock_inicial.pack(side="left", padx=10)
 
         sec3 = crear_seccion(scroll, titulo="Variante (opcional)", icono="👕",
                              descripcion="Solo para uniformes: tipo y talla crean variantes con stock propio.", nro=3)
@@ -266,6 +305,86 @@ class InventarioView(ctk.CTkFrame):
         ).pack(side="left", padx=5)
 
         self._id_producto_editando = None
+
+    def _crear_tab_compra(self):
+        from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
+        scroll = ctk.CTkScrollableFrame(self.tab_compra)
+        scroll.pack(fill="both", expand=True, padx=10, pady=10)
+
+        sec = crear_seccion(scroll, titulo="Registrar Compra a proveedor", icono="🧾",
+                            descripcion="Suma stock y guarda monto + método (Yape/Efectivo). Alimenta Compras y Ganancias del dashboard.",
+                            nro=1)
+        cuerpo = ctk.CTkFrame(sec, fg_color="transparent")
+        cuerpo.pack(fill="x", padx=10, pady=(0, 8))
+
+        ctk.CTkLabel(cuerpo, text="Producto *").pack(anchor="w")
+        self.combo_producto_compra = ctk.CTkComboBox(cuerpo, width=400, values=["Cargando..."],
+                                                    command=self._on_producto_compra)
+        self.combo_producto_compra.pack(anchor="w", pady=3)
+        self.label_compra_info = ctk.CTkLabel(cuerpo, text="", font=ctk.CTkFont(size=11), text_color="#6B5B7B")
+        self.label_compra_info.pack(anchor="w", pady=2)
+
+        row = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        row.pack(fill="x", anchor="w", pady=3)
+        ctk.CTkLabel(row, text="Cantidad (uds) *").pack(side="left")
+        self.entry_compra_cant = ctk.CTkEntry(row, width=100, placeholder_text="0")
+        self.entry_compra_cant.pack(side="left", padx=10)
+        ctk.CTkLabel(row, text="Monto total pagado (S/) *").pack(side="left", padx=(10, 0))
+        self.entry_compra_monto = ctk.CTkEntry(row, width=120, placeholder_text="0.00")
+        self.entry_compra_monto.pack(side="left", padx=10)
+        ctk.CTkLabel(row, text="Método *").pack(side="left", padx=(10, 0))
+        self.combo_compra_metodo = ctk.CTkComboBox(row, width=130, values=["YAPE", "EFECTIVO"])
+        self.combo_compra_metodo.set("EFECTIVO")
+        self.combo_compra_metodo.pack(side="left", padx=10)
+
+        self.label_compra_status = ctk.CTkLabel(cuerpo, text="", font=ctk.CTkFont(size=12))
+        self.label_compra_status.pack(anchor="w", pady=5)
+
+        crear_boton_interactivo(cuerpo, text="Registrar Compra", width=160,
+                                command=self._registrar_compra, fg_color="#7C3AED").pack(anchor="w", pady=5)
+        crear_nota(sec, "Tip: el monto y el método quedan en el movimiento e historial.")
+        self._productos_compra_map = {}
+
+    def _on_producto_compra(self, selection):
+        prod = self._productos_compra_map.get(selection)
+        if not prod:
+            return
+        try:
+            self.label_compra_info.configure(
+                text=f"Stock: {prod.get('stock_actual',0)} • Costo unit. actual: S/{float(prod.get('precio_compra',0) or 0):.2f}")
+        except Exception:
+            pass
+
+    def _registrar_compra(self):
+        prod = self._productos_compra_map.get(self.combo_producto_compra.get())
+        if not prod:
+            self.label_compra_status.configure(text="Seleccione producto", text_color="red")
+            return
+        try:
+            cant = int(self.entry_compra_cant.get().strip() or "0")
+        except ValueError:
+            cant = 0
+        data = {"id_producto": prod["id_producto"], "cantidad": cant,
+                "monto_total": self.entry_compra_monto.get().strip(),
+                "metodo_pago": self.combo_compra_metodo.get(),
+                "motivo": "Compra a proveedor"}
+        exito, msg, _ = inventario_controller.registrar_compra(data)
+        self.label_compra_status.configure(text=msg, text_color="green" if exito else "red")
+        if exito:
+            self.entry_compra_cant.delete(0, "end")
+            self.entry_compra_monto.delete(0, "end")
+            self._cargar_productos()
+            self._cargar_combo_productos()
+            self._cargar_productos_compra()
+
+    def _cargar_productos_compra(self):
+        try:
+            prods = inventario_controller.listar_productos(activo=1)
+        except Exception:
+            prods = []
+        nombres = [f"{p.get('codigo','')} - {p.get('nombre','')}" for p in prods]
+        self.combo_producto_compra.configure(values=nombres if nombres else ["Sin productos"])
+        self._productos_compra_map = {n: p for n, p in zip(nombres, prods)}
 
     def _crear_tab_movimiento(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -409,23 +528,26 @@ class InventarioView(ctk.CTkFrame):
             font=ctk.CTkFont(size=14, weight="bold"), text_color="#1F0A33",
         ).pack(anchor="w")
 
-        compra = prod.get('precio_compra', 0) or prod.get('precio', 0)
-        venta = prod.get('precio_venta', 0) or prod.get('precio', 0)
-        ganancia = venta - compra if venta and compra else 0
-        valorizado = (prod.get('stock_actual',0) or 0) * venta
+        compra = float(prod.get('precio_compra', 0) or prod.get('precio', 0) or 0)
+        venta = float(prod.get('precio_venta', 0) or prod.get('precio', 0) or 0)
+        gan_u = round(venta - compra, 2)
+        pct = round(gan_u / compra * 100, 1) if compra else 0
+        total_inv = round(compra * (prod.get('stock_actual', 0) or 0), 2)
         tipo_u = prod.get('tipo_uniforme_nombre') or prod.get('nombre_tipo_uniforme') or ''
-        gan_txt = f" | Ganancia: S/{ganancia:.2f}" if ganancia else ""
-        valorizado_txt = f" | Valorizado: S/{valorizado:.2f}" if valorizado else ""
+        empaque = prod.get('tipo_empaque') or 'Unidad'
         ctk.CTkLabel(
             info,
-            text=f"Categoría: {prod.get('categoria_nombre', '')} | "
-                 f"Tipo: {prod.get('tipo_uso', '')} | Compra: S/{compra:.2f} Venta: S/{venta:.2f}{gan_txt}{valorizado_txt}" + (f" | Uniforme: {tipo_u}" if tipo_u else ""),
+            text=f"{prod.get('categoria_nombre', '')} | {empaque}" + (f" | Uniforme: {tipo_u}" if tipo_u else ""),
             font=ctk.CTkFont(size=12), text_color="gray",
         ).pack(anchor="w")
-
         ctk.CTkLabel(
             info,
-            text=f"Stock: {prod.get('stock_actual', 0)} | Mínimo: {prod.get('stock_minimo', 0)}" + (f" | Tallas: ver variantes" if prod.get('id_tipo_uniforme') else ""),
+            text=f"Compra: S/{compra:.2f}  •  Venta: S/{venta:.2f}  •  Ganancia: S/{gan_u:.2f} ({pct:.1f}%)",
+            font=ctk.CTkFont(size=12, weight="bold"), text_color="#1F0A33",
+        ).pack(anchor="w")
+        ctk.CTkLabel(
+            info,
+            text=f"Stock: {prod.get('stock_actual', 0)} (mín {prod.get('stock_minimo', 0)})  •  Total inventario: S/{total_inv:.2f}" + (f"  •  Tallas: ver variantes" if prod.get('id_tipo_uniforme') else ""),
             font=ctk.CTkFont(size=12), text_color=stock_color,
         ).pack(anchor="w")
 
@@ -445,13 +567,16 @@ class InventarioView(ctk.CTkFrame):
 
         # ── Detalle expandible inline ──
         def _poblar(frame, _p=prod):
-            compra = _p.get("precio_compra", 0) or _p.get("precio", 0)
-            venta = _p.get("precio_venta", 0) or _p.get("precio", 0)
+            compra = float(_p.get("precio_compra", 0) or _p.get("precio", 0) or 0)
+            venta = float(_p.get("precio_venta", 0) or _p.get("precio", 0) or 0)
             try:
-                gan = (venta - compra) if venta and compra else 0
-                val = (_p.get("stock_actual", 0) or 0) * (venta or 0)
-                linea_detalle(frame, "Compra / Venta", f"S/{compra:.2f} / S/{venta:.2f}")
-                linea_detalle(frame, "Ganancia / Valorizado", f"S/{gan:.2f} / S/{val:.2f}")
+                gan = round(venta - compra, 2)
+                pct = round(gan / compra * 100, 1) if compra else 0
+                val = round(compra * (_p.get("stock_actual", 0) or 0), 2)
+                linea_detalle(frame, "Compra unit. / Venta", f"S/{compra:.2f} / S/{venta:.2f}")
+                linea_detalle(frame, "Ganancia", f"S/{gan:.2f} ({pct:.1f}%)")
+                linea_detalle(frame, "Total inventario", f"S/{val:.2f}")
+                linea_detalle(frame, "Empaque", f"{_p.get('tipo_empaque') or 'Unidad'} x {_p.get('cantidad_por_caja', 1) or 1}")
             except Exception:
                 linea_detalle(frame, "Precios", f"{compra} / {venta}")
             linea_detalle(frame, "ID producto", _p.get("id_producto"))
@@ -499,8 +624,13 @@ class InventarioView(ctk.CTkFrame):
             self.combo_tipo_uso.set(producto.get("tipo_uso", ""))
             self.entry_stock_min.insert(0, str(producto.get("stock_minimo", 0)))
             self.entry_precio.insert(0, str(producto.get("precio", 0)))
-            self.entry_precio_compra.insert(0, str(producto.get("precio_compra", producto.get("precio", 0))))
+            self.combo_empaque.set(producto.get("tipo_empaque", "Unidad") or "Unidad")
+            self.entry_cant_caja.delete(0, "end")
+            self.entry_cant_caja.insert(0, str(producto.get("cantidad_por_caja", 1) or 1))
+            self.entry_precio_total.delete(0, "end")
+            self.entry_precio_total.insert(0, str(producto.get("precio_compra_total", producto.get("precio_compra", 0)) or ""))
             self.entry_precio_venta.insert(0, str(producto.get("precio_venta", producto.get("precio", 0))))
+            self._actualizar_calculo()
             if producto.get("id_tipo_uniforme"):
                 for k, v in self._tipos_uniforme_map.items():
                     if v == producto.get("id_tipo_uniforme"):
@@ -509,14 +639,41 @@ class InventarioView(ctk.CTkFrame):
 
         self.tabview.set("Registrar Producto")
 
+    def _actualizar_calculo(self):
+        # cálculo en vivo: unitario y ganancia (misma fórmula del service)
+        try:
+            from services import inventario_service
+            total_txt = self.entry_precio_total.get().strip()
+            venta_txt = self.entry_precio_venta.get().strip()
+            if not total_txt or not venta_txt:
+                self.label_calculo.configure(text="")
+                return
+            emp = self.combo_empaque.get()
+            cant_txt = self.entry_cant_caja.get().strip()
+            cant = int(cant_txt) if cant_txt else 1
+            if emp == "Unidad":
+                cant = 1
+            r = inventario_service.calcular_unitario_y_ganancia(float(total_txt), cant, float(venta_txt))
+            self.label_calculo.configure(
+                text=f"Unitario: S/{r['unitario']:.2f}  •  Ganancia: S/{r['ganancia_unitaria']:.2f} ({r['ganancia_pct']:.1f}%)")
+        except Exception:
+            try:
+                self.label_calculo.configure(text="")
+            except Exception:
+                pass
+
     def _guardar_producto(self):
         data = {
             "nombre": self.entry_nombre.get().strip(),
             "tipo_uso": self.combo_tipo_uso.get(),
             "stock_minimo": self.entry_stock_min.get().strip() or "0",
             "precio": self.entry_precio.get().strip() or "0",
-            "precio_compra": self.entry_precio_compra.get().strip() or "0",
+            "tipo_empaque": self.combo_empaque.get(),
+            "cantidad_por_caja": self.entry_cant_caja.get().strip() or "1",
+            "precio_compra_total": self.entry_precio_total.get().strip(),
             "precio_venta": self.entry_precio_venta.get().strip() or "0",
+            "modo_compra": self.combo_modo_compra.get(),
+            "stock_inicial": self.entry_stock_inicial.get().strip() or "0",
         }
         tipo_sel = self.combo_tipo_uniforme.get()
         if tipo_sel in self._tipos_uniforme_map:
@@ -654,8 +811,13 @@ class InventarioView(ctk.CTkFrame):
         self.entry_stock_min.delete(0, "end")
         self.entry_precio.delete(0, "end")
         try:
-            self.entry_precio_compra.delete(0, "end")
+            self.combo_empaque.set("Unidad")
+            self.entry_cant_caja.delete(0, "end")
+            self.entry_precio_total.delete(0, "end")
             self.entry_precio_venta.delete(0, "end")
+            self.combo_modo_compra.set("EFECTIVO")
+            self.entry_stock_inicial.delete(0, "end")
+            self.label_calculo.configure(text="")
             self.combo_tipo_uniforme.set("Sin tipo")
         except Exception:
             pass

@@ -130,7 +130,7 @@ MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
                    "tarifas", "auditoria", "configuracion", "respaldo")
 PERMISOS_ROL = {
     ROLE_ADMIN: set(MODULOS_SISTEMA),
-    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "inventario", "reportes", "egresos", "respaldo"},
+    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "inventario", "reportes", "egresos", "respaldo", "tarifas"},
 }
 
 STATUS_ACTIVO = "ACTIVO"

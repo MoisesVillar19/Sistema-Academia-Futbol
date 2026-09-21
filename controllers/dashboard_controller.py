@@ -55,3 +55,19 @@ def listar_matriculas_mes() -> list[dict]:
 
 def comparativa_mensual() -> dict:
     return dashboard_service.comparativa_mensual()
+
+
+def resumen_dinero() -> dict:
+    return dashboard_service.resumen_dinero()
+
+
+def listar_compras_mes() -> list[dict]:
+    return dashboard_service.listar_compras_mes()
+
+
+def listar_ventas_dinero_mes() -> list[dict]:
+    return dashboard_service.listar_ventas_dinero_mes()
+
+
+def listar_ganancias_mes() -> list[dict]:
+    return dashboard_service.listar_ganancias_mes()

@@ -181,6 +181,21 @@ Bundles con título + precio + ítems incluidos (ej. "Matrícula Promocional S/1
 
 ---
 
+## F6b. Compras a proveedor (ALMACÉN → Inventario → Registrar Compra)
+
+1. Producto + cantidad (uds) + monto total pagado + método (Yape/Efectivo).
+2. Suma stock y guarda monto+método en el movimiento (alimenta Compras y Ganancias).
+3. Al crear producto: empaque (Unidad/Caja x12/Caja x100/Personalizado) +
+   cantidad por caja + precio total + venta unitaria; la app calcula costo
+   unitario y ganancia sola. Unidad fuerza cantidad 1.
+
+## F2b. Matrícula rápida (ACADEMIA → Matrículas → Rápida)
+
+1. Toggle NUEVO (default, S/120 editable, incluye uniforme) o ANTIGUO (monto libre obligatorio, sin uniforme).
+2. Nombres + apellidos + DNI 8 + método Yape/Efectivo (+ comprobante si Yape).
+3. Guardar y Matricular: crea/usa estudiante, matrícula (tipo guardado),
+   cobra primera cuota. Todo atómico. Apoderado queda pendiente (aviso).
+
 ## F10. Dashboard (PANEL → Dashboard)
 
 15 cards clickeables (toda la tarjeta responde). Cada detalle trae segmentado **Tabla/Gráfico/Ambos**:
@@ -199,6 +214,9 @@ Bundles con título + precio + ítems incluidos (ej. "Matrícula Promocional S/1
 | Nuevos Mes | Gráfico por día + tabla (**solo `es_nuevo=1`**; la carga masiva desmarcada no contamina) |
 | Antiguos / Matrículas Mes | Gráficos por día + por tarifa + tabla con columna **Condición (🆕 Nuevo/Antiguo)** |
 | MoM Ingresos | **Comparativa real**: barras actual vs anterior + tabla día a día con diferencia + % delta |
+| Compras/Ventas/Ganancias (mes) | 4 cards Yape/Efectivo + Ganancia Total; tablas y gráficos por día/tipo |
+
+- [ ] Compras con método + dashboard dinero cuadra; matrícula rápida NUEVO/ANTIGUO con comprobante Yape
 
 ---
 

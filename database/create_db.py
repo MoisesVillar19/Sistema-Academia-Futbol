@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS matricula (
     fecha_inicio TEXT NOT NULL,
     fecha_fin TEXT,
     dia_vencimiento INTEGER NOT NULL DEFAULT 1 CHECK(dia_vencimiento BETWEEN 1 AND 31),
+    tipo TEXT,
     estado TEXT NOT NULL DEFAULT 'ACTIVO',
     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_estudiante) REFERENCES estudiante(id_estudiante),
@@ -182,6 +183,9 @@ CREATE TABLE IF NOT EXISTS producto (
     precio REAL DEFAULT 0,
     precio_compra REAL DEFAULT 0,
     precio_venta REAL DEFAULT 0,
+    tipo_empaque TEXT DEFAULT 'Unidad',
+    cantidad_por_caja INTEGER DEFAULT 1,
+    precio_compra_total REAL DEFAULT 0,
     id_tipo_uniforme INTEGER REFERENCES tipo_uniforme(id_tipo_uniforme),
     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_categoria_producto) REFERENCES categoria_producto(id_categoria_producto)
@@ -197,6 +201,8 @@ CREATE TABLE IF NOT EXISTS movimiento_inventario (
     stock_nuevo INTEGER NOT NULL,
     fecha_movimiento TEXT NOT NULL,
     motivo TEXT,
+    metodo_pago TEXT,
+    monto_total REAL DEFAULT 0,
     id_variante INTEGER REFERENCES producto_variante(id_variante),
     id_almacen INTEGER REFERENCES almacen(id_almacen),
     id_caja INTEGER REFERENCES caja(id_caja),
@@ -438,9 +444,19 @@ def _migrar_columnas_faltantes(cursor) -> None:
         ("precio_compra", "ALTER TABLE producto ADD COLUMN precio_compra REAL DEFAULT 0"),
         ("precio_venta", "ALTER TABLE producto ADD COLUMN precio_venta REAL DEFAULT 0"),
         ("id_tipo_uniforme", "ALTER TABLE producto ADD COLUMN id_tipo_uniforme INTEGER REFERENCES tipo_uniforme(id_tipo_uniforme)"),
+        ("tipo_empaque", "ALTER TABLE producto ADD COLUMN tipo_empaque TEXT DEFAULT 'Unidad'"),
+        ("cantidad_por_caja", "ALTER TABLE producto ADD COLUMN cantidad_por_caja INTEGER DEFAULT 1"),
+        ("precio_compra_total", "ALTER TABLE producto ADD COLUMN precio_compra_total REAL DEFAULT 0"),
     ]:
         if col not in columnas_prod:
             cursor.execute(sql)
+    # backfill: Unidad => 1 por caja; total = unitario si no hay total
+    try:
+        cursor.execute("UPDATE producto SET cantidad_por_caja = 1 WHERE cantidad_por_caja IS NULL OR cantidad_por_caja < 1")
+        cursor.execute("UPDATE producto SET tipo_empaque = 'Unidad' WHERE tipo_empaque IS NULL OR tipo_empaque = ''")
+        cursor.execute("UPDATE producto SET precio_compra_total = precio_compra WHERE (precio_compra_total IS NULL OR precio_compra_total = 0) AND precio_compra > 0")
+    except Exception:
+        pass
 
     columnas_egreso = _obtener_columnas(cursor, "egreso")
     if "activo" not in columnas_egreso:
@@ -454,6 +470,8 @@ def _migrar_columnas_faltantes(cursor) -> None:
     try:
         cols_mov = _obtener_columnas(cursor, "movimiento_inventario")
         for col, sql in [
+            ("metodo_pago", "ALTER TABLE movimiento_inventario ADD COLUMN metodo_pago TEXT"),
+            ("monto_total", "ALTER TABLE movimiento_inventario ADD COLUMN monto_total REAL DEFAULT 0"),
             ("id_variante", "ALTER TABLE movimiento_inventario ADD COLUMN id_variante INTEGER REFERENCES producto_variante(id_variante)"),
             ("id_almacen", "ALTER TABLE movimiento_inventario ADD COLUMN id_almacen INTEGER REFERENCES almacen(id_almacen)"),
             ("id_caja", "ALTER TABLE movimiento_inventario ADD COLUMN id_caja INTEGER REFERENCES caja(id_caja)"),
@@ -498,6 +516,14 @@ def _migrar_columnas_faltantes(cursor) -> None:
             """)
             cursor.execute("INSERT INTO categoria (id_categoria, nombre, edad_min, edad_max, tipo, activo) SELECT id_categoria, nombre, edad_min, edad_max, COALESCE(tipo,'ACADEMIA'), activo FROM categoria_old")
             cursor.execute("DROP TABLE categoria_old")
+    except Exception:
+        pass
+
+    # Matrícula rápida: tipo NUEVO/ANTIGUO (nullable por compatibilidad)
+    try:
+        cols_mat = _obtener_columnas(cursor, "matricula")
+        if "tipo" not in cols_mat:
+            cursor.execute("ALTER TABLE matricula ADD COLUMN tipo TEXT")
     except Exception:
         pass
 

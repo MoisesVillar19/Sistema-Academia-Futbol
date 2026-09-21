@@ -40,6 +40,7 @@ def crear_matricula(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | N
         monto_pactado=monto_pactado,
         fecha_inicio=data.get("fecha_inicio", get_today()),
         dia_vencimiento=dia_vencimiento,
+        tipo=data.get("tipo"),
         estado=STATUS_ACTIVO,
     )
 
@@ -260,3 +261,119 @@ def desasignar_beca(id_matricula: int, id_beca: int) -> tuple[bool, str]:
 
 def obtener_becas_por_matricula(id_matricula: int) -> list[dict]:
     return matricula_beca_repository.obtener_por_matricula(id_matricula)
+
+
+MONTO_EXPRESS_NUEVO_DEFAULT = 120.0
+
+
+def _tarifa_inscripcion_default() -> dict | None:
+    from repositories import tarifa_repository
+    try:
+        todas = tarifa_repository.obtener_activas(tipo="SERVICIO")
+    except TypeError:
+        todas = tarifa_repository.obtener_activas()
+    for t in todas:
+        if (t.get("nombre", "") or "").strip().lower() == "inscripción":
+            return t
+    return todas[0] if todas else None
+
+
+def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict | None]:
+    """Matrícula en 1 paso: crea/usa estudiante + matrícula + pago primera cuota.
+
+    data: tipo (NUEVO/ANTIGUO), nombres, apellidos, dni, monto (str|float|None),
+          metodo_pago (YAPE/EFECTIVO), comprobante_path (obligatorio si YAPE).
+    NUEVO: monto default 120 editable, es_nuevo=1 (regala uniforme vía RN-051).
+    ANTIGUO: monto obligatorio editable, sin descuento, es_nuevo=0.
+    Todo atómico (transacción única). Apoderado queda pendiente.
+    """
+    from services import estudiante_service, pago_service
+
+    tipo = (data.get("tipo") or "").strip().upper()
+    if tipo not in ("NUEVO", "ANTIGUO"):
+        return False, "Tipo no válido. Use NUEVO o ANTIGUO", None
+    nombres = (data.get("nombres") or "").strip()
+    apellidos = (data.get("apellidos") or "").strip()
+    dni = (data.get("dni") or "").strip()
+    if not nombres or not apellidos:
+        return False, "Nombres y apellidos son obligatorios", None
+    if len(dni) != 8 or not dni.isdigit():
+        return False, "El DNI debe tener 8 dígitos", None
+    metodo = (data.get("metodo_pago") or "").strip().upper()
+    if metodo not in ("YAPE", "EFECTIVO"):
+        return False, "Método no válido. Use Yape o Efectivo", None
+    monto_raw = data.get("monto")
+    if tipo == "NUEVO" and (monto_raw in (None, "")):
+        monto_raw = MONTO_EXPRESS_NUEVO_DEFAULT
+    try:
+        monto = float(monto_raw)
+    except (ValueError, TypeError):
+        return False, "Monto inválido", None
+    if monto <= 0:
+        return False, "El monto debe ser mayor a 0", None
+    comprobante = (data.get("comprobante_path") or "").strip() or None
+    if metodo == "YAPE" and not comprobante:
+        return False, "Suba comprobante para Yape (RN-042)", None
+
+    tarifa = _tarifa_inscripcion_default()
+    if not tarifa:
+        return False, "Sin tarifa de inscripción (Servicios). Pídala al ADMIN", None
+
+    try:
+        with transaccion():
+            from repositories import persona_repository
+            persona = persona_repository.obtener_por_dni(dni)
+            id_estudiante = None
+            if persona:
+                existente = estudiante_repository.obtener_por_persona(persona["id_persona"])
+                if existente:
+                    id_estudiante = existente["id_estudiante"]
+            if id_estudiante is None:
+                ok_e, msg_e, id_estudiante = estudiante_service.crear_estudiante({
+                    "dni": dni, "nombres": nombres, "apellidos": apellidos,
+                    "tipo_documento": "DNI",
+                    "es_nuevo": 1 if tipo == "NUEVO" else 0,
+                }, id_usuario=id_usuario)
+                if not ok_e:
+                    raise ValueError(msg_e)
+            ok_m, msg_m, id_matricula = crear_matricula({
+                "id_estudiante": id_estudiante,
+                "id_tarifa": tarifa["id_tarifa"],
+                "monto_pactado": monto,
+                "dia_vencimiento": 1,
+                "diferir_meses": 0,
+                "tipo": tipo,
+            }, id_usuario=id_usuario)
+            if not ok_m:
+                raise ValueError(msg_m)
+            cuotas = cuota_service.obtener_cuotas_por_matricula(id_matricula)
+            pendientes = [c for c in cuotas if c.get("estado") != "PAGADO"]
+            if not pendientes:
+                raise ValueError("Sin cuota pendiente generada")
+            cuota = pendientes[0]
+            a_pagar = min(monto, float(cuota.get("saldo", 0) or 0))
+            if a_pagar <= 0:
+                raise ValueError("La cuota no tiene saldo pendiente")
+            ok_p, msg_p, id_pago = pago_service.registrar_pago({
+                "id_usuario": id_usuario,
+                "id_cuota": cuota["id_cuota"],
+                "monto_pagado": a_pagar,
+                "metodo_pago": metodo,
+                "comprobante_path": comprobante,
+                "observacion": "Matrícula express " + tipo,
+            })
+            if not ok_p:
+                raise ValueError(msg_p)
+        logger.info("Matrícula express %s: est=%s mat=%s pago=%s", tipo, id_estudiante, id_matricula, id_pago)
+        return True, "Matriculado (%s) y cobrado S/%.2f. Apoderado pendiente en Estudiantes." % (tipo, a_pagar), {
+            "id_estudiante": id_estudiante,
+            "id_matricula": id_matricula,
+            "id_pago": id_pago,
+            "monto_cobrado": a_pagar,
+        }
+    except ValueError as e:
+        logger.warning("Matrícula express fallida: %s", e)
+        return False, str(e), None
+    except Exception as e:
+        logger.error("Error en matrícula express: %s", e, exc_info=True)
+        return False, "Error al registrar matrícula express", None

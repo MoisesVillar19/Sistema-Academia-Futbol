@@ -6,24 +6,49 @@ from utils.dates import get_now
 def insertar(matricula: Matricula) -> int:
     conn = get_connection()
     now = get_now()
-    cursor = conn.execute(
-        """INSERT INTO matricula
-           (id_estudiante, id_tarifa, monto_pactado, pago_matricula, monto_matricula,
-            fecha_inicio, fecha_fin, dia_vencimiento, estado, activo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            matricula.id_estudiante,
-            matricula.id_tarifa,
-            matricula.monto_pactado,
-            matricula.pago_matricula,
-            matricula.monto_matricula,
-            matricula.fecha_inicio,
-            matricula.fecha_fin,
-            matricula.dia_vencimiento,
-            matricula.estado,
-            matricula.activo,
-        ),
-    )
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(matricula)").fetchall()]
+    except Exception:
+        cols = []
+    if "tipo" in cols and matricula.tipo:
+        cursor = conn.execute(
+            """INSERT INTO matricula
+               (id_estudiante, id_tarifa, monto_pactado, pago_matricula, monto_matricula,
+                fecha_inicio, fecha_fin, dia_vencimiento, tipo, estado, activo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                matricula.id_estudiante,
+                matricula.id_tarifa,
+                matricula.monto_pactado,
+                matricula.pago_matricula,
+                matricula.monto_matricula,
+                matricula.fecha_inicio,
+                matricula.fecha_fin,
+                matricula.dia_vencimiento,
+                matricula.tipo,
+                matricula.estado,
+                matricula.activo,
+            ),
+        )
+    else:
+        cursor = conn.execute(
+            """INSERT INTO matricula
+               (id_estudiante, id_tarifa, monto_pactado, pago_matricula, monto_matricula,
+                fecha_inicio, fecha_fin, dia_vencimiento, estado, activo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                matricula.id_estudiante,
+                matricula.id_tarifa,
+                matricula.monto_pactado,
+                matricula.pago_matricula,
+                matricula.monto_matricula,
+                matricula.fecha_inicio,
+                matricula.fecha_fin,
+                matricula.dia_vencimiento,
+                matricula.estado,
+                matricula.activo,
+            ),
+        )
     conn.commit()
     return cursor.lastrowid
 

@@ -74,6 +74,52 @@ def sumar_por_periodo(fecha_inicio: str, fecha_fin: str) -> float:
     return float(row["total"]) if row else 0.0
 
 
+def ventas_por_metodo(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    return fetch_all(
+        """SELECT metodo_pago AS metodo, COALESCE(SUM(monto_total), 0) AS total,
+                  COUNT(*) AS n
+           FROM venta
+           WHERE fecha_venta BETWEEN ? AND ? AND activo = 1
+             AND metodo_pago IN ('YAPE', 'EFECTIVO')
+           GROUP BY metodo_pago""",
+        (fecha_inicio, fecha_fin),
+    )
+
+
+def detalle_ganancia_por_venta(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    return fetch_all(
+        """SELECT v.numero_recibo AS recibo, v.metodo_pago AS metodo,
+                  v.fecha_venta AS fecha,
+                  COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos,
+                  COALESCE(SUM(d.cantidad * (d.precio_unitario - COALESCE(p.precio_compra, 0))), 0) AS ganancia
+           FROM venta v
+           JOIN detalle_venta d ON d.id_venta = v.id_venta
+           JOIN producto p ON p.id_producto = d.id_producto
+           WHERE v.fecha_venta BETWEEN ? AND ? AND v.activo = 1
+             AND v.metodo_pago IN ('YAPE', 'EFECTIVO')
+           GROUP BY v.id_venta
+           ORDER BY v.fecha_venta DESC""",
+        (fecha_inicio, fecha_fin),
+    )
+
+
+def ganancia_por_metodo(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    """Ganancia = Σ cantidad × (precio_unitario − costo actual). Aproximación
+    documentada: usa el costo unitario vigente del producto."""
+    return fetch_all(
+        """SELECT v.metodo_pago AS metodo,
+                  COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos,
+                  COALESCE(SUM(d.cantidad * (d.precio_unitario - COALESCE(p.precio_compra, 0))), 0) AS ganancia
+           FROM venta v
+           JOIN detalle_venta d ON d.id_venta = v.id_venta
+           JOIN producto p ON p.id_producto = d.id_producto
+           WHERE v.fecha_venta BETWEEN ? AND ? AND v.activo = 1
+             AND v.metodo_pago IN ('YAPE', 'EFECTIVO')
+           GROUP BY v.metodo_pago""",
+        (fecha_inicio, fecha_fin),
+    )
+
+
 def soft_delete(id_venta: int) -> None:
     conn = get_connection()
     conn.execute("UPDATE venta SET activo = 0 WHERE id_venta = ?", (id_venta,))
