@@ -3,7 +3,21 @@ from controllers import login_controller
 
 
 def puede_acceder() -> bool:
-    return login_controller.es_admin()
+    # Bloque D: globales (secciones 1-6 + guardar) solo con `configuracion`.
+    # ADMIN siempre True vía matriz; SECRETARIA por defecto no lo tiene.
+    from services import auth_service
+    return auth_service.tiene_permiso("configuracion")
+
+
+def puede_ver() -> bool:
+    # Bloque D: ver Configuración con `configuracion` (todo) o `catalogos`
+    # (solo secciones 7-10: categorías, uniformes, conceptos, apariencia).
+    from services import auth_service
+    return auth_service.tiene_permiso("configuracion") or auth_service.tiene_permiso("catalogos")
+
+
+def puede_editar_globales() -> bool:
+    return puede_acceder()
 
 
 def obtener_configuracion() -> dict | None:

@@ -11,9 +11,10 @@ class ConfiguracionView(ctk.CTkFrame):
         self._cargar_configuracion()
 
     def _crear_widgets(self):
-        if not configuracion_controller.puede_acceder():
+        # Bloque D: visible con `configuracion` (todo) o `catalogos` (7-10).
+        if not configuracion_controller.puede_ver():
             ctk.CTkLabel(
-                self, text="Acceso denegado. Solo administradores.",
+                self, text="Acceso denegado. Se requiere permiso de Configuración o Catálogos.",
                 font=ctk.CTkFont(size=16), text_color="red",
             ).pack(expand=True)
             return
@@ -30,13 +31,13 @@ class ConfiguracionView(ctk.CTkFrame):
         self.contenido.pack(fill="both", expand=True, padx=15, pady=5)
 
     # ── Helpers UI ordenada y explicada (sin hover para evitar glitch) ──
-    def _seccion(self, titulo, icono, descripcion, nro):
+    def _seccion(self, titulo, icono, descripcion, nro, badge="ADMIN"):
         sec = ctk.CTkFrame(self.contenido, fg_color="white", corner_radius=8)
         sec.pack(fill="x", padx=5, pady=5)
         head = ctk.CTkFrame(sec, fg_color="transparent")
         head.pack(fill="x", padx=10, pady=(8, 4))
         ctk.CTkLabel(head, text=f"{nro}. {icono}  {titulo}", font=ctk.CTkFont(size=14, weight="bold"), text_color="#3D1559").pack(side="left")
-        ctk.CTkLabel(head, text="ADMIN", font=ctk.CTkFont(size=10), text_color="white", fg_color="#7C3AED", corner_radius=6, width=50).pack(side="right")
+        ctk.CTkLabel(head, text=badge, font=ctk.CTkFont(size=10), text_color="white", fg_color="#7C3AED", corner_radius=6, width=70).pack(side="right")
         # descripción sin wraplength grande para evitar sobrepuesto
         desc = ctk.CTkLabel(sec, text=descripcion, font=ctk.CTkFont(size=11), text_color="#6B5B7B", justify="left", wraplength=650)
         desc.pack(anchor="w", padx=10, pady=(0, 6))
@@ -47,6 +48,8 @@ class ConfiguracionView(ctk.CTkFrame):
         lbl.pack(anchor="w", padx=10, pady=2)
 
     def _cargar_configuracion(self):
+        if not hasattr(self, "contenido"):
+            return
         for widget in self.contenido.winfo_children():
             widget.destroy()
 
@@ -56,7 +59,15 @@ class ConfiguracionView(ctk.CTkFrame):
             return
 
         self.entries = {}
+        # Bloque D: globales (1-6) solo con `configuracion`; catálogos (7-10)
+        # con `configuracion` o `catalogos`.
+        self._solo_catalogos = not configuracion_controller.puede_editar_globales()
+        if not self._solo_catalogos:
+            self._render_globales(config)
+        self._render_catalogos()
+        return
 
+    def _render_globales(self, config):
         # 1 — General
         sec1 = self._seccion("Información General", "🏫", "Datos que aparecen en reportes y encabezados. No afecta cálculos.", 1)
         self._crear_campo(sec1, "nombre_academia", "Nombre de la Academia", config.get("nombre_academia", ""), help="Ej: Roncalli — se imprime en Excel")
@@ -176,24 +187,26 @@ class ConfiguracionView(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _render_catalogos(self):
+        badge = "CATÁLOGOS" if getattr(self, "_solo_catalogos", False) else "ADMIN"
         # 7 — Categorías edad
-        sec6 = self._seccion("Categorías de Edad", "👥", "Rangos que asignan tarifa sugerida por edad.", 7)
+        sec6 = self._seccion("Categorías de Edad", "👥", "Rangos que asignan tarifa sugerida por edad.", 7, badge=badge)
         self._cargar_categorias(sec6)
         from utils.ui_helpers import crear_boton_interactivo
         crear_boton_interactivo(sec6, text="+ Nueva Categoría", width=150, command=self._nueva_categoria, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
         # 8 — Tipos uniforme
-        sec7 = self._seccion("Tipos de Uniforme", "👕", "Amplía tipos sin código. Cada tipo → producto con stock y precio_venta.", 8)
+        sec7 = self._seccion("Tipos de Uniforme", "👕", "Amplía tipos sin código. Cada tipo → producto con stock y precio_venta.", 8, badge=badge)
         self._cargar_tipos_uniforme(sec7)
         crear_boton_interactivo(sec7, text="+ Nuevo Tipo Uniforme", width=180, command=self._nuevo_tipo_uniforme, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
         # 8b — Conceptos flexibles (RN-052 sin redundancia)
-        sec7b = self._seccion("Conceptos Flexibles (bundles con ítems)", "🏷", "Crea paquetes con título, precio y productos incluidos. Si eliges concepto en Matrícula, su monto precede a tarifa/monto pactado y descuenta stock de cada ítem. Sin duplicar configuracion.precio_*.", 9)
+        sec7b = self._seccion("Conceptos Flexibles (bundles con ítems)", "🏷", "Crea paquetes con título, precio y productos incluidos. Si eliges concepto en Matrícula, su monto precede a tarifa/monto pactado y descuenta stock de cada ítem. Sin duplicar configuracion.precio_*.", 9, badge=badge)
         self._cargar_conceptos(sec7b)
         crear_boton_interactivo(sec7b, text="+ Nuevo Concepto", width=160, command=self._nuevo_concepto, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
         # 10 — Apariencia Visual (nuevo, ordenado y explicado)
-        sec8 = self._seccion("Apariencia Visual", "🎨", "Ajusta tamaño de letra, colores y fuente. Se guarda local y aplica al reiniciar.", 10)
+        sec8 = self._seccion("Apariencia Visual", "🎨", "Ajusta tamaño de letra, colores y fuente. Se guarda local y aplica al reiniciar.", 10, badge=badge)
         vis_frame = ctk.CTkFrame(sec8, fg_color="transparent")
         vis_frame.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(vis_frame, text="Tamaño de letra:", width=160, anchor="w").pack(side="left")
@@ -219,12 +232,18 @@ class ConfiguracionView(ctk.CTkFrame):
         ctk.CTkButton(vis3, text="Aplicar vista previa", width=140, height=28, fg_color="#6B21A8", command=self._aplicar_visual).pack(side="left", padx=10)
         self._nota(sec8, "Tip: Usa Grande si la letra se ve pequeña. Se guarda en config_visual.json y aplica al reiniciar.")
 
-        # Guardar fijo abajo
+        # Guardar apariencia (local, disponible también para solo-catálogos)
+        from utils.ui_helpers import crear_boton_interactivo as btn2
+        btn2(sec8, text="💾 Guardar apariencia", width=180, command=self._guardar_apariencia, fg_color="#22C55E").pack(anchor="w", padx=10, pady=6)
+
+        # Guardar fijo abajo (Bloque D: solo con `configuracion`; catálogos
+        # tiene sus propios Guardar por sección)
+        if getattr(self, "_solo_catalogos", False):
+            return
         btn_frame = ctk.CTkFrame(self.contenido, fg_color="transparent")
         btn_frame.pack(fill="x", padx=5, pady=12)
         st = ctk.CTkLabel(btn_frame, text="💡 Cambios se aplican al guardar, sin reiniciar. Precios afectan solo nuevas operaciones.", text_color="#6B5B7B", font=ctk.CTkFont(size=11))
         st.pack(side="left", padx=5)
-        from utils.ui_helpers import crear_boton_interactivo as btn2
         btn2(btn_frame, text="💾 Guardar Cambios", width=160, height=36, command=self._guardar, fg_color="#22C55E").pack(side="right")
 
     def _crear_campo(self, parent, key, label, valor, help=None):
@@ -282,7 +301,14 @@ class ConfiguracionView(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+    def _guardar_apariencia(self):
+        self._guardar_visual()
+        messagebox.showinfo("Apariencia", "Apariencia guardada. Reinicia para aplicar fuente/tamaño.")
+
     def _guardar(self):
+        if getattr(self, "_solo_catalogos", False):
+            messagebox.showwarning("Sin permiso", "Se requiere el módulo configuracion para guardar globales.")
+            return
         # guardar visual primero
         self._guardar_visual()
         data = {}

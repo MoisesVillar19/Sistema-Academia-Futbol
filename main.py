@@ -271,8 +271,8 @@ class App(ctk.CTk):
         if _can("reportes"):
             _btn("📈  Reportes", self._mostrar_reportes, indent=True)
 
-        # SISTEMA solo ADMIN o con permiso
-        if _can("importar") or _can("usuarios") or _can("configuracion"):
+        # SISTEMA solo ADMIN o con permiso (Bloque D: catalogos también abre Configuración)
+        if _can("importar") or _can("usuarios") or _can("configuracion") or _can("catalogos"):
             _header("SISTEMA")
             if _can("importar"):
                 _btn("📤  Importar", self._mostrar_importar, indent=True)
@@ -282,7 +282,7 @@ class App(ctk.CTk):
                 _btn("🏷  Tarifas", self._mostrar_tarifas, indent=True)
             if _can("auditoria"):
                 _btn("📝  Auditoría", self._mostrar_auditoria, indent=True)
-            if _can("configuracion"):
+            if _can("configuracion") or _can("catalogos"):
                 _btn("⚙️  Configuración", self._mostrar_configuracion, indent=True)
             if _can("respaldo"):
                 _btn("💾  Respaldo", self._crear_backup_manual, indent=True)

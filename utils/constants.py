@@ -127,10 +127,14 @@ ROLES_LEGACY = (ROLE_CAJA, ROLE_INVENTARIO)
 # Es el DEFAULT inicial: el ADMIN puede editarla (tabla rol_permiso) sin tocar código.
 MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
                    "inventario", "reportes", "egresos", "importar", "usuarios",
-                   "tarifas", "auditoria", "configuracion", "respaldo")
+                   "tarifas", "auditoria", "configuracion", "catalogos", "respaldo")
+# Bloque D: `catalogos` = secciones 7-10 de Configuración (categorías edad,
+# tipos uniforme, conceptos, apariencia). SECRETARIA lo tiene por defecto;
+# `configuracion` (secciones 1-6 + guardar globales) sigue solo ADMIN.
+# La migración es el seed idempotente de create_db (INSERT OR IGNORE).
 PERMISOS_ROL = {
     ROLE_ADMIN: set(MODULOS_SISTEMA),
-    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "inventario", "reportes", "egresos", "respaldo", "tarifas"},
+    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "inventario", "reportes", "egresos", "respaldo", "tarifas", "catalogos"},
 }
 
 STATUS_ACTIVO = "ACTIVO"

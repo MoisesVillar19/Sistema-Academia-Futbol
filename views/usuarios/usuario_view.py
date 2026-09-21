@@ -397,12 +397,31 @@ class UsuarioView(ctk.CTkFrame):
         except Exception:
             MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
                                "inventario", "reportes", "egresos", "importar", "usuarios",
-                               "tarifas", "auditoria", "configuracion", "respaldo")
+                               "tarifas", "auditoria", "configuracion", "catalogos", "respaldo")
+        # Bloque D: la matriz lista cada módulo con su descripción.
+        descripciones = {
+            "dashboard": "panel principal",
+            "estudiantes": "alumnos y apoderados",
+            "matriculas": "matrículas y cuotas",
+            "pagos": "cobros y recibos",
+            "ventas": "tienda y uniformes",
+            "egresos": "gastos",
+            "inventario": "stock y movimientos",
+            "reportes": "Excel y reportes",
+            "importar": "carga masiva",
+            "usuarios": "solo ADMIN",
+            "tarifas": "precios y becas",
+            "auditoria": "solo ADMIN, lectura",
+            "configuracion": "secciones 1-6 + guardar",
+            "catalogos": "secciones 7-10 (categorías, uniformes, conceptos)",
+            "respaldo": "backups",
+        }
         actuales = usuario_controller.listar_permisos_rol("SECRETARIA")
         for i, mod in enumerate(MODULOS_SISTEMA):
             var = ctk.BooleanVar(value=(mod in actuales))
-            chk = ctk.CTkCheckBox(grid, text=mod.capitalize(), variable=var)
-            chk.grid(row=i // 2, column=i % 2, sticky="w", padx=10, pady=3)
+            etiqueta = f"{mod.capitalize()} — {descripciones.get(mod, '')}".strip(" —")
+            chk = ctk.CTkCheckBox(grid, text=etiqueta, variable=var)
+            chk.grid(row=i, column=0, sticky="w", padx=10, pady=3)
             self._vars_permisos[mod] = var
         self.label_permisos_status = ctk.CTkLabel(sec, text="", font=ctk.CTkFont(size=11))
         self.label_permisos_status.pack(anchor="w", padx=10, pady=2)
