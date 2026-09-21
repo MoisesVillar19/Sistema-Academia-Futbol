@@ -56,9 +56,25 @@ def _obtener_ruta_app() -> str:
     return os.path.dirname(os.path.dirname(__file__))
 
 
+def _partes_version(v: str) -> list[int]:
+    """Tolerante: ignora 'v', espacios y sufijos ('1.0.7-beta' → [1,0,7])."""
+    v = (v or "").strip().lstrip("vV")
+    partes = []
+    for trozo in v.split("."):
+        # corta en el primer no-dígito ("7-beta" → "7", "" → 0)
+        m = ""
+        for c in trozo.strip():
+            if c.isdigit():
+                m += c
+            else:
+                break
+        partes.append(int(m) if m else 0)
+    return partes or [0]
+
+
 def comparar_versiones(v_local: str, v_remota: str) -> int:
-    partes_local = [int(x) for x in v_local.split(".")]
-    partes_remota = [int(x) for x in v_remota.split(".")]
+    partes_local = _partes_version(v_local)
+    partes_remota = _partes_version(v_remota)
     for l, r in zip(partes_local, partes_remota):
         if l < r:
             return -1
@@ -113,7 +129,7 @@ def verificar_actualizacion() -> dict | None:
             return None
 
         if comparar_versiones(__version__, tag) >= 0:
-            _guardar_estado({
+            _fusionar_estado({
                 "ultima_verificacion": datetime.now().isoformat(),
                 "ultima_version_verificada": tag,
             })
@@ -170,10 +186,16 @@ def verificar_actualizacion() -> dict | None:
         return None
 
 
-def registrar_verificacion() -> None:
+def _fusionar_estado(nuevo: dict) -> None:
+    """Mezcla claves nuevas sobre el estado existente (antes se sobrescribía
+    todo el archivo y se perdían p. ej. 'rechazado_version' o 'setup_pendiente')."""
     estado = _cargar_estado()
-    estado["ultima_verificacion"] = datetime.now().isoformat()
+    estado.update(nuevo or {})
     _guardar_estado(estado)
+
+
+def registrar_verificacion() -> None:
+    _fusionar_estado({"ultima_verificacion": datetime.now().isoformat()})
 
 
 def registrar_rechazo(version: str) -> None:
@@ -191,11 +213,18 @@ def _formatear_bytes(n: int) -> str:
     return f"{n/1024/1024:.1f} MB"
 
 
-def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
+class _DescargaCancelada(Exception):
+    pass
+
+
+def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
+                           debe_cancelar=None) -> bool:
     """
     Descarga ZIP o Setup.exe streaming con progreso.
     ZIP: extrae sobre ruta_app (preserva db/config)
     Setup EXE: descarga y lanza instalador silencioso (pide UAC si Program Files)
+    debe_cancelar: callable opcional sin args → True aborta la descarga cuanto
+    antes, limpia el temporal y retorna False (antes Cancelar no detenía el hilo).
     """
     global ultimo_error
     ultimo_error = ""
@@ -223,6 +252,14 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
 
                     with open(ruta_descarga, "wb") as out:
                         while True:
+                            if debe_cancelar is not None:
+                                try:
+                                    if debe_cancelar():
+                                        raise _DescargaCancelada()
+                                except _DescargaCancelada:
+                                    raise
+                                except Exception:
+                                    pass
                             chunk = resp.read(8192 * 4)
                             if not chunk:
                                 break
@@ -257,9 +294,12 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
                         if not zipfile.is_zipfile(ruta_descarga):
                             raise ValueError("El archivo descargado no es un ZIP válido (descarga incompleta o URL incorrecta)")
                     if total and bytes_read != total:
-                        pass
+                        raise ValueError(
+                            f"Descarga truncada: {bytes_read}/{total} bytes")
                     break
-            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
+                    ConnectionError, OSError, ValueError) as e:
+                # ValueError = truncado o ZIP inválido: también reintenta una vez
                 last_exc = e
                 if intento < intentos - 1:
                     time.sleep(1.2)
@@ -272,7 +312,7 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
         if es_setup:
             try:
                 import subprocess
-                _guardar_estado({"setup_pendiente": ruta_descarga, "setup_version": url_descarga})
+                _fusionar_estado({"setup_pendiente": ruta_descarga, "setup_version": url_descarga})
                 try:
                     os.startfile(ruta_descarga)  # type: ignore[attr-defined]
                 except Exception:
@@ -306,8 +346,9 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
                 destino = os.path.join(ruta_app, nombre)
                 # normalizar separadores zip (siempre /)
                 destino = os.path.normpath(destino)
-                # seguridad: no salir de ruta_app
-                if not destino.startswith(os.path.normpath(ruta_app)):
+                # seguridad: no salir de ruta_app (zip-slip; exige separador)
+                base = os.path.normpath(ruta_app)
+                if destino != base and not destino.startswith(base + os.sep):
                     continue
                 os.makedirs(os.path.dirname(destino), exist_ok=True)
                 try:
@@ -335,13 +376,17 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None) -> bool:
         shutil.rmtree(ruta_temp, ignore_errors=True)
         ruta_temp = None
 
-        _guardar_estado({
+        _fusionar_estado({
             "ultima_verificacion": datetime.now().isoformat(),
             "actualizado_version": __version__,
+            "rechazado_version": "",
         })
 
         return True
 
+    except _DescargaCancelada:
+        ultimo_error = "Descarga cancelada por el usuario."
+        return False
     except urllib.error.HTTPError as e:
         ultimo_error = f"HTTP {e.code} {e.reason} al descargar (¿Release sin ZIP? Verifique que el Release tenga AcademiaFutbol-v*.zip adjunto)"
         return False

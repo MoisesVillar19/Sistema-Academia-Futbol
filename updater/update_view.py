@@ -244,6 +244,7 @@ class ActualizarDialog(ctk.CTkToplevel):
                 exito = update_service.descargar_y_actualizar(
                     self.info["url_descarga"],
                     callback_progreso=callback_progreso,
+                    debe_cancelar=lambda: self._cancelado,
                 )
                 if self._cancelado:
                     self.after(0, lambda: self._on_cancelado_ui())
@@ -352,9 +353,6 @@ def verificar_y_mostrar(parent, forzar: bool = False) -> None:
             update_service.registrar_verificacion()
 
     if forzar or update_service.debe_verificar():
-        threading.Thread(target=_verificar, daemon=True).start()
-    elif forzar:
-        # si debe_verificar es False pero forzar True ya se manejó arriba; fallback
         threading.Thread(target=_verificar, daemon=True).start()
 
 
