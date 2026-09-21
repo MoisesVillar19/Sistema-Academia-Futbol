@@ -174,10 +174,12 @@ def actualizar(producto: Producto) -> None:
     conn.commit()
 
 
-def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
+                    id_categoria_producto: int | None = None) -> tuple[list[dict], int]:
     """Búsqueda SQL real por nombre/código con paginación (Bloque A3).
 
     Devuelve (rows, total). Solo productos activos.
+    ``id_categoria_producto`` filtra por categoría (Bloque B2, opcional).
     """
     base = """
         FROM producto p
@@ -189,6 +191,9 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list
         like = f"%{q.strip()}%"
         base += " AND (p.nombre LIKE ? OR p.codigo LIKE ?)"
         params.extend([like, like])
+    if id_categoria_producto is not None:
+        base += " AND p.id_categoria_producto = ?"
+        params.append(id_categoria_producto)
     cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
     rows = fetch_all(

@@ -15,6 +15,10 @@ class InventarioView(ctk.CTkFrame):
         self._total = 0
         self._q_actual = ""
         self._productos_compra_map = {}
+        # Bloque B: vista Cards/Tabla + filtro por categoría (None = Todas)
+        self._vista_modo = "Cards"
+        self._filtro_categoria_id = None
+        self._categorias_filtro_map = {}
         self._crear_widgets()
         self._cargar_combo_categorias()
         self._cargar_productos()
@@ -82,7 +86,20 @@ class InventarioView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
-        crear_nota(sec_busq, "Tip: clic en ▾ Ver detalle de cada tarjeta para precios, valorizado y tallas.")
+        # B1: toggle Cards/Tabla (modo Excel denso)
+        self.seg_vista = ctk.CTkSegmentedButton(
+            busqueda_frame, values=["Cards", "Tabla"],
+            command=self._on_vista_cambiar,
+        )
+        self.seg_vista.set("Cards")
+        self.seg_vista.pack(side="left", padx=5)
+        crear_nota(sec_busq, "Tip: clic en ▾ Ver detalle de cada tarjeta o fila para precios, valorizado y tallas.")
+        # B2: filtro por categoría (segmentado Todas + cada una)
+        self.filtro_cat_frame = ctk.CTkFrame(sec_busq, fg_color="transparent")
+        self.filtro_cat_frame.pack(fill="x", padx=10, pady=(0, 8))
+        self._reconstruir_filtro_categorias()
+        # B4: nota de objetivo del flujo de stock
+        crear_nota(sec_busq, "El stock se mueve en Compras y Movimiento; aquí se consulta y se crean productos.")
 
         self.scroll_productos = ctk.CTkScrollableFrame(self.tab_productos)
         self.scroll_productos.pack(fill="both", expand=True, padx=5, pady=5)
@@ -274,6 +291,15 @@ class InventarioView(ctk.CTkFrame):
         ctk.CTkLabel(rowm, text="Stock inicial (uds):").pack(side="left", padx=(10, 0))
         self.entry_stock_inicial = ctk.CTkEntry(rowm, placeholder_text="0", width=80)
         self.entry_stock_inicial.pack(side="left", padx=10)
+
+        # B3: en Editar el stock es solo-lectura (se mueve en Compras/Movimiento)
+        self.label_stock_readonly = ctk.CTkLabel(
+            cuerpo2, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#7C3AED",
+        )
+        self.label_stock_nota = ctk.CTkLabel(
+            cuerpo2, text="El stock se mueve en Compras y Movimiento (ENTRADA/SALIDA/AJUSTE), no aquí.",
+            font=ctk.CTkFont(size=11), text_color="#6B5B7B",
+        )
 
         sec3 = crear_seccion(scroll, titulo="Variante (opcional)", icono="👕",
                              descripcion="Solo para uniformes: tipo y talla crean variantes con stock propio.", nro=3)
@@ -483,16 +509,21 @@ class InventarioView(ctk.CTkFrame):
         for widget in self.scroll_productos.winfo_children():
             widget.destroy()
 
+        cat_id = getattr(self, "_filtro_categoria_id", None)
         try:
             from repositories import producto_repository
             offset = (self._pagina - 1) * self._per_page
-            rows, total = producto_repository.buscar_paginado(q=self._q_actual, limit=self._per_page, offset=offset)
+            rows, total = producto_repository.buscar_paginado(
+                q=self._q_actual, limit=self._per_page, offset=offset,
+                id_categoria_producto=cat_id)
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
         except Exception:
             from utils.busqueda import coincide as _coincide
             todos = inventario_controller.listar_productos()
+            if cat_id is not None:
+                todos = [p for p in todos if p.get("id_categoria_producto") == cat_id]
             if self._q_actual:
                 rows = [p for p in todos if _coincide(
                     self._q_actual, p.get('nombre', ''), p.get('codigo', ''))]
@@ -500,7 +531,7 @@ class InventarioView(ctk.CTkFrame):
                 rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             else:
                 total = len(todos)
-                rows = todos[:self._per_page]
+                rows = todos[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             self._total = total
 
         if not rows:
@@ -508,14 +539,85 @@ class InventarioView(ctk.CTkFrame):
             self.label_status.configure(text=f"Total: {self._total} • Página {self._pagina}")
             return
 
-        for prod in rows:
-            self._crear_card_producto(prod)
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_productos(rows)
+        else:
+            for prod in rows:
+                self._crear_card_producto(prod)
 
         total_paginas = max(1, (self._total + self._per_page - 1) // self._per_page)
         self.label_status.configure(text=f"Total: {self._total} producto(s) • Página {self._pagina}/{total_paginas} • 50 por página")
 
+    # ── Bloque B1: tabla densa modo Excel (misma data que las cards) ──
+    @staticmethod
+    def _metricas_producto(prod):
+        compra = float(prod.get('precio_compra', 0) or prod.get('precio', 0) or 0)
+        venta = float(prod.get('precio_venta', 0) or prod.get('precio', 0) or 0)
+        gan_u = round(venta - compra, 2)
+        pct = round(gan_u / compra * 100, 1) if compra else 0
+        total_inv = round(compra * (prod.get('stock_actual', 0) or 0), 2)
+        return compra, venta, gan_u, pct, total_inv
+
+    def _render_tabla_productos(self, rows):
+        header = ctk.CTkFrame(self.scroll_productos, fg_color="#3D1559", corner_radius=6)
+        header.pack(fill="x", padx=6, pady=(4, 2))
+        cols = ["Código", "Nombre", "Categoría", "Stock", "Compra", "Venta", "Gan.%", "Total inv.", ""]
+        anchos = [90, 200, 130, 60, 80, 80, 70, 90, 40]
+        for i, (c, a) in enumerate(zip(cols, anchos)):
+            lbl = ctk.CTkLabel(header, text=c, width=a,
+                               font=ctk.CTkFont(size=11, weight="bold"), text_color="white")
+            lbl.grid(row=0, column=i, padx=2, pady=6, sticky="w")
+
+        for prod in rows:
+            compra, venta, _gan_u, pct, total_inv = self._metricas_producto(prod)
+            stock_bajo = (prod.get("stock_actual", 0) or 0) <= (prod.get("stock_minimo", 0) or 0) \
+                and (prod.get("stock_minimo", 0) or 0) > 0
+            fila = ctk.CTkFrame(self.scroll_productos, fg_color="white", corner_radius=6)
+            fila.pack(fill="x", padx=6, pady=1)
+            vals = [str(prod.get("codigo", "")), str(prod.get("nombre", "")),
+                    str(prod.get("categoria_nombre", "")),
+                    str(prod.get("stock_actual", 0)), f"S/{compra:.2f}",
+                    f"S/{venta:.2f}", f"{pct:.1f}%", f"S/{total_inv:.2f}"]
+            for i, (v, a) in enumerate(zip(vals, anchos)):
+                color = "red" if (i == 3 and stock_bajo) else "#1F0A33"
+                ctk.CTkLabel(fila, text=v, width=a,
+                             font=ctk.CTkFont(size=11), text_color=color).grid(
+                    row=0, column=i, padx=2, pady=4, sticky="w")
+            detalle = ctk.CTkFrame(fila, fg_color="transparent")
+            detalle.grid(row=1, column=0, columnspan=len(cols), sticky="ew", padx=10)
+            self._poblar_detalle(detalle, prod)
+            detalle.grid_remove()
+            btn = ctk.CTkButton(fila, text="▾", width=anchos[-1], height=24,
+                                fg_color="transparent", text_color="#7C3AED")
+            btn.grid(row=0, column=len(cols) - 1, padx=2, pady=4)
+            btn.configure(command=lambda d=detalle, b=btn: (
+                d.grid_remove(), b.configure(text="▾")) if d.winfo_viewable()
+                else (d.grid(), b.configure(text="▴")))
+
+    def _poblar_detalle(self, frame, prod):
+        from utils.ui_helpers import linea_detalle
+        compra = float(prod.get("precio_compra", 0) or prod.get("precio", 0) or 0)
+        venta = float(prod.get("precio_venta", 0) or prod.get("precio", 0) or 0)
+        try:
+            gan = round(venta - compra, 2)
+            pct = round(gan / compra * 100, 1) if compra else 0
+            val = round(compra * (prod.get("stock_actual", 0) or 0), 2)
+            linea_detalle(frame, "Compra unit. / Venta", f"S/{compra:.2f} / S/{venta:.2f}")
+            linea_detalle(frame, "Ganancia", f"S/{gan:.2f} ({pct:.1f}%)")
+            linea_detalle(frame, "Total inventario", f"S/{val:.2f}")
+            linea_detalle(frame, "Empaque", f"{prod.get('tipo_empaque') or 'Unidad'} x {prod.get('cantidad_por_caja', 1) or 1}")
+        except Exception:
+            linea_detalle(frame, "Precios", f"{compra} / {venta}")
+        linea_detalle(frame, "ID producto", prod.get("id_producto"))
+        linea_detalle(frame, "Categoría", prod.get("categoria_nombre"))
+        linea_detalle(frame, "Tipo uso", prod.get("tipo_uso"))
+        linea_detalle(frame, "Uniforme", prod.get("tipo_uniforme_nombre") or prod.get("nombre_tipo_uniforme"))
+        linea_detalle(frame, "Stock mín.", prod.get("stock_minimo"))
+        _bajo = ((prod.get('stock_actual', 0) or 0) <= (prod.get('stock_minimo', 0) or 0)) and ((prod.get('stock_minimo', 0) or 0) > 0)
+        linea_detalle(frame, "Estado", "⚠ BAJO STOCK" if _bajo else "OK")
+
     def _crear_card_producto(self, prod):
-        from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible, linea_detalle
+        from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible
         card = crear_card_interactiva(self.scroll_productos)
         card.pack(fill="x", padx=6, pady=4)
 
@@ -571,29 +673,9 @@ class InventarioView(ctk.CTkFrame):
             command=lambda p=prod: self._ir_movimiento(p),
         ).pack(side="left", padx=2)
 
-        # ── Detalle expandible inline ──
-        def _poblar(frame, _p=prod):
-            compra = float(_p.get("precio_compra", 0) or _p.get("precio", 0) or 0)
-            venta = float(_p.get("precio_venta", 0) or _p.get("precio", 0) or 0)
-            try:
-                gan = round(venta - compra, 2)
-                pct = round(gan / compra * 100, 1) if compra else 0
-                val = round(compra * (_p.get("stock_actual", 0) or 0), 2)
-                linea_detalle(frame, "Compra unit. / Venta", f"S/{compra:.2f} / S/{venta:.2f}")
-                linea_detalle(frame, "Ganancia", f"S/{gan:.2f} ({pct:.1f}%)")
-                linea_detalle(frame, "Total inventario", f"S/{val:.2f}")
-                linea_detalle(frame, "Empaque", f"{_p.get('tipo_empaque') or 'Unidad'} x {_p.get('cantidad_por_caja', 1) or 1}")
-            except Exception:
-                linea_detalle(frame, "Precios", f"{compra} / {venta}")
-            linea_detalle(frame, "ID producto", _p.get("id_producto"))
-            linea_detalle(frame, "Categoría", _p.get("categoria_nombre"))
-            linea_detalle(frame, "Tipo uso", _p.get("tipo_uso"))
-            linea_detalle(frame, "Uniforme", _p.get("tipo_uniforme_nombre") or _p.get("nombre_tipo_uniforme"))
-            linea_detalle(frame, "Stock mín.", _p.get("stock_minimo"))
-            _bajo = ((_p.get('stock_actual', 0) or 0) <= (_p.get('stock_minimo', 0) or 0)) and ((_p.get('stock_minimo', 0) or 0) > 0)
-            linea_detalle(frame, "Estado", "⚠ BAJO STOCK" if _bajo else "OK")
-
-        toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar)
+        # ── Detalle expandible inline (mismo que la vista Tabla) ──
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _p=prod: self._poblar_detalle(frame, _p))
         toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
 
     def _nuevo_producto(self):
@@ -602,6 +684,15 @@ class InventarioView(ctk.CTkFrame):
         self._cargar_combo_tipos_uniforme()
         self.label_codigo.configure(text="Código: Se generará al guardar")
         self._id_producto_editando = None
+        try:
+            self.entry_stock_inicial.configure(state="normal")
+        except Exception:
+            pass
+        try:
+            self.label_stock_readonly.pack_forget()
+            self.label_stock_nota.pack_forget()
+        except Exception:
+            pass
         self.tabview.set("Registrar Producto")
 
     def _cargar_combo_tipos_uniforme(self):
@@ -625,6 +716,15 @@ class InventarioView(ctk.CTkFrame):
 
         producto = inventario_controller.obtener_producto(prod["id_producto"])
         if producto:
+            # B3: stock solo-lectura + nota/link a Compras (AJUSTE sigue en Movimiento)
+            try:
+                self.label_stock_readonly.configure(
+                    text=f"Stock actual: {producto.get('stock_actual', 0)} (solo lectura)")
+                self.label_stock_readonly.pack(anchor="w", pady=(4, 0))
+                self.label_stock_nota.pack(anchor="w")
+                self.entry_stock_inicial.configure(state="disabled")
+            except Exception:
+                pass
             self.label_codigo.configure(text=f"Código: {producto.get('codigo', '')}")
             self.entry_nombre.insert(0, producto.get("nombre", ""))
             self.combo_tipo_uso.set(producto.get("tipo_uso", ""))
@@ -711,6 +811,51 @@ class InventarioView(ctk.CTkFrame):
         nombres = [c["nombre"] for c in categorias]
         self.combo_categoria.configure(values=nombres if nombres else ["Sin categorías"])
         self._categorias_map = {c["nombre"]: c["id_categoria_producto"] for c in categorias}
+        self._reconstruir_filtro_categorias()
+
+    # ── Bloque B1/B2: vista Cards/Tabla + filtro por categoría ──
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
+    def _on_filtro_categoria(self, valor):
+        self._filtro_categoria_id = self._categorias_filtro_map.get(valor)
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
+    def _reconstruir_filtro_categorias(self):
+        if not hasattr(self, "filtro_cat_frame"):
+            return
+        for w in self.filtro_cat_frame.winfo_children():
+            w.destroy()
+        try:
+            categorias = inventario_controller.listar_categorias(activo=1)
+        except Exception:
+            categorias = []
+        nombres = [c["nombre"] for c in categorias]
+        self._categorias_filtro_map = {"Todas": None}
+        self._categorias_filtro_map.update(
+            {c["nombre"]: c["id_categoria_producto"] for c in categorias}
+        )
+        # Si el filtro actual ya no existe (categoría desactivada), volver a Todas
+        actual = next((k for k, v in self._categorias_filtro_map.items()
+                       if v == self._filtro_categoria_id), "Todas")
+        self._filtro_categoria_id = self._categorias_filtro_map[actual]
+        seg = ctk.CTkSegmentedButton(
+            self.filtro_cat_frame, values=["Todas"] + nombres,
+            command=self._on_filtro_categoria,
+        )
+        try:
+            seg.set(actual)
+        except Exception:
+            pass
+        seg.pack(side="left", padx=5)
+        self.seg_categoria = seg
 
     def _ir_movimiento(self, prod):
         self._cargar_combo_productos()
@@ -816,6 +961,15 @@ class InventarioView(ctk.CTkFrame):
         self.combo_tipo_uso.set("CONSUMO_INTERNO")
         self.entry_stock_min.delete(0, "end")
         self.entry_precio.delete(0, "end")
+        try:
+            self.entry_stock_inicial.configure(state="normal")
+        except Exception:
+            pass
+        try:
+            self.label_stock_readonly.pack_forget()
+            self.label_stock_nota.pack_forget()
+        except Exception:
+            pass
         try:
             self.combo_empaque.set("Unidad")
             self.entry_cant_caja.delete(0, "end")
