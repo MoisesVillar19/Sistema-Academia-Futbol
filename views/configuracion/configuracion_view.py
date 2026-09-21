@@ -468,31 +468,37 @@ class ConfiguracionView(ctk.CTkFrame):
             ctk.CTkButton(row, text="Desactivar", width=85, height=28, fg_color="#d9534f", command=lambda c=cat: self._desactivar_categoria(c)).pack(side="right", padx=2, pady=4)
 
     def _nueva_categoria(self):
+        # Bloque C3: ventana 360x520 + contenido scrolleable; los botones van
+        # fijos abajo para que nunca queden cortados (antes 350x330).
         dialog = ctk.CTkToplevel(self)
         dialog.title("Nueva Categoría")
-        dialog.geometry("350x330")
+        dialog.geometry("360x520")
+        dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
 
-        ctk.CTkLabel(dialog, text="Nombre:").pack(anchor="w", padx=15, pady=(15, 2))
-        entry_nombre = ctk.CTkEntry(dialog, width=300)
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=5, pady=(5, 0))
+
+        ctk.CTkLabel(scroll, text="Nombre:").pack(anchor="w", padx=15, pady=(15, 2))
+        entry_nombre = ctk.CTkEntry(scroll, width=300)
         entry_nombre.pack(padx=15)
 
-        ctk.CTkLabel(dialog, text="Tipo:").pack(anchor="w", padx=15, pady=(10, 2))
-        combo_tipo = ctk.CTkComboBox(dialog, width=300, values=["ACADEMIA", "CAMPEONATO", "SERVICIO"])
+        ctk.CTkLabel(scroll, text="Tipo:").pack(anchor="w", padx=15, pady=(10, 2))
+        combo_tipo = ctk.CTkComboBox(scroll, width=300, values=["ACADEMIA", "CAMPEONATO", "SERVICIO"])
         combo_tipo.set("ACADEMIA")
         combo_tipo.pack(padx=15)
-        ctk.CTkLabel(dialog, text="CAMPEONATO/SERVICIO no usan edad.", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=15)
+        ctk.CTkLabel(scroll, text="CAMPEONATO/SERVICIO no usan edad.", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=15)
 
-        ctk.CTkLabel(dialog, text="Edad mínima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
-        entry_min = ctk.CTkEntry(dialog, width=300)
+        ctk.CTkLabel(scroll, text="Edad mínima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
+        entry_min = ctk.CTkEntry(scroll, width=300)
         entry_min.pack(padx=15)
 
-        ctk.CTkLabel(dialog, text="Edad máxima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
-        entry_max = ctk.CTkEntry(dialog, width=300)
+        ctk.CTkLabel(scroll, text="Edad máxima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
+        entry_max = ctk.CTkEntry(scroll, width=300)
         entry_max.pack(padx=15)
 
-        label_status = ctk.CTkLabel(dialog, text="", font=ctk.CTkFont(size=12))
+        label_status = ctk.CTkLabel(scroll, text="", font=ctk.CTkFont(size=12))
         label_status.pack(padx=15, pady=5)
 
         def guardar():
@@ -521,33 +527,38 @@ class ConfiguracionView(ctk.CTkFrame):
         ctk.CTkButton(btn_row, text="Guardar", width=120, command=guardar).pack(side="left", padx=5)
 
     def _editar_categoria(self, cat):
+        # Bloque C3: igual que _nueva_categoria (360x520 + scroll, botones fijos).
         dialog = ctk.CTkToplevel(self)
         dialog.title("Editar Categoría")
-        dialog.geometry("350x330")
+        dialog.geometry("360x520")
+        dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
 
-        ctk.CTkLabel(dialog, text="Nombre:").pack(anchor="w", padx=15, pady=(15, 2))
-        entry_nombre = ctk.CTkEntry(dialog, width=300)
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=5, pady=(5, 0))
+
+        ctk.CTkLabel(scroll, text="Nombre:").pack(anchor="w", padx=15, pady=(15, 2))
+        entry_nombre = ctk.CTkEntry(scroll, width=300)
         entry_nombre.insert(0, cat["nombre"])
         entry_nombre.pack(padx=15)
 
-        ctk.CTkLabel(dialog, text="Tipo:").pack(anchor="w", padx=15, pady=(10, 2))
-        combo_tipo = ctk.CTkComboBox(dialog, width=300, values=["ACADEMIA", "CAMPEONATO", "SERVICIO"])
+        ctk.CTkLabel(scroll, text="Tipo:").pack(anchor="w", padx=15, pady=(10, 2))
+        combo_tipo = ctk.CTkComboBox(scroll, width=300, values=["ACADEMIA", "CAMPEONATO", "SERVICIO"])
         combo_tipo.set(cat.get("tipo", "ACADEMIA") or "ACADEMIA")
         combo_tipo.pack(padx=15)
 
-        ctk.CTkLabel(dialog, text="Edad mínima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
-        entry_min = ctk.CTkEntry(dialog, width=300)
+        ctk.CTkLabel(scroll, text="Edad mínima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
+        entry_min = ctk.CTkEntry(scroll, width=300)
         entry_min.insert(0, "" if cat.get("edad_min") is None else str(cat["edad_min"]))
         entry_min.pack(padx=15)
 
-        ctk.CTkLabel(dialog, text="Edad máxima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
-        entry_max = ctk.CTkEntry(dialog, width=300)
+        ctk.CTkLabel(scroll, text="Edad máxima (solo ACADEMIA):").pack(anchor="w", padx=15, pady=(10, 2))
+        entry_max = ctk.CTkEntry(scroll, width=300)
         entry_max.insert(0, "" if cat.get("edad_max") is None else str(cat["edad_max"]))
         entry_max.pack(padx=15)
 
-        label_status = ctk.CTkLabel(dialog, text="", font=ctk.CTkFont(size=12))
+        label_status = ctk.CTkLabel(scroll, text="", font=ctk.CTkFont(size=12))
         label_status.pack(padx=15, pady=5)
 
         def guardar():

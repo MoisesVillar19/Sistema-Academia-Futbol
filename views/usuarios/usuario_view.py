@@ -220,6 +220,124 @@ class EditarUsuarioDialog(ctk.CTkToplevel):
             self.label_status.configure(text=msg, text_color="red")
 
 
+class MiPerfilDialog(ctk.CTkToplevel):
+    """Bloque C2: diálogo Mi perfil para TODOS los roles.
+
+    Muestra datos del usuario en sesión y permite cambiar su contraseña
+    vía ``login_controller.cambiar_password``.
+
+    Nota: no reutiliza ``CambiarPasswordView`` porque esa vista es de flujo
+    obligatorio de primer acceso (su ``_on_cerrar`` hace ``sys.exit``);
+    incrustarla aquí cerraría la app al descartar el diálogo.
+    """
+
+    def __init__(self, parent, on_save=None):
+        super().__init__(parent)
+        self.title("Mi Perfil")
+        self.geometry("440x560")
+        self.resizable(False, False)
+        self.configure(fg_color="#F8F5FA")
+        self.transient(parent)
+        self.grab_set()
+        self.on_save = on_save
+        self._centrar()
+        self._crear_widgets()
+
+    def _centrar(self):
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - 220
+        y = (self.winfo_screenheight() // 2) - 280
+        self.geometry(f"440x560+{x}+{y}")
+
+    def _crear_widgets(self):
+        from controllers import login_controller
+
+        usuario = login_controller.obtener_usuario_actual() or {}
+        scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        scroll.pack(expand=True, fill="both", padx=25, pady=20)
+
+        ctk.CTkLabel(
+            scroll, text="Mi Perfil",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#3D1559",
+        ).pack(anchor="w", pady=(0, 5))
+        ctk.CTkLabel(
+            scroll,
+            text=f"{usuario.get('nombres', '')} {usuario.get('apellidos', '')}".strip() or usuario.get("username", ""),
+            font=ctk.CTkFont(size=13), text_color="gray",
+        ).pack(anchor="w", pady=(0, 10))
+
+        for etiqueta, valor in (
+            ("Nombres:", usuario.get("nombres", "")),
+            ("Apellidos:", usuario.get("apellidos", "")),
+            ("DNI:", usuario.get("dni", "")),
+            ("Usuario:", usuario.get("username", "")),
+            ("Rol:", usuario.get("rol", "")),
+        ):
+            ctk.CTkLabel(scroll, text=etiqueta, font=ctk.CTkFont(size=12)).pack(anchor="w")
+            entry = ctk.CTkEntry(scroll, width=340, height=34, state="disabled")
+            entry.pack(anchor="w", pady=(0, 8))
+            # CTkEntry disabled ignora insert en algunas versiones: habilitar, insertar, deshabilitar
+            try:
+                entry.configure(state="normal")
+                entry.insert(0, str(valor or ""))
+                entry.configure(state="disabled")
+            except Exception:
+                pass
+
+        ctk.CTkLabel(
+            scroll, text="Cambiar Contraseña",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#3D1559",
+        ).pack(anchor="w", pady=(8, 5))
+
+        ctk.CTkLabel(scroll, text="Contraseña actual:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        self.entry_actual = ctk.CTkEntry(scroll, width=340, height=38, show="•")
+        self.entry_actual.pack(anchor="w", pady=(0, 8))
+
+        ctk.CTkLabel(scroll, text="Nueva contraseña (mín. 6 caracteres):", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        self.entry_nueva = ctk.CTkEntry(scroll, width=340, height=38, show="•")
+        self.entry_nueva.pack(anchor="w", pady=(0, 8))
+
+        ctk.CTkLabel(scroll, text="Confirmar nueva contraseña:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        self.entry_confirm = ctk.CTkEntry(scroll, width=340, height=38, show="•")
+        self.entry_confirm.pack(anchor="w", pady=(0, 10))
+
+        self.label_status = ctk.CTkLabel(scroll, text="", font=ctk.CTkFont(size=11))
+        self.label_status.pack(anchor="w", pady=(0, 5))
+
+        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_frame.pack(anchor="w", pady=(5, 0))
+
+        ctk.CTkButton(
+            btn_frame, text="Cancelar", width=150, height=40,
+            fg_color="#6c757d", hover_color="#5a6268",
+            corner_radius=8, command=self.destroy,
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            btn_frame, text="Guardar", width=150, height=40,
+            fg_color="#7C3AED", hover_color="#6D28D9",
+            corner_radius=8, command=self._guardar,
+        ).pack(side="left", padx=5)
+
+    def _guardar(self):
+        from controllers import login_controller
+        exito, msg = login_controller.cambiar_password(
+            self.entry_actual.get().strip(),
+            self.entry_nueva.get().strip(),
+            self.entry_confirm.get().strip(),
+        )
+        try:
+            self.label_status.configure(text=msg, text_color="green" if exito else "red")
+        except Exception:
+            pass
+        if exito:
+            if self.on_save:
+                self.on_save()
+            self.after(600, self.destroy)
+
+
 class UsuarioView(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")

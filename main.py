@@ -190,14 +190,21 @@ class App(ctk.CTk):
         ctk.CTkLabel(user_frame, text=f"👤  {nombre}", font=ctk.CTkFont(size=13, weight="bold"), text_color="#ffffff", anchor="w").pack(fill="x", padx=10, pady=(8, 0))
         ctk.CTkLabel(user_frame, text=f"   {rol} • En línea  ✎", font=ctk.CTkFont(size=11), text_color="#c0c8d4", anchor="w").pack(fill="x", padx=10, pady=(0, 8))
         ctk.CTkLabel(user_frame, text="Click para editar perfil", font=ctk.CTkFont(size=10), text_color="#9CA3AF", anchor="w").pack(fill="x", padx=10, pady=(0, 6))
-        # hacer clickeable
-        for w in (user_frame,):
+        # hacer clickeable (Bloque C1: frame + labels hijos; el clic en un
+        # label caía en el hijo sin binding y no pasaba nada)
+        def _hacer_clickeable(widget):
             try:
-                w.bind("<Button-1>", lambda e: self._mostrar_usuarios())
-                w.configure(cursor="hand2")
+                widget.bind("<Button-1>", lambda e: self._mostrar_perfil(), add="+")
+                widget.configure(cursor="hand2")
                 # solo cursor (sin cambio de borde: evita repintados/parpadeo)
             except Exception:
                 pass
+            try:
+                for hijo in widget.winfo_children():
+                    _hacer_clickeable(hijo)
+            except Exception:
+                pass
+        _hacer_clickeable(user_frame)
 
         ctk.CTkFrame(sidebar, fg_color=COLOR_SIDEBAR_HOVER, height=1).pack(fill="x", padx=15, pady=6)
 
@@ -376,6 +383,14 @@ class App(ctk.CTk):
                 ctk.CTkLabel(self.contenido, text="Bienvenido — seleccione una opción del menú", font=ctk.CTkFont(size=14, weight="bold"), text_color="#3D1559").pack(expand=True)
         except Exception:
             pass
+
+    def _mostrar_perfil(self):
+        # Bloque C2: Mi perfil para TODOS los roles (diálogo, no cambia de vista).
+        try:
+            from views.usuarios.usuario_view import MiPerfilDialog
+            MiPerfilDialog(self)
+        except Exception:
+            self._mostrar_usuarios()
 
     def _mostrar_usuarios(self):
         self._limpiar_contenido()
