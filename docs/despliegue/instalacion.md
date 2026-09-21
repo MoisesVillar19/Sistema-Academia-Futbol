@@ -149,7 +149,7 @@ Clic derecho `AcademiaFutbol.exe` â†’ `Crear acceso directo` â†’ mover
 
 ### Pasos
 ```bash
-git clone https://github.com/MoisesVillar19/AcademiaFutbol.git
+git clone https://github.com/MoisesVillar19/Sistema-Academia-Futbol.git
 cd AcademiaFutbol
 python -m venv .venv
 .venv\Scripts\activate

@@ -5,6 +5,13 @@ import pytest
 from updater import update_service
 
 
+def test_repo_apunta_al_remoto_real():
+    from updater.config import GITHUB_REPO, GITHUB_API_URL, GITHUB_DOWNLOAD_URL
+    assert GITHUB_REPO == "MoisesVillar19/Sistema-Academia-Futbol"
+    assert GITHUB_REPO in GITHUB_API_URL
+    assert GITHUB_REPO in GITHUB_DOWNLOAD_URL
+
+
 def test_comparar_versiones_mayor_menor_igual():
     assert update_service.comparar_versiones("1.0.0", "1.0.1") == -1
     assert update_service.comparar_versiones("1.0.2", "1.0.1") == 1

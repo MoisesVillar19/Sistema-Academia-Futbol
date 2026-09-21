@@ -4,7 +4,7 @@
 #define MyAppName "AcademiaFutbol"
 #define MyAppVersion "1.0.7"
 #define MyAppPublisher "Academia Deportiva"
-#define MyAppURL "https://github.com/MoisesVillar19/AcademiaFutbol"
+#define MyAppURL "https://github.com/MoisesVillar19/Sistema-Academia-Futbol"
 #define MyAppExeName "AcademiaFutbol.exe"
 
 [Setup]

@@ -51,7 +51,7 @@ Si la actualización automática no funciona:
 ### Paso 1: Descargar la nueva versión
 
 Descargar `AcademiaFutbol-Setup-X.X.X.exe` o el ZIP desde:
-- GitHub Releases: `https://github.com/MoisesVillar19/AcademiaFutbol/releases`
+- GitHub Releases: `https://github.com/MoisesVillar19/Sistema-Academia-Futbol/releases`
 - OneDrive (compartido por el administrador)
 - USB
 

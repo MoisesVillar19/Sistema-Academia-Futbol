@@ -1,5 +1,5 @@
 # Configuración del auto-updater
-GITHUB_REPO = "MoisesVillar19/AcademiaFutbol"
+GITHUB_REPO = "MoisesVillar19/Sistema-Academia-Futbol"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_DOWNLOAD_URL = f"https://github.com/{GITHUB_REPO}/releases/download"
 

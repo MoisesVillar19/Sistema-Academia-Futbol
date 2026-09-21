@@ -100,7 +100,7 @@ Esto generará:
 
 ## Paso 7: Crear release en GitHub
 
-1. Ir a `https://github.com/MoisesVillar19/AcademiaFutbol/releases`
+1. Ir a `https://github.com/MoisesVillar19/Sistema-Academia-Futbol/releases`
 2. Hacer clic en "Draft a new release"
 3. Seleccionar el tag `v1.1.0`
 4. Título: `v1.1.0`
