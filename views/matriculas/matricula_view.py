@@ -325,9 +325,9 @@ class MatriculaView(ctk.CTkFrame):
         self.combo_diferir.set("Ahora (0)")
         self.combo_diferir.pack(anchor="w", pady=3)
 
-        # Productos configurables (uniforme, etc.) — -1/+1
+        # Productos adicionales (no uniformes) — -1/+1
         ctk.CTkLabel(cuerpo2, text="Productos adicionales — usa −1 / +1:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", pady=(10,5))
-        ctk.CTkLabel(cuerpo2, text="Si es estudiante nuevo con regalo S/0, extras se bloquean (usa Ventas).", font=ctk.CTkFont(size=11), text_color="gray").pack(anchor="w")
+        ctk.CTkLabel(cuerpo2, text="Nuevos incluyen camiseta de regalo. Uniformes extra se venden en Tienda.", font=ctk.CTkFont(size=11), text_color="gray").pack(anchor="w")
         self.frame_productos = ctk.CTkScrollableFrame(cuerpo2, height=150)
         self.frame_productos.pack(fill="x", anchor="w", pady=5)
         self._productos_disponibles = []
@@ -567,11 +567,15 @@ class MatriculaView(ctk.CTkFrame):
         try:
             from controllers import inventario_controller
             prods = inventario_controller.listar_productos(activo=1)
-            self._productos_disponibles = [p for p in prods if p.get("canal") == "TIENDITA"] or prods
+            # Fase 5: uniformes (incl. camiseta-regalo) no se ofrecen aquí;
+            # se venden en Tienda. Nuevos ya incluyen la camiseta de regalo.
+            prods = [p for p in prods
+                     if p.get("canal") == "TIENDITA" and not p.get("id_tipo_uniforme")]
+            self._productos_disponibles = prods
             for w in self.frame_productos.winfo_children():
                 w.destroy()
             if not self._productos_disponibles:
-                ctk.CTkLabel(self.frame_productos, text="No hay productos configurables (crea en Inventario)", text_color="gray").pack(pady=5)
+                ctk.CTkLabel(self.frame_productos, text="Sin extras aquí (uniformes en Tienda)", text_color="gray").pack(pady=5)
                 return
             for prod in self._productos_disponibles[:15]:
                 row = ctk.CTkFrame(self.frame_productos, fg_color="white", border_width=1, border_color="#E5E7EB", corner_radius=8)
