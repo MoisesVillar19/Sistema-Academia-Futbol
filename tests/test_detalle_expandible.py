@@ -88,7 +88,7 @@ def test_toggle_matricula(crear_vista, usuario_admin, ctk_root):
 def test_toggle_inventario(crear_vista, usuario_admin, ctk_root):
     vista = crear_vista(InventarioView)
     vista._crear_card_producto({"id_producto": 1, "codigo": "C-001", "nombre": "Camiseta",
-                                "categoria_nombre": "Uniforme", "tipo_uso": "VENTA",
+                                "categoria_nombre": "Uniforme", "canal": "TIENDITA",
                                 "precio_compra": 10.0, "precio_venta": 20.0,
                                 "stock_actual": 5, "stock_minimo": 2})
     _verificar_toggle(ctk_root, vista.scroll_productos)

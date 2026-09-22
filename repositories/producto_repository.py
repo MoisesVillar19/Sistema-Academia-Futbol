@@ -14,14 +14,14 @@ def insertar(producto: Producto) -> int:
     if _tiene_columna(conn, "producto", "tipo_empaque"):
         cursor = conn.execute(
             """INSERT INTO producto
-               (id_categoria_producto, tipo_uso, codigo, nombre,
+               (id_categoria_producto, canal, codigo, nombre,
                 stock_actual, stock_minimo, precio, precio_compra, precio_venta,
                 tipo_empaque, cantidad_por_caja, precio_compra_total,
                 id_tipo_uniforme, activo)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 producto.id_categoria_producto,
-                producto.tipo_uso,
+                producto.canal,
                 producto.codigo,
                 producto.nombre,
                 producto.stock_actual,
@@ -39,12 +39,12 @@ def insertar(producto: Producto) -> int:
     else:
         cursor = conn.execute(
             """INSERT INTO producto
-               (id_categoria_producto, tipo_uso, codigo, nombre,
+               (id_categoria_producto, canal, codigo, nombre,
                 stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme, activo)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 producto.id_categoria_producto,
-                producto.tipo_uso,
+                producto.canal,
                 producto.codigo,
                 producto.nombre,
                 producto.stock_actual,
@@ -127,14 +127,14 @@ def actualizar(producto: Producto) -> None:
     if _tiene_columna(conn, "producto", "tipo_empaque"):
         conn.execute(
             """UPDATE producto SET
-               id_categoria_producto = ?, tipo_uso = ?, codigo = ?, nombre = ?,
+               id_categoria_producto = ?, canal = ?, codigo = ?, nombre = ?,
                stock_actual = ?, stock_minimo = ?, precio = ?, precio_compra = ?, precio_venta = ?,
                tipo_empaque = ?, cantidad_por_caja = ?, precio_compra_total = ?,
                id_tipo_uniforme = ?, activo = ?
                WHERE id_producto = ?""",
             (
                 producto.id_categoria_producto,
-                producto.tipo_uso,
+                producto.canal,
                 producto.codigo,
                 producto.nombre,
                 producto.stock_actual,
@@ -153,12 +153,12 @@ def actualizar(producto: Producto) -> None:
     else:
         conn.execute(
             """UPDATE producto SET
-               id_categoria_producto = ?, tipo_uso = ?, codigo = ?, nombre = ?,
+               id_categoria_producto = ?, canal = ?, codigo = ?, nombre = ?,
                stock_actual = ?, stock_minimo = ?, precio = ?, precio_compra = ?, precio_venta = ?, id_tipo_uniforme = ?, activo = ?
                WHERE id_producto = ?""",
             (
                 producto.id_categoria_producto,
-                producto.tipo_uso,
+                producto.canal,
                 producto.codigo,
                 producto.nombre,
                 producto.stock_actual,

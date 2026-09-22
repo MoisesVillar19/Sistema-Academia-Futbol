@@ -94,7 +94,7 @@ def seed_database() -> None:
                    (id_configuracion, nombre_academia, dias_por_vencer, permitir_multiples_becas,
                     backup_automatico, frecuencia_backup, ruta_backup, pin_emergencia,
                     precio_inscripcion, precio_mensualidad, precio_uniforme, precio_reingreso, fecha_actualizacion)
-                   VALUES (1, 'Academia Deportiva', 3, 1, 1, 7, 'backups/', ?, 100, 100, 20, 100, ?)""",
+                   VALUES (1, 'Academia Deportiva', 3, 1, 1, 7, 'backups/', ?, 150, 120, 70, 100, ?)""",
                 (hash_password(PIN_EMERGENCIA_DEFECTO), now),
             )
         except sqlite3.IntegrityError:
@@ -151,8 +151,8 @@ def seed_database() -> None:
         prod = _asegurar(
             conn,
             "SELECT id_producto FROM producto WHERE codigo = 'CAMISETA-ENT'", (),
-            """INSERT INTO producto (id_categoria_producto, tipo_uso, codigo, nombre, stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme)
-               VALUES (?, 'VENTA', 'CAMISETA-ENT', 'Camiseta Entrenamiento', 50, 5, 20, 8, 20, ?)""",
+            """INSERT INTO producto (id_categoria_producto, canal, codigo, nombre, stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme)
+                VALUES (?, 'TIENDITA', 'CAMISETA-ENT', 'Camiseta Entrenamiento', 50, 5, 20, 8, 20, ?)""",
             (cat_dep["id_categoria_producto"], id_tipo_ent),
         ) if id_tipo_ent else fetch_one("SELECT id_producto FROM producto WHERE codigo = 'CAMISETA-ENT'")
         id_prod = prod["id_producto"] if prod else None
@@ -184,6 +184,18 @@ def seed_database() -> None:
                             "INSERT INTO stock_almacen (id_producto, id_variante, id_almacen, stock) VALUES (?, ?, ?, 10)",
                             (id_prod, var["id_variante"], alm["id_almacen"]),
                         )
+
+    # Fase 0: becas preset del Excel (1/2 BECA S/50, BECA COMPLETA 100%)
+    for nombre, tipo, valor, obs in [
+        ("1/2 BECA", "MONTO_FIJO", 50, "Media beca Excel: S/50"),
+        ("BECA COMPLETA", "PORCENTAJE", 100, "Beca completa Excel: 100%"),
+    ]:
+        _asegurar(
+            conn,
+            "SELECT id_beca FROM beca WHERE nombre = ?", (nombre,),
+            "INSERT INTO beca (nombre, tipo, valor, observacion) VALUES (?, ?, ?, ?)",
+            (nombre, tipo, valor, obs),
+        )
 
     # v2.2: tarifas desde Precios Flexibles (BD nuevas; en existentes lo hace la migración)
     try:

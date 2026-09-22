@@ -527,7 +527,7 @@ class MatriculaView(ctk.CTkFrame):
         try:
             from controllers import inventario_controller
             prods = inventario_controller.listar_productos(activo=1)
-            self._productos_disponibles = [p for p in prods if p.get("tipo_uso") == "VENTA"] or prods
+            self._productos_disponibles = [p for p in prods if p.get("canal") == "TIENDITA"] or prods
             for w in self.frame_productos.winfo_children():
                 w.destroy()
             if not self._productos_disponibles:

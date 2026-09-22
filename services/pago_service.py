@@ -56,6 +56,7 @@ def registrar_pago(data: dict) -> tuple[bool, str, int | None]:
         monto_total=monto_pagado,
         metodo_pago=metodo_pago,
         observacion=data.get("observacion", ""),
+        comprobante_path=data.get("comprobante_path", "") or "",
     )
 
     with transaccion():

@@ -201,7 +201,7 @@ class InventarioView(ctk.CTkFrame):
         scroll.pack(fill="both", expand=True, padx=10, pady=10)
 
         sec1 = crear_seccion(scroll, titulo="Datos del producto", icono="📦",
-                             descripcion="Nombre, categoría y tipo de uso. VENTA aparece en ventas; CONSUMO_INTERNO no.",
+                             descripcion="Nombre, categoría y canal. TIENDITA se vende; ALMACEN es solo movimientos.",
                              nro=1)
         cuerpo1 = ctk.CTkFrame(sec1, fg_color="transparent")
         cuerpo1.pack(fill="x", padx=10, pady=(0, 8))
@@ -220,12 +220,12 @@ class InventarioView(ctk.CTkFrame):
         self.combo_categoria = ctk.CTkComboBox(cuerpo1, width=300, values=["Cargando..."])
         self.combo_categoria.pack(anchor="w", pady=(0, 5))
 
-        ctk.CTkLabel(cuerpo1, text="Tipo de uso", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        ctk.CTkLabel(cuerpo1, text="Canal", font=ctk.CTkFont(size=12)).pack(anchor="w")
         self.combo_tipo_uso = ctk.CTkComboBox(
             cuerpo1, width=200,
-            values=["CONSUMO_INTERNO", "VENTA"],
+            values=["ALMACEN", "TIENDITA"],
         )
-        self.combo_tipo_uso.set("CONSUMO_INTERNO")
+        self.combo_tipo_uso.set("ALMACEN")
         self.combo_tipo_uso.pack(anchor="w", pady=(0, 5))
 
         sec2 = crear_seccion(scroll, titulo="Empaque y precios", icono="💰",
@@ -610,7 +610,7 @@ class InventarioView(ctk.CTkFrame):
             linea_detalle(frame, "Precios", f"{compra} / {venta}")
         linea_detalle(frame, "ID producto", prod.get("id_producto"))
         linea_detalle(frame, "Categoría", prod.get("categoria_nombre"))
-        linea_detalle(frame, "Tipo uso", prod.get("tipo_uso"))
+        linea_detalle(frame, "Canal", prod.get("canal"))
         linea_detalle(frame, "Uniforme", prod.get("tipo_uniforme_nombre") or prod.get("nombre_tipo_uniforme"))
         linea_detalle(frame, "Stock mín.", prod.get("stock_minimo"))
         _bajo = ((prod.get('stock_actual', 0) or 0) <= (prod.get('stock_minimo', 0) or 0)) and ((prod.get('stock_minimo', 0) or 0) > 0)
@@ -727,7 +727,7 @@ class InventarioView(ctk.CTkFrame):
                 pass
             self.label_codigo.configure(text=f"Código: {producto.get('codigo', '')}")
             self.entry_nombre.insert(0, producto.get("nombre", ""))
-            self.combo_tipo_uso.set(producto.get("tipo_uso", ""))
+            self.combo_tipo_uso.set(producto.get("canal", "ALMACEN"))
             self.entry_stock_min.insert(0, str(producto.get("stock_minimo", 0)))
             self.entry_precio.insert(0, str(producto.get("precio", 0)))
             self.combo_empaque.set(producto.get("tipo_empaque", "Unidad") or "Unidad")
@@ -771,7 +771,7 @@ class InventarioView(ctk.CTkFrame):
     def _guardar_producto(self):
         data = {
             "nombre": self.entry_nombre.get().strip(),
-            "tipo_uso": self.combo_tipo_uso.get(),
+            "canal": self.combo_tipo_uso.get(),
             "stock_minimo": self.entry_stock_min.get().strip() or "0",
             "precio": self.entry_precio.get().strip() or "0",
             "tipo_empaque": self.combo_empaque.get(),
@@ -958,7 +958,7 @@ class InventarioView(ctk.CTkFrame):
     def _limpiar_formulario(self):
         self._id_producto_editando = None
         self.entry_nombre.delete(0, "end")
-        self.combo_tipo_uso.set("CONSUMO_INTERNO")
+        self.combo_tipo_uso.set("ALMACEN")
         self.entry_stock_min.delete(0, "end")
         self.entry_precio.delete(0, "end")
         try:

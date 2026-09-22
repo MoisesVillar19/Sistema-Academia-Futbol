@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class Producto:
     id_producto: int | None = None
     id_categoria_producto: int = 0
-    tipo_uso: str = ""
+    canal: str = ""
     codigo: str = ""
     nombre: str = ""
     stock_actual: int = 0

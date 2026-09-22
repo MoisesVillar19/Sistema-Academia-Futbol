@@ -151,9 +151,10 @@ CREATE TABLE IF NOT EXISTS pago (
     numero_recibo TEXT UNIQUE NOT NULL,
     fecha_pago TEXT NOT NULL,
     monto_total REAL NOT NULL,
-    metodo_pago TEXT NOT NULL CHECK(metodo_pago IN ('EFECTIVO', 'YAPE', 'PLIN', 'TRANSFERENCIA')),
-    observacion TEXT,
-    activo INTEGER DEFAULT 1,
+     metodo_pago TEXT NOT NULL CHECK(metodo_pago IN ('EFECTIVO', 'YAPE', 'PLIN', 'TRANSFERENCIA')),
+     observacion TEXT,
+     comprobante_path TEXT DEFAULT '',
+     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
@@ -175,7 +176,7 @@ CREATE TABLE IF NOT EXISTS categoria_producto (
 CREATE TABLE IF NOT EXISTS producto (
     id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
     id_categoria_producto INTEGER NOT NULL,
-    tipo_uso TEXT NOT NULL CHECK(tipo_uso IN ('CONSUMO_INTERNO', 'VENTA')),
+    canal TEXT NOT NULL CHECK(canal IN ('TIENDITA', 'ALMACEN')),
     codigo TEXT UNIQUE NOT NULL,
     nombre TEXT NOT NULL,
     stock_actual INTEGER DEFAULT 0,
@@ -338,9 +339,9 @@ CREATE TABLE IF NOT EXISTS configuracion (
     ruta_backup TEXT DEFAULT 'backups/',
     correo_onedrive TEXT DEFAULT '',
     pin_emergencia TEXT DEFAULT '',
-    precio_inscripcion REAL DEFAULT 100,
-    precio_mensualidad REAL DEFAULT 100,
-    precio_uniforme REAL DEFAULT 20,
+    precio_inscripcion REAL DEFAULT 150,
+    precio_mensualidad REAL DEFAULT 120,
+    precio_uniforme REAL DEFAULT 70,
     precio_reingreso REAL DEFAULT 100,
     tasa_campeonato REAL DEFAULT 15,
     arbitraje_por_equipo REAL DEFAULT 15,
@@ -418,9 +419,9 @@ def _migrar_columnas_faltantes(cursor) -> None:
     if "pin_emergencia" not in columnas_config:
         cursor.execute("ALTER TABLE configuracion ADD COLUMN pin_emergencia TEXT DEFAULT ''")
     for col, sql in [
-        ("precio_inscripcion", "ALTER TABLE configuracion ADD COLUMN precio_inscripcion REAL DEFAULT 100"),
-        ("precio_mensualidad", "ALTER TABLE configuracion ADD COLUMN precio_mensualidad REAL DEFAULT 100"),
-        ("precio_uniforme", "ALTER TABLE configuracion ADD COLUMN precio_uniforme REAL DEFAULT 20"),
+        ("precio_inscripcion", "ALTER TABLE configuracion ADD COLUMN precio_inscripcion REAL DEFAULT 150"),
+        ("precio_mensualidad", "ALTER TABLE configuracion ADD COLUMN precio_mensualidad REAL DEFAULT 120"),
+        ("precio_uniforme", "ALTER TABLE configuracion ADD COLUMN precio_uniforme REAL DEFAULT 70"),
         ("precio_reingreso", "ALTER TABLE configuracion ADD COLUMN precio_reingreso REAL DEFAULT 100"),
         ("tasa_campeonato", "ALTER TABLE configuracion ADD COLUMN tasa_campeonato REAL DEFAULT 15"),
         ("arbitraje_por_equipo", "ALTER TABLE configuracion ADD COLUMN arbitraje_por_equipo REAL DEFAULT 15"),
@@ -438,6 +439,25 @@ def _migrar_columnas_faltantes(cursor) -> None:
     ]:
         if col not in columnas_est:
             cursor.execute(sql)
+
+    # Fase 0: pago guarda comprobante (antes se validaba pero se descartaba)
+    try:
+        columnas_pago = _obtener_columnas(cursor, "pago")
+        if "comprobante_path" not in columnas_pago:
+            cursor.execute("ALTER TABLE pago ADD COLUMN comprobante_path TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+    # Fase 0: tipo_uso → canal (TIENDITA/ALMACEN); backfill legacy, col vieja dormida
+    try:
+        columnas_prod0 = _obtener_columnas(cursor, "producto")
+        if "canal" not in columnas_prod0:
+            cursor.execute("ALTER TABLE producto ADD COLUMN canal TEXT DEFAULT 'ALMACEN'")
+            if "tipo_uso" in columnas_prod0:
+                cursor.execute("UPDATE producto SET canal = 'TIENDITA' WHERE tipo_uso = 'VENTA'")
+                cursor.execute("UPDATE producto SET canal = 'ALMACEN' WHERE tipo_uso <> 'VENTA' OR tipo_uso IS NULL")
+    except Exception:
+        pass
 
     columnas_prod = _obtener_columnas(cursor, "producto")
     for col, sql in [
@@ -557,7 +577,7 @@ def seed_tarifas_desde_config(cursor=None) -> None:
         cursor = conn.cursor()
         cerrar = True
     try:
-        cfg = cursor.execute("SELECT precio_inscripcion, precio_reingreso, precio_uniforme, tasa_campeonato, arbitraje_por_equipo FROM configuracion LIMIT 1").fetchone()
+        cfg = cursor.execute("SELECT precio_inscripcion, precio_reingreso, precio_uniforme, tasa_campeonato, arbitraje_por_equipo, precio_mensualidad FROM configuracion LIMIT 1").fetchone()
         if not cfg:
             return
 
@@ -589,6 +609,15 @@ def seed_tarifas_desde_config(cursor=None) -> None:
         _tar(id_serv, "Uniforme base", cfg[2])
         _tar(id_camp, "Tasa base", cfg[3])
         _tar(id_camp, "Arbitraje por equipo", cfg[4])
+        # Fase 0: mensualidad base bajo la primera categoría ACADEMIA (editable en Tarifas)
+        try:
+            row_ac = cursor.execute(
+                "SELECT id_categoria FROM categoria WHERE tipo = 'ACADEMIA' AND activo = 1 ORDER BY id_categoria LIMIT 1"
+            ).fetchone()
+            if row_ac:
+                _tar(row_ac[0], "Mensualidad", cfg[5])
+        except Exception:
+            pass
         if cerrar:
             cursor.connection.commit()
     finally:

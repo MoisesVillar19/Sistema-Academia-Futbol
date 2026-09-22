@@ -1,5 +1,5 @@
 from services import inventario_service
-from utils.validators import validate_not_empty, validate_tipo_uso, validate_tipo_movimiento
+from utils.validators import validate_not_empty, validate_canal, validate_tipo_movimiento
 
 
 def crear_categoria(data: dict) -> tuple[bool, str, int | None]:
@@ -22,17 +22,17 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
     if error:
         return False, error, None
 
-    tipo_uso = data.get("tipo_uso", "")
-    if tipo_uso and not validate_tipo_uso(tipo_uso):
-        return False, "Tipo de uso no válido. Use CONSUMO_INTERNO o VENTA", None
+    canal = data.get("canal", "")
+    if canal and not validate_canal(canal):
+        return False, "Canal no válido. Use TIENDITA o ALMACEN", None
 
     return inventario_service.crear_producto(data)
 
 
 def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
-    tipo_uso = data.get("tipo_uso", "")
-    if tipo_uso and not validate_tipo_uso(tipo_uso):
-        return False, "Tipo de uso no válido. Use CONSUMO_INTERNO o VENTA"
+    canal = data.get("canal", "")
+    if canal and not validate_canal(canal):
+        return False, "Canal no válido. Use TIENDITA o ALMACEN"
     return inventario_service.editar_producto(id_producto, data)
 
 

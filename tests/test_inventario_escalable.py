@@ -55,7 +55,7 @@ def test_crear_producto_con_talla_crea_variante_y_stock():
     ok, _, id_prod = inventario_service.crear_producto({
         "id_categoria_producto": id_cat,
         "nombre": "Camiseta Talle M",
-        "tipo_uso": "VENTA",
+        "canal": "TIENDITA",
         "codigo": codigo,
         "stock_minimo": 5,
         "precio": 20, "precio_compra": 8, "precio_venta": 20,
@@ -81,7 +81,7 @@ def test_crear_producto_sin_talla_no_crea_variante():
     ok, _, id_prod = inventario_service.crear_producto({
         "id_categoria_producto": id_cat,
         "nombre": "Balón UNICA",
-        "tipo_uso": "VENTA",
+        "canal": "TIENDITA",
         "codigo": codigo,
         "talla": "UNICA",
         "stock_inicial": 5,
@@ -95,7 +95,7 @@ def test_venta_con_talla_descuenta_variante():
     id_cat = _cat()
     codigo = generate_product_code()
     inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Camiseta L", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Camiseta L", "canal": "TIENDITA",
         "codigo": codigo, "talla": "L", "stock_inicial": 10,
     })
     prod = fetch_one("SELECT id_producto FROM producto WHERE codigo=?", (codigo,))
@@ -122,7 +122,7 @@ def test_venta_stock_insuficiente_variante_rechazada():
     id_cat = _cat()
     codigo = generate_product_code()
     inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Gaseosa Lote", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Gaseosa Lote", "canal": "TIENDITA",
         "codigo": codigo, "talla": "S", "stock_inicial": 1,
     })
     prod = fetch_one("SELECT id_producto FROM producto WHERE codigo=?", (codigo,))
@@ -143,7 +143,7 @@ def test_valorizado_stock_por_almacen():
     id_cat = _cat()
     codigo = generate_product_code()
     inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Valorizado Test", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Valorizado Test", "canal": "TIENDITA",
         "codigo": codigo, "precio_venta": 30, "stock_inicial": 3,
     })
     prod = fetch_one("SELECT stock_actual, precio_venta FROM producto WHERE codigo=?", (codigo,))
@@ -153,7 +153,7 @@ def test_valorizado_stock_por_almacen():
     # crear otro con stock
     codigo2 = generate_product_code()
     inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Valorizado 2", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Valorizado 2", "canal": "TIENDITA",
         "codigo": codigo2, "precio_venta": 20, "stock_inicial": 2,
     })
     p2 = fetch_one("SELECT id_producto, stock_actual FROM producto WHERE codigo=?", (codigo2,))
@@ -170,7 +170,7 @@ def test_lote_fifo_descuento():
     id_cat = _cat()
     codigo = generate_product_code()
     ok, _, id_prod = inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Yogurt", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Yogurt", "canal": "TIENDITA",
         "codigo": codigo,
     })
     assert ok

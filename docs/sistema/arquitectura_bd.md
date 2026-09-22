@@ -435,7 +435,7 @@ Campos:
 - precio
 - activo
 - id_categoria_producto
-- tipo_uso
+- canal (TIENDITA / ALMACEN; antes tipo_uso)
 
 No eliminar productos.
 

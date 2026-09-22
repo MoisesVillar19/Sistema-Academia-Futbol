@@ -54,7 +54,7 @@ def test_producto_buscar_paginado_real():
         id_cat = cats[0]["id_categoria_producto"]
     ok, _, _ = inventario_service.crear_producto({
         "id_categoria_producto": id_cat, "nombre": "Camiseta Entrenamiento QA",
-        "tipo_uso": "VENTA",
+        "canal": "TIENDITA",
     })
     assert ok
 
@@ -109,7 +109,7 @@ def test_inventario_combo_compra_cargado_al_instanciar(crear_vista, usuario_admi
     cats = inventario_service.listar_categorias()
     id_cat = cats[0]["id_categoria_producto"] if cats else inventario_service.crear_categoria({"nombre": "UICat"})[2]
     inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": "Producto Combo QA", "tipo_uso": "VENTA",
+        "id_categoria_producto": id_cat, "nombre": "Producto Combo QA", "canal": "TIENDITA",
     })
 
     vista = crear_vista(InventarioView)

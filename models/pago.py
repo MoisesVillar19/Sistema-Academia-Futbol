@@ -10,4 +10,5 @@ class Pago:
     monto_total: float = 0.0
     metodo_pago: str = ""
     observacion: str = ""
+    comprobante_path: str = ""
     activo: int = 1

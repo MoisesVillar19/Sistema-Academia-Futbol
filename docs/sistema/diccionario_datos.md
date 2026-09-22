@@ -318,6 +318,7 @@ Observaciones:
 | monto_total | REAL |
 | metodo_pago | TEXT |
 | observacion | TEXT |
+| comprobante_path | TEXT |
 | activo | INTEGER |
 
 ### Métodos de Pago
@@ -352,7 +353,7 @@ CHECK(
 |---------|---------|
 | id_producto | INTEGER PK |
 | id_categoria_producto | INTEGER FK |
-| tipo_uso | TEXT |
+| canal | TEXT |
 | codigo | TEXT UNIQUE |
 | nombre | TEXT |
 | stock_actual | INTEGER |
@@ -369,9 +370,9 @@ CHECK(
 ```sql
 
 CHECK(
-    tipo_uso IN (
-        'CONSUMO_INTERNO',
-        'VENTA'
+    canal IN (
+        'TIENDITA',
+        'ALMACEN'
     )
 )
 ```

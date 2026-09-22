@@ -132,9 +132,14 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
         precio_total = precio_compra_total_calc
     # Compat: precio_venta 0 permitido a nivel servicio (la UI rápida lo exige)
 
+    from utils.validators import validate_canal
+    canal = data.get("canal") or {"VENTA": "TIENDITA", "CONSUMO_INTERNO": "ALMACEN"}.get(
+        data.get("tipo_uso", ""), "ALMACEN")
+    if not validate_canal(canal):
+        return False, "Canal no válido. Use TIENDITA o ALMACEN", None
     producto = Producto(
         id_categoria_producto=id_categoria,
-        tipo_uso=data.get("tipo_uso", "CONSUMO_INTERNO"),
+        canal=canal,
         codigo=codigo,
         nombre=nombre,
         stock_actual=0,
@@ -283,10 +288,15 @@ def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
         precio_total = round(precio_compra * cantidad_por_caja, 2)
     # Compat: precio_venta 0 permitido a nivel servicio (la UI rápida lo exige)
 
+    from utils.validators import validate_canal
+    canal = data.get("canal") or {"VENTA": "TIENDITA", "CONSUMO_INTERNO": "ALMACEN"}.get(
+        data.get("tipo_uso", ""), producto.get("canal", "ALMACEN"))
+    if not validate_canal(canal):
+        return False, "Canal no válido. Use TIENDITA o ALMACEN"
     producto_obj = Producto(
         id_producto=id_producto,
         id_categoria_producto=data.get("id_categoria_producto", producto["id_categoria_producto"]),
-        tipo_uso=data.get("tipo_uso", producto["tipo_uso"]),
+        canal=canal,
         codigo=codigo,
         nombre=data.get("nombre", producto["nombre"]),
         stock_actual=producto["stock_actual"],

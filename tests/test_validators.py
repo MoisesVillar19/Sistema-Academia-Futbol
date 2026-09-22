@@ -2,7 +2,7 @@ from utils.validators import (
     validate_dni, validate_email, validate_phone, validate_sex,
     validate_rol, validate_estado_estudiante, validate_estado_cuota,
     validate_metodo_pago, validate_tipo_beca, validate_tipo_movimiento,
-    validate_tipo_uso, validate_dia_vencimiento, validate_not_empty
+    validate_canal, validate_dia_vencimiento, validate_not_empty
 )
 
 
@@ -99,10 +99,11 @@ def test_validate_tipo_movimiento():
     assert validate_tipo_movimiento("INVALIDO") is False
 
 
-def test_validate_tipo_uso():
-    assert validate_tipo_uso("CONSUMO_INTERNO") is True
-    assert validate_tipo_uso("VENTA") is True
-    assert validate_tipo_uso("INVALIDO") is False
+def test_validate_canal():
+    assert validate_canal("TIENDITA") is True
+    assert validate_canal("ALMACEN") is True
+    assert validate_canal("INVALIDO") is False
+    assert validate_canal("VENTA") is False
 
 
 def test_validate_dia_vencimiento():

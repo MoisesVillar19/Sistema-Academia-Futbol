@@ -56,8 +56,16 @@ def validate_tipo_movimiento(tipo: str) -> bool:
     return tipo in ("ENTRADA", "SALIDA", "AJUSTE")
 
 
+CANALES_VALIDOS = ("TIENDITA", "ALMACEN")
+
+
+def validate_canal(canal: str) -> bool:
+    return canal in CANALES_VALIDOS
+
+
 def validate_tipo_uso(tipo: str) -> bool:
-    return tipo in ("CONSUMO_INTERNO", "VENTA")
+    # Compat legacy: CONSUMO_INTERNO/VENTA → ALMACEN/TIENDITA
+    return tipo in CANALES_VALIDOS or tipo in ("CONSUMO_INTERNO", "VENTA")
 
 
 def validate_dia_vencimiento(dia: int) -> bool:

@@ -17,7 +17,7 @@ def _crear_producto(id_cat=None, codigo=None, **overrides):
     data = {
         "id_categoria_producto": id_cat or _crear_categoria(),
         "nombre": "Balon #5",
-        "tipo_uso": "VENTA",
+        "canal": "TIENDITA",
         "precio": 50.0,
         "stock_minimo": 2,
     }

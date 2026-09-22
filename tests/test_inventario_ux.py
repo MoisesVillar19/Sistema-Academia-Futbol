@@ -13,7 +13,7 @@ def _crear_producto(nombre, categoria, **extra):
     if id_cat is None:
         ok, _, id_cat = inventario_controller.crear_categoria({"nombre": categoria})
         assert ok
-    data = {"nombre": nombre, "id_categoria_producto": id_cat, "tipo_uso": "VENTA"}
+    data = {"nombre": nombre, "id_categoria_producto": id_cat, "canal": "TIENDITA"}
     data.update(extra)
     ok, _, id_prod = inventario_controller.crear_producto(data)
     assert ok

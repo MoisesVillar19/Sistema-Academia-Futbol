@@ -9,8 +9,8 @@ def insertar(pago: Pago) -> int:
     cursor = conn.execute(
         """INSERT INTO pago
            (id_usuario, numero_recibo, fecha_pago, monto_total,
-            metodo_pago, observacion, activo)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            metodo_pago, observacion, comprobante_path, activo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             pago.id_usuario,
             pago.numero_recibo,
@@ -18,6 +18,7 @@ def insertar(pago: Pago) -> int:
             pago.monto_total,
             pago.metodo_pago,
             pago.observacion,
+            pago.comprobante_path or "",
             pago.activo,
         ),
     )

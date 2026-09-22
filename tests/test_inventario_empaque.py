@@ -15,7 +15,7 @@ def _cat():
 def test_crear_caja_calcula_unitario():
     exito, msg, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "Lapiceros x12",
-        "tipo_uso": "VENTA", "tipo_empaque": "Caja x12", "cantidad_por_caja": 12,
+        "canal": "TIENDITA", "tipo_empaque": "Caja x12", "cantidad_por_caja": 12,
         "precio_compra_total": 24.0, "precio_venta": 3.0,
     })
     assert exito, msg
@@ -28,7 +28,7 @@ def test_crear_caja_calcula_unitario():
 def test_unidad_fuerza_cantidad_uno():
     exito, msg, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "Unidad QA",
-        "tipo_uso": "VENTA", "tipo_empaque": "Unidad", "cantidad_por_caja": 99,
+        "canal": "TIENDITA", "tipo_empaque": "Unidad", "cantidad_por_caja": 99,
         "precio_compra_total": 10.0, "precio_venta": 12.0,
     })
     assert exito, msg
@@ -56,7 +56,7 @@ def test_empaque_invalido_y_totales_invalidos():
 def test_compra_registra_monto_y_metodo():
     exito, _, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "Compra QA",
-        "tipo_uso": "VENTA", "tipo_empaque": "Caja x100", "cantidad_por_caja": 100,
+        "canal": "TIENDITA", "tipo_empaque": "Caja x100", "cantidad_por_caja": 100,
         "precio_compra_total": 200.0, "precio_venta": 3.0,
     })
     assert exito
@@ -73,7 +73,7 @@ def test_compra_registra_monto_y_metodo():
 def test_compra_metodo_invalido_y_monto_invalido():
     exito, _, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "Compra QA2",
-        "tipo_uso": "VENTA", "precio_venta": 5.0,
+        "canal": "TIENDITA", "precio_venta": 5.0,
     })
     assert exito
     exito, _, _ = inventario_service.registrar_compra({
@@ -99,7 +99,7 @@ def test_resumen_dinero_mes():
     from database.connection import fetch_one
     exito, _, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "Dinero QA",
-        "tipo_uso": "VENTA", "precio_compra_total": 20.0, "precio_venta": 30.0,
+        "canal": "TIENDITA", "precio_compra_total": 20.0, "precio_venta": 30.0,
     })
     assert exito
     exito, _, _ = inventario_service.registrar_compra({
@@ -125,7 +125,7 @@ def test_resumen_dinero_mes():
 def test_stock_inicial_genera_entrada():
     exito, _, pid = inventario_service.crear_producto({
         "id_categoria_producto": _cat(), "nombre": "StockInit QA",
-        "tipo_uso": "VENTA", "precio_compra_total": 20.0, "precio_venta": 25.0,
+        "canal": "TIENDITA", "precio_compra_total": 20.0, "precio_venta": 25.0,
         "stock_inicial": 4, "modo_compra": "EFECTIVO",
     })
     assert exito
