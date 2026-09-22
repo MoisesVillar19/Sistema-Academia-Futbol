@@ -13,6 +13,10 @@ def editar_categoria(id_categoria: int, data: dict) -> tuple[bool, str]:
     return inventario_service.editar_categoria(id_categoria, data)
 
 
+def desactivar_categoria(id_categoria: int) -> tuple[bool, str]:
+    return inventario_service.desactivar_categoria(id_categoria)
+
+
 def listar_categorias(activo: int | None = None) -> list[dict]:
     return inventario_service.listar_categorias(activo=activo)
 

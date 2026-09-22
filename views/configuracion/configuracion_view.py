@@ -200,13 +200,19 @@ class ConfiguracionView(ctk.CTkFrame):
         self._cargar_tipos_uniforme(sec7)
         crear_boton_interactivo(sec7, text="+ Nuevo Tipo Uniforme", width=180, command=self._nuevo_tipo_uniforme, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
+        # 9 — Categorías de Productos (Fase 6c: mudadas desde Inventario;
+        # Tiendita/Almacén las usan, aquí se administran)
+        sec7c = self._seccion("Categorías de Productos", "🏷", "Clasifican productos de Tiendita y Almacén (insumos, vestimenta, etc.).", 9, badge=badge)
+        self._cargar_categorias_producto(sec7c)
+        crear_boton_interactivo(sec7c, text="+ Nueva Categoría", width=160, command=self._nueva_categoria_producto, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
+
         # 8b — Conceptos flexibles (RN-052 sin redundancia)
-        sec7b = self._seccion("Conceptos Flexibles (bundles con ítems)", "🏷", "Crea paquetes con título, precio y productos incluidos. Si eliges concepto en Matrícula, su monto precede a tarifa/monto pactado y descuenta stock de cada ítem. Sin duplicar configuracion.precio_*.", 9, badge=badge)
+        sec7b = self._seccion("Conceptos Flexibles (bundles con ítems)", "🏷", "Crea paquetes con título, precio y productos incluidos. Si eliges concepto en Matrícula, su monto precede a tarifa/monto pactado y descuenta stock de cada ítem. Sin duplicar configuracion.precio_*.", 10, badge=badge)
         self._cargar_conceptos(sec7b)
         crear_boton_interactivo(sec7b, text="+ Nuevo Concepto", width=160, command=self._nuevo_concepto, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
-        # 10 — Apariencia Visual (nuevo, ordenado y explicado)
-        sec8 = self._seccion("Apariencia Visual", "🎨", "Ajusta tamaño de letra, colores y fuente. Se guarda local y aplica al reiniciar.", 10, badge=badge)
+        # 11 — Apariencia Visual (nuevo, ordenado y explicado)
+        sec8 = self._seccion("Apariencia Visual", "🎨", "Ajusta tamaño de letra, colores y fuente. Se guarda local y aplica al reiniciar.", 11, badge=badge)
         vis_frame = ctk.CTkFrame(sec8, fg_color="transparent")
         vis_frame.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(vis_frame, text="Tamaño de letra:", width=160, anchor="w").pack(side="left")
@@ -652,6 +658,60 @@ class ConfiguracionView(ctk.CTkFrame):
             self._cargar_configuracion()
         else:
             messagebox.showerror("Error", msg)
+
+    def _cargar_categorias_producto(self, parent):
+        from controllers import inventario_controller
+        try:
+            cats = inventario_controller.listar_categorias(activo=1)
+        except Exception:
+            cats = []
+        if not cats:
+            ctk.CTkLabel(parent, text="No hay categorías — crea INSUMO_DEPORTIVO, INSUMO_ALIMENTO, etc.",
+                         text_color="gray").pack(anchor="w", padx=10)
+            return
+        for c in cats:
+            row = ctk.CTkFrame(parent, fg_color="#F8F5FA", corner_radius=8)
+            row.pack(fill="x", padx=10, pady=2)
+            ctk.CTkLabel(row, text=f"{c['nombre']}", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=10, pady=6)
+            ctk.CTkButton(row, text="Editar", width=70, height=28,
+                          command=lambda x=c: self._editar_categoria_producto(x)).pack(side="right", padx=2, pady=4)
+            ctk.CTkButton(row, text="Desactivar", width=85, height=28, fg_color="#d9534f",
+                          command=lambda x=c: self._desactivar_categoria_producto(x)).pack(side="right", padx=2, pady=4)
+
+    def _nueva_categoria_producto(self):
+        from controllers import inventario_controller
+        dialog = ctk.CTkInputDialog(text="Nombre de la categoría de producto:", title="Nueva Categoría")
+        nombre = dialog.get_input()
+        if not nombre:
+            return
+        exito, msg, _ = inventario_controller.crear_categoria({"nombre": nombre})
+        if exito:
+            self._cargar_configuracion()
+        else:
+            messagebox.showerror("Error", msg)
+
+    def _editar_categoria_producto(self, cat):
+        from controllers import inventario_controller
+        dialog = ctk.CTkInputDialog(
+            text=f"Nuevo nombre para '{cat['nombre']}':", title="Editar Categoría")
+        nombre = dialog.get_input()
+        if not nombre:
+            return
+        exito, msg = inventario_controller.editar_categoria(
+            cat["id_categoria_producto"], {"nombre": nombre})
+        if exito:
+            self._cargar_configuracion()
+        else:
+            messagebox.showerror("Error", msg)
+
+    def _desactivar_categoria_producto(self, cat):
+        from controllers import inventario_controller
+        if messagebox.askyesno("Confirmar", f"¿Desactivar '{cat['nombre']}'?"):
+            exito, msg = inventario_controller.desactivar_categoria(cat["id_categoria_producto"])
+            if exito:
+                self._cargar_configuracion()
+            else:
+                messagebox.showerror("Error", msg)
 
     def _cargar_conceptos(self, parent):
         try:

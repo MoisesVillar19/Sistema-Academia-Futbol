@@ -57,6 +57,21 @@ def editar_categoria(id_categoria: int, data: dict) -> tuple[bool, str]:
     return True, "Categoría actualizada correctamente"
 
 
+def desactivar_categoria(id_categoria: int) -> tuple[bool, str]:
+    categoria = categoria_producto_repository.obtener_por_id(id_categoria)
+    if not categoria:
+        return False, "Categoría no encontrada"
+    categoria_producto_repository.soft_delete(id_categoria)
+    auditoria_service.registrar_update(
+        id_usuario=auditoria_service.id_usuario_sesion(),
+        tabla="categoria_producto",
+        id_registro=id_categoria,
+        valores_anteriores=f"nombre={categoria['nombre']}, activo=1",
+        valores_nuevos=f"nombre={categoria['nombre']}, activo=0",
+    )
+    return True, "Categoría desactivada correctamente"
+
+
 def listar_categorias(activo: int | None = None) -> list[dict]:
     return categoria_producto_repository.obtener_todas(activo=activo)
 
