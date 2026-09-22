@@ -278,6 +278,58 @@ def crear_tabla_cards(parent, columnas, filas, cap=50, nota_mas=""):
                      text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
 
 
+def crear_tabla_densa(parent, columnas, filas, detalles=None, cap=50, nota_mas=""):
+    """Fase 7a: tabla densa modo Excel (header oscuro + filas blancas + ▾ detalle).
+
+    columnas: [(titulo, ancho)]; filas: [[celda, ...]] (celda str o tuple);
+    detalles: lista paralela de callables(frame) o None (mismo largo que filas).
+    """
+    ncols = len(columnas)
+    con_detalle = bool(detalles and any(d is not None for d in detalles))
+    header = ctk.CTkFrame(parent, fg_color="#3D1559", corner_radius=6)
+    header.pack(fill="x", padx=6, pady=(4, 2))
+    for col, (texto, ancho) in enumerate(columnas):
+        ctk.CTkLabel(header, text=texto, width=ancho,
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="white").grid(row=0, column=col, padx=2, pady=6, sticky="w")
+    if con_detalle:
+        ctk.CTkLabel(header, text="", width=40).grid(
+            row=0, column=ncols, padx=2, pady=6, sticky="w")
+    mostrar = filas[:cap] if cap else list(filas)
+    dets = list(detalles or [])
+    for idx, fila in enumerate(mostrar):
+        cont = ctk.CTkFrame(parent, fg_color="white", corner_radius=6)
+        cont.pack(fill="x", padx=6, pady=1)
+        for col, celda in enumerate(fila):
+            if isinstance(celda, tuple):
+                texto, opts = celda
+            else:
+                texto, opts = celda, {}
+            ancho = columnas[col][1] if col < ncols else 100
+            ctk.CTkLabel(cont, text=str(texto), width=ancho,
+                         font=ctk.CTkFont(size=11, weight=opts.get("weight", "normal")),
+                         text_color=opts.get("text_color", "#1F0A33")).grid(
+                row=0, column=col, padx=2, pady=4, sticky="w")
+        poblar = dets[idx] if idx < len(dets) else None
+        if poblar is not None:
+            detalle = ctk.CTkFrame(cont, fg_color="transparent")
+            detalle.grid(row=1, column=0, columnspan=ncols + 1, sticky="ew", padx=10)
+            try:
+                poblar(detalle)
+            except Exception:
+                pass
+            detalle.grid_remove()
+            btn = ctk.CTkButton(cont, text="▾", width=40, height=24,
+                                fg_color="transparent", text_color="#7C3AED")
+            btn.grid(row=0, column=ncols, padx=2, pady=4)
+            btn.configure(command=lambda d=detalle, b=btn: (
+                (d.grid_remove(), b.configure(text="▾")) if d.winfo_viewable()
+                else (d.grid(), b.configure(text="▴"))))
+    if cap and len(filas) > cap:
+        ctk.CTkLabel(parent, text=nota_mas or f"Mostrando {cap} de {len(filas)}",
+                     text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
+
+
 def crear_bloque_grafico_tabla(parent, modo_inicial="Ambos"):
     """Segmentado Tabla/Gráfico/Ambos + 2 contenedores. Retorna (frame_grafico, frame_tabla).
 
