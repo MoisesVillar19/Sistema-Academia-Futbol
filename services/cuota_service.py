@@ -223,3 +223,39 @@ def obtener_por_vencer(dias: int | None = None) -> list[dict]:
     if dias is None:
         dias = configuracion_service.obtener_dias_por_vencer()
     return cuota_repository.obtener_por_vencer(dias)
+
+
+MESES_GRILLA = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+                "JUL", "AGO", "SET", "OCT", "NOV", "DIC"]
+
+_PRIORIDAD_ESTADO = {"VENCIDO": 0, "PARCIAL": 1, "PENDIENTE": 2, "PAGADO": 3}
+
+
+def grilla_anual(year: int) -> list[dict]:
+    """Fase 7d: una fila por estudiante con estado por mes (estilo Excel
+    RELACIÓN DE ALUMNOS: X=CANCELADO/PAGADO, monto=ADELANTO/PARCIAL)."""
+    filas: dict = {}
+    for c in cuota_repository.obtener_por_anio(year):
+        eid = c.get("id_estudiante")
+        if eid not in filas:
+            filas[eid] = {
+                "id_estudiante": eid,
+                "nombre": f"{c.get('nombres', '')} {c.get('apellidos', '')}".strip(),
+                "dni": c.get("dni", ""),
+                "meses": {},
+            }
+        try:
+            mes = int(str(c.get("fecha_vencimiento", ""))[5:7])
+        except (ValueError, TypeError):
+            continue
+        if not 1 <= mes <= 12:
+            continue
+        estado = c.get("estado", "PENDIENTE")
+        try:
+            saldo = float(c.get("saldo", 0) or 0)
+        except (TypeError, ValueError):
+            saldo = 0.0
+        actual = filas[eid]["meses"].get(mes)
+        if actual is None or _PRIORIDAD_ESTADO.get(estado, 9) < _PRIORIDAD_ESTADO.get(actual.get("estado"), 9):
+            filas[eid]["meses"][mes] = {"estado": estado, "saldo": saldo}
+    return sorted(filas.values(), key=lambda f: f["nombre"])

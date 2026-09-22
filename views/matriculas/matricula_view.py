@@ -81,11 +81,13 @@ class MatriculaView(ctk.CTkFrame):
         self.tab_form = self.tabview.add("Registrar")
         self.tab_rapida = self.tabview.add("Rápida")
         self.tab_cuotas = self.tabview.add("Cuotas")
+        self.tab_grilla = self.tabview.add("Año")
 
         self._crear_tab_lista()
         self._crear_tab_formulario()
         self._crear_tab_rapida()
         self._crear_tab_cuotas()
+        self._crear_tab_grilla()
 
     def _crear_tab_rapida(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -800,6 +802,82 @@ class MatriculaView(ctk.CTkFrame):
             self.tabview.set("Matrículas")
         else:
             self.label_form_status.configure(text=msg, text_color="red")
+
+    def _crear_tab_grilla(self):
+        # Fase 7d: grilla anual estilo Excel RELACIÓN DE ALUMNOS
+        # (X=CANCELADO, S/=ADELANTO, vacío=pendiente/sin cuota).
+        from utils.ui_helpers import crear_seccion, crear_boton_interactivo
+        from utils.dates import get_today
+        sec = crear_seccion(
+            self.tab_grilla, titulo="Cuotas del Año", icono="🗓",
+            descripcion="X = cancelado • S/ monto = adelanto (saldo) • vacío = pendiente.",
+            nro=1)
+        barra = ctk.CTkFrame(sec, fg_color="transparent")
+        barra.pack(fill="x", padx=10, pady=(0, 8))
+        ctk.CTkLabel(barra, text="Año:").pack(side="left")
+        try:
+            anio_actual = int((get_today() or "2026")[:4])
+        except (ValueError, TypeError):
+            anio_actual = 2026
+        self.combo_grilla_anio = ctk.CTkComboBox(
+            barra, width=110,
+            values=[str(a) for a in range(anio_actual - 2, anio_actual + 3)],
+            command=lambda v: self._cargar_grilla())
+        self.combo_grilla_anio.set(str(anio_actual))
+        self.combo_grilla_anio.pack(side="left", padx=10)
+        crear_boton_interactivo(barra, text="Actualizar", width=110,
+                                command=self._cargar_grilla, fg_color="#7C3AED").pack(side="left")
+        self.scroll_grilla = ctk.CTkScrollableFrame(self.tab_grilla)
+        self.scroll_grilla.pack(fill="both", expand=True, padx=5, pady=5)
+        self.label_grilla_status = ctk.CTkLabel(self.tab_grilla, text="", font=ctk.CTkFont(size=12))
+        self.label_grilla_status.pack(pady=3)
+        self._cargar_grilla()
+
+    def _cargar_grilla(self):
+        from services import cuota_service
+        for w in self.scroll_grilla.winfo_children():
+            w.destroy()
+        try:
+            anio = int(self.combo_grilla_anio.get())
+        except (ValueError, TypeError):
+            anio = 2026
+        filas = cuota_service.grilla_anual(anio)
+        meses = cuota_service.MESES_GRILLA
+        header = ctk.CTkFrame(self.scroll_grilla, fg_color="#3D1559", corner_radius=6)
+        header.pack(fill="x", padx=6, pady=(4, 2))
+        ctk.CTkLabel(header, text="Estudiante", width=220,
+                     font=ctk.CTkFont(size=11, weight="bold"), text_color="white").grid(
+            row=0, column=0, padx=2, pady=6, sticky="w")
+        for j, mes in enumerate(meses):
+            ctk.CTkLabel(header, text=mes, width=55,
+                         font=ctk.CTkFont(size=11, weight="bold"), text_color="white").grid(
+                row=0, column=j + 1, padx=2, pady=6)
+        if not filas:
+            ctk.CTkLabel(self.scroll_grilla, text=f"Sin cuotas en {anio}",
+                         text_color="gray").pack(pady=20)
+            self.label_grilla_status.configure(text="Total: 0")
+            return
+        colores = {"PAGADO": ("X", "green", True), "PARCIAL": (None, "#D97706", True),
+                   "VENCIDO": ("!", "#DC2626", True), "PENDIENTE": ("", "#9CA3AF", False)}
+        for f in filas:
+            row = ctk.CTkFrame(self.scroll_grilla, fg_color="white", corner_radius=6)
+            row.pack(fill="x", padx=6, pady=1)
+            ctk.CTkLabel(row, text=f["nombre"], width=220,
+                         font=ctk.CTkFont(size=11), text_color="#1F0A33").grid(
+                row=0, column=0, padx=2, pady=4, sticky="w")
+            for j in range(1, 13):
+                celda = f["meses"].get(j)
+                if celda is None:
+                    txt, color, negrita = "", "#9CA3AF", False
+                elif celda["estado"] == "PARCIAL":
+                    txt, color, negrita = f"S/{celda['saldo']:.0f}", "#D97706", True
+                else:
+                    txt, color, negrita = colores.get(celda["estado"], ("", "#9CA3AF", False))
+                ctk.CTkLabel(row, text=txt, width=55,
+                             font=ctk.CTkFont(size=11, weight="bold" if negrita else "normal"),
+                             text_color=color).grid(row=0, column=j, padx=2, pady=4)
+        self.label_grilla_status.configure(
+            text=f"Total: {len(filas)} estudiante(s) • X=cancelado • S/=adelanto")
 
     def _ver_cuotas(self, mat):
         self.tabview.set("Cuotas")

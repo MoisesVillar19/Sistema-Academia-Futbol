@@ -88,6 +88,20 @@ def actualizar(cuota: Cuota) -> None:
     conn.commit()
 
 
+def obtener_por_anio(year: int) -> list[dict]:
+    """Fase 7d: cuotas del año con estudiante (grilla anual estilo Excel)."""
+    return fetch_all(
+        """SELECT cu.*, p.nombres, p.apellidos, p.dni, e.id_estudiante
+           FROM cuota cu
+           JOIN matricula m ON cu.id_matricula = m.id_matricula
+           JOIN estudiante e ON m.id_estudiante = e.id_estudiante
+           JOIN persona p ON e.id_persona = p.id_persona
+           WHERE cu.activo = 1 AND substr(cu.fecha_vencimiento, 1, 4) = ?
+           ORDER BY p.apellidos, p.nombres, cu.fecha_vencimiento""",
+        (str(year),),
+    )
+
+
 def contar_por_estado(estado: str) -> int:
     row = fetch_one(
         "SELECT COUNT(*) as total FROM cuota WHERE estado = ? AND activo = 1",
