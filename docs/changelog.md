@@ -1,5 +1,21 @@
 # Changelog — AcademiaFutbol
 
+## v1.0.8 - 2026-09-22
+
+### Refactorización v2 (plan `docs/desarrollo/plan_refactorizacion_v2.md` ejecutado fases 0–8)
+- Split Tiendita (secretaria) / Almacén (solo admin): módulos estancos por `canal`, Ventas dentro de Tiendita, guards en services.
+- Precios Excel: Inscripción 150, Uniforme 70, Mensualidad 120 (editables en Tarifas); express lee tarifa; becas 1/2 (S/50) y COMPLETA (100%).
+- Avisos por módulo (comprobantes pendientes, vencidas, stock bajo, sin apoderado) + Pendientes en Dashboard.
+- Fechas editables en pagos, compras, ventas, movimientos y matrículas; comprobantes validados y centralizados.
+- Matrícula sin camiseta visible (regalo RN-051 intacto); conceptos flexibles fuera del flujo.
+- Tabla densa modo Excel en 6 módulos; dashboard por bloques; grilla anual de cuotas (X/ADELANTO); vocabulario COSTO TOTAL/X UNIDAD/COSTO VENTA.
+- `pago.comprobante_path` persiste (antes se descartaba).
+
+### Limpieza
+- Sin código muerto (vistas legacy, helpers huérfanos); event_bus loggea handlers rotos.
+- Logs resumidos (importar/CSV) y sin PII en guardado de estudiantes.
+- Timers seguros: backup único, recargas diferidas con `winfo_exists`, reinicio cancelable.
+
 ## v1.0.7 - 2026-09-21
 
 ### Updater mejorado

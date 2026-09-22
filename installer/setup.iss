@@ -2,7 +2,7 @@
 ; Requiere: Inno Setup 6.7+
 
 #define MyAppName "AcademiaFutbol"
-#define MyAppVersion "1.0.7"
+#define MyAppVersion "1.0.8"
 #define MyAppPublisher "Academia Deportiva"
 #define MyAppURL "https://github.com/MoisesVillar19/Sistema-Academia-Futbol"
 #define MyAppExeName "AcademiaFutbol.exe"
