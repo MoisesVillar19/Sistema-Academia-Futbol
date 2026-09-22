@@ -173,14 +173,16 @@ def importar_estudiantes(filas: list[dict], id_usuario: int = 1,
         except ErrorFilaImportacion as e:
             resultados["errores"].append(f"Fila {idx}: {e.mensaje}")
         except Exception as e:
+            # Limpieza: el detalle ya va a resultados (UI); al log solo resumen
             resultados["errores"].append(f"Fila {idx}: Error inesperado - {str(e)}")
-            logger.error(f"Error al importar fila {idx}: {e}")
+            logger.debug(f"Error al importar fila {idx}: {e}")
 
     total = resultados["estudiantes_creados"]
-    if total > 0:
+    n_err = len(resultados["errores"])
+    if total > 0 or n_err:
         logger.info(
             f"Importación completada: {total} estudiantes, "
-            f"{resultados['apoderados_creados']} apoderados"
+            f"{resultados['apoderados_creados']} apoderados, {n_err} errores"
         )
 
     return True, f"{total} estudiantes importados", resultados

@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import shutil, os
-from controllers import venta_controller, login_controller
+from controllers import venta_controller
 from controllers import inventario_controller
 from utils.constants import COMPROBANTES_DIR
 
@@ -38,6 +38,11 @@ class VentaView(ctk.CTkFrame):
         super().destroy()
 
     def _recargar_productos(self):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         try:
             self._cargar_productos()
         except Exception:

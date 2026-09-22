@@ -32,7 +32,9 @@ def resumen_campeonatos() -> list[dict]:
     ventas = venta_service.listar_ventas(tipo_venta="CAMPEONATO")
     try:
         egresos = egreso_service.listar_egresos()
-    except Exception:
+    except Exception as e:
+        from utils.logger import logger
+        logger.warning(f"resumen_campeonatos sin egresos (arbitraje=0): {e}")
         egresos = []
     out = []
     for t in tarifas:

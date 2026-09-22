@@ -68,14 +68,6 @@ def crear_card_interactiva(parent, hover_bg="#F3E8FF", border_hover="#DDD6E5"):
 TITULO_COLOR = "#3D1559"
 DESC_COLOR = "#6B5B7B"
 
-def crear_header_vista(parent, titulo, padx=15, pady_top=15, pady_bottom=5):
-    """Header transparente estilo Configuración: título 24 bold."""
-    header = ctk.CTkFrame(parent, fg_color="transparent")
-    header.pack(fill="x", padx=padx, pady=(pady_top, pady_bottom))
-    ctk.CTkLabel(header, text=titulo, font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
-    return header
-
-
 def crear_seccion(parent, titulo, icono="", descripcion="", nro=None, badge=None):
     """Sección blanca estilo Configuración: head con nro+icono+título + badge + descripción."""
     sec = ctk.CTkFrame(parent, fg_color="white", corner_radius=8)

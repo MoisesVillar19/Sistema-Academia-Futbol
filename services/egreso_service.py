@@ -82,8 +82,9 @@ def editar_egreso(id_egreso: int, data: dict) -> tuple[bool, str]:
             cols = [r[1] for r in conn.execute("PRAGMA table_info(egreso)").fetchall()]
             if "id_tarifa" in cols:
                 conn.execute("UPDATE egreso SET id_tarifa=? WHERE id_egreso=?", (data.get("id_tarifa"), id_egreso))
-        except Exception:
-            pass
+        except Exception as e:
+            from utils.logger import logger
+            logger.warning(f"Egreso {id_egreso}: no se pudo vincular tarifa: {e}")
     conn.commit()
     auditoria_service.registrar_update(auditoria_service.id_usuario_sesion_or_system(), "egreso", id_egreso, f"concepto={e['concepto']}", f"concepto={concepto}, monto={monto_f}")
     return True, "Egreso actualizado"

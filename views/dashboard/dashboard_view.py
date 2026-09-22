@@ -370,7 +370,7 @@ class DashboardView(ctk.CTkFrame):
 
         try:
             from utils.logger import logger as _diag_log
-            _diag_log.info(f"Dashboard detalle solicitado: {tipo}")
+            _diag_log.debug(f"Dashboard detalle solicitado: {tipo}")
         except Exception:
             pass
         try:
@@ -432,8 +432,8 @@ class DashboardView(ctk.CTkFrame):
         try:
             from utils.logger import logger as _diag_log2
             n = len(self.detalle_frame.winfo_children())
-            _diag_log2.info(f"Dashboard detalle '{tipo}' renderizado: {n} widgets "
-                            f"(mpl={'SI' if MATPLOTLIB_DISPONIBLE else 'NO'})")
+            _diag_log2.debug(f"Dashboard detalle '{tipo}' renderizado: {n} widgets "
+                             f"(mpl={'SI' if MATPLOTLIB_DISPONIBLE else 'NO'})")
         except Exception:
             pass
 

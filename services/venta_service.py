@@ -93,7 +93,8 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
                             disp = sa["stock"]
                         else:
                             disp = 0
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Venta: stock_almacen no legible prod={it['id_producto']} (uso global): {e}")
                         disp = prod["stock_actual"]
                 if disp < it["cantidad"]:
                     raise ValueError(f"Stock insuficiente de {prod['nombre']} (disp: {disp})")
@@ -161,10 +162,10 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
                         else:
                             # FIFO auto si producto tiene lotes vigentes
                             lote_repository.descontar_fifo(it["id_producto"], id_variante, alm_id or 1, it["cantidad"])
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                    except Exception as e:
+                        logger.warning(f"Venta {venta.numero_recibo}: FIFO no aplicado prod={it['id_producto']}: {e}")
+                except Exception as e:
+                    logger.warning(f"Venta {venta.numero_recibo}: stock_almacen no actualizado prod={it['id_producto']}: {e}")
                 from models.movimiento_inventario import MovimientoInventario
                 from utils.dates import get_now
                 movimiento_inventario_repository.insertar(

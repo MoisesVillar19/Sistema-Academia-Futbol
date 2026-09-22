@@ -202,6 +202,12 @@ class PagoView(ctk.CTkFrame):
         self.label_status_morosos.pack(pady=3)
 
     def _recargar_actual(self):
+        # Limpieza: el after(200) diferido no debe tocar vista destruida
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()

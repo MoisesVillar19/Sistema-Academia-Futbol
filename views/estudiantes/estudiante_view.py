@@ -494,7 +494,7 @@ class EstudianteView(ctk.CTkFrame):
         self.tabview.set("Registrar / Editar")
 
     def _guardar_estudiante(self):
-        logger.info("[GUARDAR] Boton Guardar presionado")
+        logger.debug("[GUARDAR] Boton Guardar presionado")
         try:
             self._guardar_estudiante_impl()
         except Exception as e:
@@ -506,14 +506,15 @@ class EstudianteView(ctk.CTkFrame):
     def _guardar_estudiante_impl(self):
         tipo_doc = self.combo_tipo_doc.get()
         documento = self.entry_dni.get().strip()
-        logger.info(f"[GUARDAR] tipo_doc={tipo_doc} documento={documento}")
+        # Limpieza: sin PII (documento) en el log; validaciones a debug
+        logger.debug(f"[GUARDAR] validando documento tipo={tipo_doc}")
 
         if tipo_doc == "DNI" and len(documento) != 8:
-            logger.info(f"[GUARDAR] FAIL: DNI length={len(documento)}")
+            logger.debug("[GUARDAR] FAIL: DNI longitud inválida")
             self.label_form_status.configure(text="El DNI debe tener 8 dígitos", text_color="red")
             return
         if tipo_doc == "CARNET" and len(documento) != 9:
-            logger.info(f"[GUARDAR] FAIL: Carnet length={len(documento)}")
+            logger.debug("[GUARDAR] FAIL: Carnet longitud inválida")
             self.label_form_status.configure(text="El Carnet debe tener 9 dígitos", text_color="red")
             return
 
@@ -547,11 +548,11 @@ class EstudianteView(ctk.CTkFrame):
             # Si edita y no seleccionó nueva foto, mantener existente
             if not foto_path and hasattr(self, '_foto_actual'):
                 data["foto_path"] = self._foto_actual
-            logger.info(f"[GUARDAR] Modo edicion id={self._id_estudiante_editando}")
+            logger.debug(f"[GUARDAR] Modo edicion id={self._id_estudiante_editando}")
             exito, msg = estudiante_controller.editar_estudiante(
                 self._id_estudiante_editando, data,
             )
-            logger.info(f"[GUARDAR] editar_estudiante: exito={exito} msg={msg}")
+            logger.debug(f"[GUARDAR] editar_estudiante: exito={exito}")
 
             if exito:
                 dni_ap = self.entry_dni_ap.get().strip()
@@ -575,6 +576,7 @@ class EstudianteView(ctk.CTkFrame):
                             )
 
                 self.label_form_status.configure(text=msg, text_color="green")
+                logger.info(f"[GUARDAR] Estudiante actualizado id={self._id_estudiante_editando}")
                 self._limpiar_formulario()
                 self._cargar_estudiantes()
                 self._cargar_combo_estudiantes()
@@ -582,13 +584,12 @@ class EstudianteView(ctk.CTkFrame):
             else:
                 self.label_form_status.configure(text=msg, text_color="red")
         else:
-            logger.info("[GUARDAR] Modo creacion nuevo estudiante")
+            logger.debug("[GUARDAR] Modo creacion nuevo estudiante")
             tipo_doc_ap = self.combo_tipo_doc_ap.get()
             dni_ap = self.entry_dni_ap.get().strip()
             nombres_ap = self.entry_nombres_ap.get().strip()
             apellidos_ap = self.entry_apellidos_ap.get().strip()
             parentesco = self.combo_parentesco.get()
-            logger.info(f"[GUARDAR] Apoderado: dni={dni_ap} nombres={nombres_ap} apellidos={apellidos_ap}")
 
             if not dni_ap:
                 self.label_form_status.configure(text="El documento del apoderado es obligatorio", text_color="red")
@@ -606,9 +607,8 @@ class EstudianteView(ctk.CTkFrame):
                 self.label_form_status.configure(text="Los apellidos del apoderado son obligatorios", text_color="red")
                 return
 
-            logger.info(f"[GUARDAR] Llamando crear_estudiante con data={data}")
             exito, msg, id_estudiante = estudiante_controller.crear_estudiante(data)
-            logger.info(f"[GUARDAR] crear_estudiante: exito={exito} msg={msg} id={id_estudiante}")
+            logger.debug(f"[GUARDAR] crear_estudiante: exito={exito} id={id_estudiante}")
 
             if not exito:
                 self.label_form_status.configure(text=msg, text_color="red")
@@ -637,10 +637,9 @@ class EstudianteView(ctk.CTkFrame):
                 return
 
             from controllers import estudiante_controller as ec
-            logger.info(f"[GUARDAR] Asociando estudiante={id_estudiante} apoderado={id_apoderado}")
             ec.asociar_apoderado(id_estudiante, id_apoderado, es_principal=True)
 
-            logger.info("[GUARDAR] EXITO: Estudiante y apoderado registrados")
+            logger.info(f"[GUARDAR] EXITO: estudiante={id_estudiante} apoderado={id_apoderado} registrados")
             self.label_form_status.configure(text="Estudiante y apoderado registrados correctamente", text_color="green")
             self._limpiar_formulario()
             self._cargar_estudiantes()

@@ -16,6 +16,7 @@ def parse_csv(ruta_archivo: str) -> tuple[bool, str, list[dict]]:
 
         with open(ruta_archivo, "r", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
+            filas_malas = []
             for idx, row in enumerate(reader):
                 if not row or all(c.strip() == "" for c in row):
                     continue
@@ -25,7 +26,8 @@ def parse_csv(ruta_archivo: str) -> tuple[bool, str, list[dict]]:
                     continue
 
                 if len(row) != len(encabezados):
-                    logger.warning(f"Fila {idx + 1}: cantidad de columnas no coincide")
+                    # Limpieza: contador + resumen (no 1 línea por fila)
+                    filas_malas.append(idx + 1)
                     continue
 
                 fila = {}
@@ -40,6 +42,9 @@ def parse_csv(ruta_archivo: str) -> tuple[bool, str, list[dict]]:
             return False, "El archivo no tiene datos", []
 
         logger.info(f"CSV parseado: {len(filas)} filas, {len(encabezados)} columnas")
+        if filas_malas:
+            logger.warning(f"CSV: {len(filas_malas)} fila(s) con columnas distintas "
+                           f"(primeras: {filas_malas[:5]})")
         return True, f"{len(filas)} registros encontrados", filas
 
     except Exception as e:

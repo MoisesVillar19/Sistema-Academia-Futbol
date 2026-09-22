@@ -287,7 +287,16 @@ class ActualizarDialog(ctk.CTkToplevel):
         self._barra_progreso.set(1)
         self._barra_progreso.configure(progress_color="#22C55E")
         self._btn_cancelar.pack_forget()
-        self.after(900, update_service.reiniciar_app)
+        # Limpieza: reinicio cancelable si se cierra el diálogo en esos 900ms
+        try:
+            if getattr(self, "_reinicio_after_id", None) is not None:
+                self.after_cancel(self._reinicio_after_id)
+        except Exception:
+            pass
+        try:
+            self._reinicio_after_id = self.after(900, update_service.reiniciar_app)
+        except Exception:
+            self._reinicio_after_id = None
 
     def _on_descarga_fallo(self, msg: str):
         self._descargando = False
@@ -306,6 +315,12 @@ class ActualizarDialog(ctk.CTkToplevel):
     def _on_cancelar(self):
         self._cancelado = True
         self._descargando = False
+        try:
+            if getattr(self, "_reinicio_after_id", None) is not None:
+                self.after_cancel(self._reinicio_after_id)
+                self._reinicio_after_id = None
+        except Exception:
+            pass
         self._label_estado.configure(text="Cancelado")
         self._label_detalle.configure(text="Descarga cancelada. Puede reintentar.")
         self._btn_actualizar.configure(state="normal", text="Reintentar")
@@ -327,6 +342,12 @@ class ActualizarDialog(ctk.CTkToplevel):
         if self._descargando:
             self._on_cancelar()
             return
+        try:
+            if getattr(self, "_reinicio_after_id", None) is not None:
+                self.after_cancel(self._reinicio_after_id)
+                self._reinicio_after_id = None
+        except Exception:
+            pass
         update_service.registrar_rechazo(self.info["version"])
         self.destroy()
 

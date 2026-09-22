@@ -22,8 +22,14 @@ class EventBus:
         for handler in list(self._handlers.get(event_name, [])):
             try:
                 handler(*args, **kwargs)
-            except Exception:
-                pass
+            except Exception as e:
+                # Limpieza: antes se tragaba silencioso; un handler roto
+                # (Tiendita/Ventas/Matrícula/Dashboard) debe verse en el log.
+                try:
+                    from utils.logger import logger
+                    logger.warning(f"event_bus '{event_name}': handler falló: {e}")
+                except Exception:
+                    pass
 
 
 # Singleton por defecto. Las vistas hacen `from utils import event_bus`

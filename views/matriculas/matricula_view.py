@@ -26,6 +26,11 @@ class MatriculaView(ctk.CTkFrame):
 
     def _recargar_productos(self):
         try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+        try:
             self._cargar_productos_matricula()
         except Exception:
             pass
@@ -417,6 +422,11 @@ class MatriculaView(ctk.CTkFrame):
         self._cargar_combo_matriculas()
 
     def _recargar_actual(self):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()

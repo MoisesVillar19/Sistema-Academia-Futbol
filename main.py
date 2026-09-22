@@ -192,7 +192,16 @@ class App(ctk.CTk):
         ctk.CTkLabel(user_frame, text="Click para editar perfil", font=ctk.CTkFont(size=10), text_color="#9CA3AF", anchor="w").pack(fill="x", padx=10, pady=(0, 6))
         # hacer clickeable (Bloque C1: frame + labels hijos; el clic en un
         # label caía en el hijo sin binding y no pasaba nada)
+        _vistos = set()
+
         def _hacer_clickeable(widget):
+            try:
+                key = str(widget)
+            except Exception:
+                return
+            if key in _vistos:
+                return
+            _vistos.add(key)
             try:
                 widget.bind("<Button-1>", lambda e: self._mostrar_perfil(), add="+")
                 widget.configure(cursor="hand2")
@@ -310,7 +319,7 @@ class App(ctk.CTk):
 
         self._suscribir_navegacion()
         self._mostrar_placeholder()
-        self.after(5000, self._verificar_backup_automatico)
+        self._programar_backup()
 
     def _crear_backup_manual(self):
         from tkinter import messagebox
@@ -321,8 +330,26 @@ class App(ctk.CTk):
         else:
             messagebox.showerror("Respaldo", msg)
 
+    def _programar_backup(self, demora_ms=5000):
+        # Limpieza: una sola cadena (antes el relogin duplicaba timers/messagebox)
+        self._cancelar_backup()
+        try:
+            self._backup_after_id = self.after(demora_ms, self._verificar_backup_automatico)
+        except Exception:
+            self._backup_after_id = None
+
+    def _cancelar_backup(self):
+        after_id = getattr(self, "_backup_after_id", None)
+        if after_id is not None:
+            try:
+                self.after_cancel(after_id)
+            except Exception:
+                pass
+            self._backup_after_id = None
+
     def _verificar_backup_automatico(self):
         """RN-030: respaldo automatico segun CONFIGURACION; revisa cada 6 horas."""
+        self._backup_after_id = None
         try:
             from controllers import configuracion_controller
             exito, msg = configuracion_controller.verificar_backup_automatico()
@@ -333,7 +360,7 @@ class App(ctk.CTk):
             from utils.logger import logger
             logger.error(f"Error en backup automático: {e}")
         try:
-            self.after(6 * 3600 * 1000, self._verificar_backup_automatico)
+            self._backup_after_id = self.after(6 * 3600 * 1000, self._verificar_backup_automatico)
         except Exception:
             pass
 
@@ -415,11 +442,6 @@ class App(ctk.CTk):
         from views.pagos.pago_view import PagoView
         PagoView(self.contenido).pack(fill="both", expand=True)
 
-    def _mostrar_inventario(self):
-        self._limpiar_contenido()
-        from views.inventario.inventario_view import InventarioView
-        InventarioView(self.contenido).pack(fill="both", expand=True)
-
     def _mostrar_tiendita(self):
         self._limpiar_contenido()
         from views.tiendita.tiendita_view import TienditaView
@@ -476,11 +498,6 @@ class App(ctk.CTk):
         except Exception:
             pass
 
-    def _mostrar_ventas(self):
-        self._limpiar_contenido()
-        from views.ventas.venta_view import VentaView
-        VentaView(self.contenido).pack(fill="both", expand=True)
-
     def _mostrar_egresos(self):
         self._limpiar_contenido()
         from views.egresos.egreso_view import EgresoView
@@ -492,6 +509,14 @@ class App(ctk.CTk):
         ConfiguracionView(self.contenido).pack(fill="both", expand=True)
 
     def _cerrar_sesion(self):
+        # Limpieza: cancela backup (evita doble cadena/messagebox al reloguear)
+        # y cierra figuras (dashboard con matplotlib).
+        self._cancelar_backup()
+        try:
+            import matplotlib.pyplot as plt
+            plt.close("all")
+        except Exception:
+            pass
         login_controller.cerrar_sesion()
         self._mostrar_bienvenida()
 
