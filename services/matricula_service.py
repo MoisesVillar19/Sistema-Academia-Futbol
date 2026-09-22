@@ -44,22 +44,10 @@ def crear_matricula(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | N
         estado=STATUS_ACTIVO,
     )
 
-    # RN-052: precedencia concepto > monto_pactado > tarifa
-    id_concepto = data.get("id_concepto")
-    monto_base = None
-    concepto_data = None
-    if id_concepto:
-        try:
-            from repositories import concepto_cobro_repository
-            concepto_data = concepto_cobro_repository.obtener_por_id(int(id_concepto))
-            if concepto_data:
-                monto_base = float(concepto_data["monto"])
-        except Exception:
-            pass
-    if monto_base is None:
-        from repositories import tarifa_repository
-        tarifa_data = tarifa_repository.obtener_por_id(id_tarifa)
-        monto_base = monto_pactado if monto_pactado is not None else tarifa_data["monto"]
+    # Fase 7e: sin conceptos (eliminados del flujo) → monto_pactado > tarifa
+    from repositories import tarifa_repository
+    tarifa_data = tarifa_repository.obtener_por_id(id_tarifa)
+    monto_base = monto_pactado if monto_pactado is not None else tarifa_data["monto"]
 
     es_primera_matricula = len(matriculas_existentes) == 0
     es_reingreso = estudiante["estado"] == STATUS_REINGRESANTE
@@ -112,30 +100,9 @@ def crear_matricula(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | N
                     movimiento_inventario_repository.insertar(MovimientoInventario(id_producto=prod_camiseta["id_producto"], id_usuario=id_usuario, tipo_movimiento="SALIDA", cantidad=1, stock_anterior=stock_ant, stock_nuevo=stock_nuevo, fecha_movimiento=get_now(), motivo=f"Regalo inscripción nuevo es_nuevo=1 estudiante {id_estudiante} - Camiseta Entrenamiento"))
                     auditoria_service.registrar_insert(id_usuario, "venta", id_venta, f"INSCRIPCION camiseta -1 stock {stock_ant}->{stock_nuevo}")
 
-            # RN-052: si hay concepto, sus items se venden aparte (atomico) con precedencia de monto ya aplicada
-            if id_concepto and concepto_data:
-                from repositories import concepto_item_repository as ci_repo
-                from services import venta_service as venta_svc_concepto
-                from repositories import producto_repository as prod_repo_concepto
-                concepto_items = ci_repo.obtener_por_concepto(int(id_concepto))
-                for ci in concepto_items:
-                    pid = ci["id_producto"]
-                    cant = int(ci.get("cantidad", 1))
-                    # RN-051: bloquear extras si es_nuevo y ya regaló camiseta? concepto items sí se permiten (son el bundle)
-                    prod = prod_repo_concepto.obtener_por_id(pid)
-                    if not prod:
-                        raise ValueError(f"Producto concepto {pid} no encontrado")
-                    if prod["stock_actual"] < cant:
-                        raise ValueError(f"Stock insuficiente de {prod['nombre']} (disp: {prod['stock_actual']}) para concepto")
-                    ok_v, msg_v, _ = venta_svc_concepto.registrar_venta({"id_estudiante": id_estudiante, "id_usuario": id_usuario, "tipo_venta": "UNIFORME", "metodo_pago": "EFECTIVO", "items": [{"id_producto": pid, "cantidad": cant}]})
-                    if not ok_v:
-                        raise ValueError(msg_v)
-                auditoria_service.registrar_insert(id_usuario, "concepto_cobro", int(id_concepto), f"matricula {id_matricula} concepto {concepto_data['nombre']} monto {concepto_data['monto']}")
-
-            # RN-051: bloquear productos extra si es_nuevo con regalo (solo concepto permitido)
+            # RN-051: bloquear productos extra si es_nuevo con regalo
             if es_nuevo_flag and debe_regalar_camiseta and data.get("productos"):
-                # permitir solo si no hay concepto (ya bloqueado por UI); backend ignora extras para no cobrar doble
-                # si quiere vender extra debe usar Ventas
+                # backend ignora extras para no cobrar doble; extra va por Ventas
                 pass
             else:
                 productos_sel = data.get("productos", [])

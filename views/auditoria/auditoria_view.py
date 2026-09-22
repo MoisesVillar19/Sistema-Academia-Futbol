@@ -74,6 +74,7 @@ class AuditoriaView(ctk.CTkFrame):
         self._renderizar_tabla(logs)
 
     def _renderizar_tabla(self, logs):
+        from utils.ui_helpers import crear_card_interactiva
         for widget in self.tabla_frame.winfo_children():
             widget.destroy()
         # Header más completo con valores
@@ -82,14 +83,9 @@ class AuditoriaView(ctk.CTkFrame):
         for text, width in [("Fecha", 125), ("Usuario", 110), ("Tabla", 95), ("Acción", 90), ("Registro", 60), ("Valor Anterior", 140), ("Valor Nuevo", 140), ("", 70)]:
             ctk.CTkLabel(header_row, text=text, width=width, font=ctk.CTkFont(size=11, weight="bold"), text_color="white").pack(side="left", padx=2)
         for log in logs:
-            row = ctk.CTkFrame(self.tabla_frame, fg_color="white", border_width=1, border_color="#E5E7EB", corner_radius=6)
+            # Fase 7e: card estándar sin bordes (fin del rayado)
+            row = crear_card_interactiva(self.tabla_frame)
             row.pack(fill="x", padx=2, pady=2)
-            # solo cursor (sin cambio de borde: evita repintados/parpadeo)
-            try:
-                row.bind("<Enter>", lambda e, r=row: r.configure(cursor="hand2"))
-                row.bind("<Leave>", lambda e, r=row: r.configure(cursor=""))
-            except Exception:
-                pass
             ctk.CTkLabel(row, text=log.get("fecha", "")[:19], width=125, font=ctk.CTkFont(size=11)).pack(side="left", padx=2)
             ctk.CTkLabel(row, text=self._nombre_usuario(log), width=110, font=ctk.CTkFont(size=11)).pack(side="left", padx=2)
             ctk.CTkLabel(row, text=log.get("tabla_afectada", ""), width=95, font=ctk.CTkFont(size=11)).pack(side="left", padx=2)

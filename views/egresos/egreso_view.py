@@ -70,6 +70,11 @@ class EgresoView(ctk.CTkFrame):
         self.combo_tarifa_egr.set("Ninguna")
         self.combo_tarifa_egr.pack(anchor="w", pady=3)
         self._tarifas_egr_map = {}
+        from utils import event_bus as _eb2
+        crear_boton_interactivo(cuerpo1, text="🏷 Tarifas campeonato", width=180,
+                                command=lambda: _eb2.publish("abrir_tarifas", tab="Tarifas", tipo="CAMPEONATO"),
+                                fg_color="#E5E7EB", hover_color="#DDD6E5",
+                                text_color="#1F0A33").pack(anchor="w", pady=3)
         ctk.CTkLabel(cuerpo1, text="Monto S/ * (editable: cada profesor/árbitro puede cobrar distinto)").pack(anchor="w")
         self.entry_monto = ctk.CTkEntry(cuerpo1, width=150, placeholder_text="200")
         self.entry_monto.pack(anchor="w", pady=3)

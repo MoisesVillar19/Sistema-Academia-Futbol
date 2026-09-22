@@ -298,7 +298,7 @@ class MatriculaView(ctk.CTkFrame):
 
         from utils.ui_helpers import crear_seccion, crear_nota
         sec1 = crear_seccion(scroll, titulo="Estudiante y tarifa", icono="🎓",
-                             descripcion="Sugiere tarifa por edad. El concepto flexible precede a tarifa/monto.",
+                             descripcion="Sugiere tarifa por edad. Precio: monto pactado o tarifa.",
                              nro=1)
         cuerpo1 = ctk.CTkFrame(sec1, fg_color="transparent")
         cuerpo1.pack(fill="x", padx=10, pady=(0, 8))
@@ -314,11 +314,7 @@ class MatriculaView(ctk.CTkFrame):
         self.combo_tarifa = ctk.CTkComboBox(cuerpo1, width=400, values=["Cargando..."])
         self.combo_tarifa.pack(anchor="w", pady=(0, 5))
 
-        ctk.CTkLabel(cuerpo1, text="Concepto flexible (opcional, con ítems incluidos) — si eliges, ignora Tarifa/monto:", font=ctk.CTkFont(size=11)).pack(anchor="w")
-        self.combo_concepto = ctk.CTkComboBox(cuerpo1, width=400, values=["Ninguno"])
-        self.combo_concepto.set("Ninguno")
-        self.combo_concepto.pack(anchor="w", pady=(0, 5))
-        ctk.CTkLabel(cuerpo1, text="↳ Ej: Matrícula Promocional S/150 incluye Camiseta. Se descuenta stock de cada ítem.", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w")
+        # Fase 7e: conceptos eliminados del flujo (precio = tarifa/monto)
 
         sec2 = crear_seccion(scroll, titulo="Montos, beca y productos", icono="💰",
                              descripcion="Monto pactado libre (0 = gratuito), beca opcional y extras con −1/+1.", nro=2)
@@ -344,6 +340,12 @@ class MatriculaView(ctk.CTkFrame):
         ctk.CTkLabel(cuerpo2, text="Beca (opcional):").pack(anchor="w")
         self.combo_beca = ctk.CTkComboBox(cuerpo2, width=400, values=["Ninguna"])
         self.combo_beca.pack(anchor="w", pady=3)
+        # Fase 7e: atajo a tarifas del módulo (filtrado, sin salir del flujo)
+        from utils.ui_helpers import crear_boton_interactivo as _btn_tar
+        _btn_tar(cuerpo2, text="🏷 Tarifas academia y becas", width=220,
+                 command=lambda: self._abrir_tarifas_modulo("Tarifas", "ACADEMIA"),
+                 fg_color="#E5E7EB", hover_color="#DDD6E5",
+                 text_color="#1F0A33").pack(anchor="w", pady=3)
 
         ctk.CTkLabel(cuerpo2, text="Pago diferido (mensualidad):").pack(anchor="w", pady=(5,0))
         self.combo_diferir = ctk.CTkComboBox(cuerpo2, width=200, values=["Ahora (0)", "2 meses", "3 meses"])
@@ -358,14 +360,11 @@ class MatriculaView(ctk.CTkFrame):
         self._productos_disponibles = []
         self._productos_seleccionados = {}  # id_producto -> {cantidad, precio, nombre}
         self._productos_map = {}
-        self._conceptos_map = {}
         self._cargar_productos_matricula()
-        self._cargar_conceptos()
-        # actualizar total al cambiar monto/beca/concepto
+        # actualizar total al cambiar monto/beca/tarifa
         self.entry_monto_pactado.bind("<KeyRelease>", lambda e: self._actualizar_total())
         self.combo_beca.configure(command=lambda v: self._actualizar_total())
         self.combo_tarifa.configure(command=lambda v: self._actualizar_total())
-        self.combo_concepto.configure(command=lambda v: self._actualizar_total())
 
         # footer fijo (no scrollea)
         footer = ctk.CTkFrame(self._form_container, fg_color="#F8F5FA", border_width=1, border_color="#DDD6E5", corner_radius=8)
@@ -571,12 +570,10 @@ class MatriculaView(ctk.CTkFrame):
         self._cargar_combo_estudiantes()
         self._cargar_combo_tarifas()
         self._cargar_combo_becas()
-        self._cargar_conceptos()
         self._productos_seleccionados = {}
         try:
             self.label_total.configure(text="Total matricula: S/0.00 | Productos: S/0.00 | Importe total: S/0.00")
             self.label_seleccionados.configure(text="Seleccionados: ninguno")
-            self.combo_concepto.set("Ninguno")
         except Exception:
             pass
         self._cargar_productos_matricula()
@@ -614,16 +611,6 @@ class MatriculaView(ctk.CTkFrame):
         nombres = ["Ninguna"] + [f"{b['nombre']} ({b['tipo']} {b['valor']})" for b in becas]
         self.combo_beca.configure(values=nombres)
         self._becas_map = {n: b["id_beca"] for n, b in zip(nombres[1:], becas)}
-
-    def _cargar_conceptos(self):
-        try:
-            from services import concepto_service
-            conceptos = concepto_service.listar_conceptos(activo=1)
-            nombres = ["Ninguno"] + [f"{c['nombre']} — S/{c['monto']:.2f} ({c['tipo']})" for c in conceptos]
-            self.combo_concepto.configure(values=nombres)
-            self._conceptos_map = {n: c["id_concepto"] for n, c in zip(nombres[1:], conceptos)}
-        except Exception:
-            pass
 
     def _cargar_productos_matricula(self):
         try:
@@ -691,48 +678,38 @@ class MatriculaView(ctk.CTkFrame):
 
     def _actualizar_total(self):
         base = 0
-        # RN-052: concepto precede a tarifa/monto
-        concepto_sel = self.combo_concepto.get() if hasattr(self, 'combo_concepto') else "Ninguno"
-        if concepto_sel != "Ninguno" and concepto_sel in getattr(self, '_conceptos_map', {}):
+        # Fase 7e: precio = monto pactado o tarifa (sin conceptos)
+        try:
+            monto_pactado = self.entry_monto_pactado.get().strip()
+            if monto_pactado:
+                base = float(monto_pactado)
+            else:
+                tarifa_sel = self.combo_tarifa.get()
+                tid = self._tarifas_map.get(tarifa_sel)
+                if tid:
+                    for n, tid2 in self._tarifas_map.items():
+                        if tid2 == tid:
+                            import re
+                            m = re.search(r"S/([0-9.]+)", n)
+                            if m:
+                                base = float(m.group(1))
+                            break
+        except Exception:
+            base = 0
+        beca_sel = self.combo_beca.get() if hasattr(self, 'combo_beca') else "Ninguna"
+        if beca_sel != "Ninguna" and beca_sel in getattr(self, '_becas_map', {}):
             try:
                 import re
-                m = re.search(r"S/([0-9.]+)", concepto_sel)
+                m = re.search(r"\((PORCENTAJE|MONTO_FIJO) ([0-9.]+)\)", beca_sel)
                 if m:
-                    base = float(m.group(1))
+                    tipo, val = m.group(1), float(m.group(2))
+                    if tipo == "PORCENTAJE":
+                        base = base * (1 - val/100)
+                    else:
+                        base = base - val
+                    base = max(0, base)
             except Exception:
                 pass
-        else:
-            try:
-                monto_pactado = self.entry_monto_pactado.get().strip()
-                if monto_pactado:
-                    base = float(monto_pactado)
-                else:
-                    tarifa_sel = self.combo_tarifa.get()
-                    tid = self._tarifas_map.get(tarifa_sel)
-                    if tid:
-                        for n, tid2 in self._tarifas_map.items():
-                            if tid2 == tid:
-                                import re
-                                m = re.search(r"S/([0-9.]+)", n)
-                                if m:
-                                    base = float(m.group(1))
-                                break
-            except Exception:
-                base = 0
-            beca_sel = self.combo_beca.get() if hasattr(self, 'combo_beca') else "Ninguna"
-            if beca_sel != "Ninguna" and beca_sel in getattr(self, '_becas_map', {}):
-                try:
-                    import re
-                    m = re.search(r"\((PORCENTAJE|MONTO_FIJO) ([0-9.]+)\)", beca_sel)
-                    if m:
-                        tipo, val = m.group(1), float(m.group(2))
-                        if tipo == "PORCENTAJE":
-                            base = base * (1 - val/100)
-                        else:
-                            base = base - val
-                        base = max(0, base)
-                except Exception:
-                    pass
         prod_total = sum(v["precio"] * v["cantidad"] for v in self._productos_seleccionados.values())
         total = base + prod_total
         try:
@@ -748,7 +725,6 @@ class MatriculaView(ctk.CTkFrame):
         self.entry_dia_venc.insert(0, "1")
         self.combo_beca.set("Ninguna")
         self.combo_diferir.set("Ahora (0)")
-        self.combo_concepto.set("Ninguno")
         self._productos_seleccionados = {}
         self._cargar_productos_matricula()
         self.label_form_status.configure(text="")
@@ -775,22 +751,18 @@ class MatriculaView(ctk.CTkFrame):
             "diferir_meses": diferir_map.get(self.combo_diferir.get(), 0),
             "fecha_inicio": self.date_matricula.get() or None,
         }
-        concepto_sel = self.combo_concepto.get()
-        if concepto_sel != "Ninguno" and concepto_sel in self._conceptos_map:
-            data["id_concepto"] = self._conceptos_map[concepto_sel]
         beca_selection = self.combo_beca.get()
         if beca_selection != "Ninguna" and beca_selection in self._becas_map:
             data["becas"] = [{"id_beca": self._becas_map[beca_selection]}]
         if self._productos_seleccionados:
-            # bloqueo RN-051 se maneja en service, pero avisar
+            # bloqueo RN-051 se maneja en service (ignora extras de nuevos)
             if est and int(est.get("es_nuevo",0) or 0)==1:
-                # permitir solo concepto items; avisar
                 pass
             data["productos"] = [{"id_producto": pid, "cantidad": v["cantidad"]} for pid, v in self._productos_seleccionados.items()]
         # MessageBox desglose
         base_txt = self.label_total.cget("text") if hasattr(self.label_total, 'cget') else ""
         sel_txt = self.label_seleccionados.cget("text") if hasattr(self.label_seleccionados,'cget') else ""
-        detalle = f"Estudiante: {est_selection}\nTarifa: {tarifa_selection}\nConcepto: {concepto_sel}\n{sel_txt}\n{base_txt}\n\n¿Confirmar matrícula?"
+        detalle = f"Estudiante: {est_selection}\nTarifa: {tarifa_selection}\n{sel_txt}\n{base_txt}\n\n¿Confirmar matrícula?"
         if not messagebox.askyesno("Confirmar matrícula", detalle):
             return
         exito, msg, id_mat = matricula_controller.crear_matricula(data)
@@ -878,6 +850,14 @@ class MatriculaView(ctk.CTkFrame):
                              text_color=color).grid(row=0, column=j, padx=2, pady=4)
         self.label_grilla_status.configure(
             text=f"Total: {len(filas)} estudiante(s) • X=cancelado • S/=adelanto")
+
+    @staticmethod
+    def _abrir_tarifas_modulo(tab=None, tipo=None):
+        try:
+            from utils import event_bus
+            event_bus.publish("abrir_tarifas", tab=tab, tipo=tipo)
+        except Exception:
+            pass
 
     def _ver_cuotas(self, mat):
         self.tabview.set("Cuotas")

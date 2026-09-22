@@ -206,10 +206,8 @@ class ConfiguracionView(ctk.CTkFrame):
         self._cargar_categorias_producto(sec7c)
         crear_boton_interactivo(sec7c, text="+ Nueva Categoría", width=160, command=self._nueva_categoria_producto, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
 
-        # 8b — Conceptos flexibles (RN-052 sin redundancia)
-        sec7b = self._seccion("Conceptos Flexibles (bundles con ítems)", "🏷", "Crea paquetes con título, precio y productos incluidos. Si eliges concepto en Matrícula, su monto precede a tarifa/monto pactado y descuenta stock de cada ítem. Sin duplicar configuracion.precio_*.", 10, badge=badge)
-        self._cargar_conceptos(sec7b)
-        crear_boton_interactivo(sec7b, text="+ Nuevo Concepto", width=160, command=self._nuevo_concepto, fg_color="#7C3AED").pack(anchor="w", padx=10, pady=5)
+        # Fase 7e: conceptos eliminados del flujo (tabla dormida con datos).
+        # (La antigua sec. 10 "Conceptos Flexibles" se retiró.)
 
         # 11 — Apariencia Visual (nuevo, ordenado y explicado)
         sec8 = self._seccion("Apariencia Visual", "🎨", "Ajusta tamaño de letra, colores y fuente. Se guarda local y aplica al reiniciar.", 11, badge=badge)
@@ -713,91 +711,7 @@ class ConfiguracionView(ctk.CTkFrame):
             else:
                 messagebox.showerror("Error", msg)
 
-    def _cargar_conceptos(self, parent):
-        try:
-            from services import concepto_service
-            conceptos = concepto_service.listar_conceptos(activo=1)
-        except Exception:
-            conceptos = []
-        if not conceptos:
-            ctk.CTkLabel(parent, text="No hay conceptos — crea Matrícula Promocional S/150 incluye Camiseta", text_color="gray").pack(anchor="w", padx=10)
-            return
-        for c in conceptos:
-            row = ctk.CTkFrame(parent, fg_color="#F8F5FA", corner_radius=8)
-            row.pack(fill="x", padx=10, pady=2)
-            ctk.CTkLabel(row, text=f"{c['nombre']} — S/{c['monto']:.2f} ({c['tipo']})", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=10, pady=6)
-            try:
-                from services import concepto_service as cs
-                items = cs.obtener_items(c["id_concepto"])
-                txt = ", ".join([f"{it['producto_nombre']} x{it['cantidad']}" for it in items]) if items else "sin ítems"
-            except Exception:
-                txt = ""
-            ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=11), text_color="#6B5B7B").pack(side="left")
-            ctk.CTkButton(row, text="Desactivar", width=85, height=28, fg_color="#d9534f", command=lambda x=c: self._desactivar_concepto(x)).pack(side="right", padx=2, pady=4)
-
-    def _nuevo_concepto(self):
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Nuevo Concepto Flexible")
-        dialog.geometry("500x400")
-        dialog.transient(self)
-        dialog.grab_set()
-        scroll = ctk.CTkScrollableFrame(dialog)
-        scroll.pack(fill="both", expand=True, padx=10, pady=10)
-        ctk.CTkLabel(scroll, text="Nombre:").pack(anchor="w")
-        e_nombre = ctk.CTkEntry(scroll, width=400, placeholder_text="Ej: Matrícula Promocional")
-        e_nombre.pack(anchor="w", pady=2)
-        ctk.CTkLabel(scroll, text="Tipo:").pack(anchor="w")
-        cb_tipo = ctk.CTkComboBox(scroll, values=["PROMOCION","INSCRIPCION","MENSUALIDAD","REINGRESO","CAMPEONATO","OTRO"], width=200)
-        cb_tipo.set("PROMOCION")
-        cb_tipo.pack(anchor="w", pady=2)
-        ctk.CTkLabel(scroll, text="Monto S/:").pack(anchor="w")
-        e_monto = ctk.CTkEntry(scroll, width=150, placeholder_text="150")
-        e_monto.pack(anchor="w", pady=2)
-        ctk.CTkLabel(scroll, text="Descripción:").pack(anchor="w")
-        e_desc = ctk.CTkEntry(scroll, width=400)
-        e_desc.pack(anchor="w", pady=2)
-        ctk.CTkLabel(scroll, text="Productos incluidos (opcional):").pack(anchor="w", pady=(8,2))
-        try:
-            from controllers import inventario_controller
-            prods = inventario_controller.listar_productos(activo=1)
-        except Exception:
-            prods = []
-        checks = {}
-        for p in prods[:15]:
-            var = ctk.IntVar()
-            cb = ctk.CTkCheckBox(scroll, text=f"{p['nombre']} — S/{(p.get('precio_venta') or p.get('precio',0)):.2f} (stock {p.get('stock_actual',0)})", variable=var)
-            cb.pack(anchor="w", padx=5, pady=1)
-            checks[p["id_producto"]] = var
-        lbl = ctk.CTkLabel(scroll, text="", text_color="red")
-        lbl.pack(pady=4)
-        def guardar():
-            nombre = e_nombre.get().strip()
-            try:
-                monto = float(e_monto.get().strip() or "0")
-            except Exception:
-                lbl.configure(text="Monto inválido")
-                return
-            items = [{"id_producto": pid, "cantidad":1} for pid,var in checks.items() if var.get()==1]
-            from services import concepto_service
-            ok, msg, _ = concepto_service.crear_concepto({"nombre": nombre, "tipo": cb_tipo.get(), "monto": monto, "descripcion": e_desc.get().strip(), "items": items})
-            if ok:
-                dialog.destroy()
-                self._cargar_configuracion()
-            else:
-                lbl.configure(text=msg)
-        btnf = ctk.CTkFrame(scroll, fg_color="transparent")
-        btnf.pack(pady=10)
-        ctk.CTkButton(btnf, text="Cancelar", fg_color="gray", command=dialog.destroy).pack(side="left", padx=5)
-        ctk.CTkButton(btnf, text="Guardar", command=guardar).pack(side="left", padx=5)
-
-    def _desactivar_concepto(self, c):
-        if messagebox.askyesno("Confirmar", f"¿Desactivar '{c['nombre']}'?"):
-            from services import concepto_service
-            ok, msg = concepto_service.desactivar_concepto(c["id_concepto"])
-            if ok:
-                self._cargar_configuracion()
-            else:
-                messagebox.showerror("Error", msg)
+    # Fase 7e: métodos de conceptos retirados (tabla dormida con datos).
 
     def _verificar_backup(self, ruta):
         from controllers import configuracion_controller as cc

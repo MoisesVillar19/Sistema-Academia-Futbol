@@ -5,13 +5,21 @@ from utils.logger import logger
 
 
 class TarifaView(ctk.CTkFrame):
-    def __init__(self, parent):
+    # Fase 7e: tab_inicial ("Tarifas"/"Becas") + filtro_tipo
+    # ("Todas"/"ACADEMIA"/"SERVICIO"/"CAMPEONATO") para accesos por módulo.
+    def __init__(self, parent, tab_inicial=None, filtro_tipo=None):
         super().__init__(parent, fg_color="transparent")
         self._cats_map = {}
         self._filtro_actual = "Activas"
+        self._filtro_tipo = filtro_tipo or "Todas"
         self._editing_id = None
         self._crear_widgets()
         self._cargar_tarifas()
+        if tab_inicial in ("Tarifas", "Becas"):
+            try:
+                self.tabview.set(tab_inicial)
+            except Exception:
+                pass
 
     def _crear_widgets(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -40,6 +48,15 @@ class TarifaView(ctk.CTkFrame):
         )
         self.filtro_estado.set("Activas")
         self.filtro_estado.pack(side="left")
+        self.filtro_tipo = ctk.CTkSegmentedButton(
+            filtros, values=["Todas", "ACADEMIA", "SERVICIO", "CAMPEONATO"],
+            command=self._filtrar_tipo,
+        )
+        try:
+            self.filtro_tipo.set(self._filtro_tipo)
+        except Exception:
+            pass
+        self.filtro_tipo.pack(side="left", padx=5)
         crear_nota(sec_filtros, "Tip: las tarifas con matrículas activas no se pueden eliminar, solo desactivar.")
 
         self.scroll = ctk.CTkScrollableFrame(self.tab_tarifas)
@@ -177,6 +194,10 @@ class TarifaView(ctk.CTkFrame):
         self._filtro_actual = valor
         self._cargar_tarifas()
 
+    def _filtrar_tipo(self, valor):
+        self._filtro_tipo = valor
+        self._cargar_tarifas()
+
     def _nueva_tarifa(self):
         self._cargar_categorias()
         self.label_form_title.configure(text="Nueva Tarifa")
@@ -264,6 +285,9 @@ class TarifaView(ctk.CTkFrame):
             tarifas = tarifa_controller.listar_tarifas_activas()
         else:
             tarifas = tarifa_controller.listar_tarifas_inactivas()
+        if getattr(self, "_filtro_tipo", "Todas") != "Todas":
+            tarifas = [t for t in tarifas
+                       if (t.get("categoria_tipo", "ACADEMIA") or "ACADEMIA") == self._filtro_tipo]
 
         if not tarifas:
             from utils.ui_helpers import crear_lista_vacia

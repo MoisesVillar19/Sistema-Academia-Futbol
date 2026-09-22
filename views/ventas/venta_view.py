@@ -270,6 +270,12 @@ class VentaView(ctk.CTkFrame):
         crear_boton_interactivo(sec, text="Actualizar", width=110, command=self._cargar_campeonatos,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
         crear_nota(sec, "Tip: el resumen muestra inscritos, recaudado, arbitraje y neto por división.")
+        # Fase 7e: atajo a tarifas del módulo
+        from utils import event_bus as _eb
+        crear_boton_interactivo(sec, text="🏷 Tarifas campeonato", width=180,
+                                command=lambda: _eb.publish("abrir_tarifas", tab="Tarifas", tipo="CAMPEONATO"),
+                                fg_color="#E5E7EB", hover_color="#DDD6E5",
+                                text_color="#1F0A33").pack(anchor="e", padx=10, pady=(0, 8))
 
         form = ctk.CTkFrame(self.tab_camp, fg_color="white", corner_radius=8)
         form.pack(fill="x", padx=5, pady=5)

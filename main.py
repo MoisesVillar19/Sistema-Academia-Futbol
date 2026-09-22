@@ -308,6 +308,7 @@ class App(ctk.CTk):
         self.contenido = ctk.CTkFrame(self, fg_color=COLOR_BG)
         self.contenido.pack(side="right", fill="both", expand=True)
 
+        self._suscribir_navegacion()
         self._mostrar_placeholder()
         self.after(5000, self._verificar_backup_automatico)
 
@@ -444,10 +445,36 @@ class App(ctk.CTk):
         from views.auditoria.auditoria_view import AuditoriaView
         AuditoriaView(self.contenido).pack(fill="both", expand=True)
 
-    def _mostrar_tarifas(self):
+    def _mostrar_tarifas(self, tab_inicial=None, filtro_tipo=None):
+        # Fase 7e: acceso filtrado por módulo vía evento "abrir_tarifas".
         self._limpiar_contenido()
         from views.tarifas.tarifa_view import TarifaView
-        TarifaView(self.contenido).pack(fill="both", expand=True)
+        TarifaView(self.contenido, tab_inicial=tab_inicial,
+                   filtro_tipo=filtro_tipo).pack(fill="both", expand=True)
+
+    def _suscribir_navegacion(self):
+        try:
+            from utils import event_bus
+            if getattr(self, "_nav_handler", None) is not None:
+                event_bus.unsubscribe("abrir_tarifas", self._nav_handler)
+            def _ir_tarifas(tab=None, tipo=None):
+                try:
+                    from services import auth_service
+                    if not auth_service.tiene_permiso("tarifas"):
+                        from tkinter import messagebox
+                        messagebox.showwarning(
+                            "Sin permiso",
+                            "Tu rol no tiene acceso a Tarifas.")
+                        return
+                except Exception:
+                    pass
+                self._on_menu_click(
+                    lambda: self._mostrar_tarifas(tab, tipo), "Tarifas")
+            self._nav_handler = lambda tab=None, tipo=None: self.after(
+                0, lambda t=tab, ti=tipo: _ir_tarifas(t, ti))
+            event_bus.subscribe("abrir_tarifas", self._nav_handler)
+        except Exception:
+            pass
 
     def _mostrar_ventas(self):
         self._limpiar_contenido()
