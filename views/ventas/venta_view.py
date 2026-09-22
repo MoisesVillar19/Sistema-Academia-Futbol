@@ -62,6 +62,15 @@ class VentaView(ctk.CTkFrame):
         )
         crear_boton_interactivo(sec, text="Actualizar", width=110, command=self._cargar_ventas,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
+        # Fase 7b: toggle Cards/Tabla
+        self._vista_modo = "Cards"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            sec, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Cards")
+        except Exception:
+            pass
+        self.seg_vista.pack(anchor="e", padx=10, pady=(0, 8))
         crear_nota(sec, "Tip: cada tarjeta se expande inline con el detalle completo.")
         self.scroll = ctk.CTkScrollableFrame(self.tab_lista)
         self.scroll.pack(fill="both", expand=True, padx=5, pady=5)
@@ -184,8 +193,11 @@ class VentaView(ctk.CTkFrame):
         if not ventas:
             crear_lista_vacia(self.scroll, "No hay ventas", "Registra la primera en la pestaña Registrar Venta")
             return
-        for v in ventas:
-            self._crear_card_venta(self.scroll, v)
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_ventas(ventas)
+        else:
+            for v in ventas:
+                self._crear_card_venta(self.scroll, v)
 
     def _crear_card_venta(self, scroll, v):
         from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible, linea_detalle
@@ -208,21 +220,44 @@ class VentaView(ctk.CTkFrame):
         except Exception:
             pass
 
-        def _poblar(frame, _v=v):
-            linea_detalle(frame, "ID venta", _v.get("id_venta"))
-            linea_detalle(frame, "Recibo", _v.get("numero_recibo"))
-            linea_detalle(frame, "Tipo", _v.get("tipo_venta"))
-            linea_detalle(frame, "División", _v.get("tarifa_nombre") or _v.get("id_tarifa"))
-            linea_detalle(frame, "Producto", _v.get("producto_nombre") or _v.get("nombre_producto"))
-            linea_detalle(frame, "Cantidad", _v.get("cantidad"))
-            linea_detalle(frame, "Precio unit.", _v.get("precio_unitario") or _v.get("precio"))
-            linea_detalle(frame, "Método pago", _v.get("metodo_pago"))
-            linea_detalle(frame, "Estudiante", _v.get("estudiante_nombre") or _v.get("id_estudiante") or _v.get("estudiante"))
-            linea_detalle(frame, "Comprobante", _v.get("comprobante_path"))
-            linea_detalle(frame, "Fecha", _v.get("fecha_venta"))
-
-        toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar)
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _v=v: self._poblar_detalle_venta(frame, _v))
         toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
+
+    @staticmethod
+    def _poblar_detalle_venta(frame, v):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "ID venta", v.get("id_venta"))
+        linea_detalle(frame, "Recibo", v.get("numero_recibo"))
+        linea_detalle(frame, "Tipo", v.get("tipo_venta"))
+        linea_detalle(frame, "División", v.get("tarifa_nombre") or v.get("id_tarifa"))
+        linea_detalle(frame, "Producto", v.get("producto_nombre") or v.get("nombre_producto"))
+        linea_detalle(frame, "Cantidad", v.get("cantidad"))
+        linea_detalle(frame, "Precio unit.", v.get("precio_unitario") or v.get("precio"))
+        linea_detalle(frame, "Método pago", v.get("metodo_pago"))
+        linea_detalle(frame, "Estudiante", v.get("estudiante_nombre") or v.get("id_estudiante") or v.get("estudiante"))
+        linea_detalle(frame, "Comprobante", v.get("comprobante_path"))
+        linea_detalle(frame, "Fecha", v.get("fecha_venta"))
+
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._cargar_ventas()
+
+    def _render_tabla_ventas(self, ventas):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Recibo", 110), ("Tipo", 110), ("Monto", 90),
+                ("Método", 110), ("Fecha", 100)]
+        filas, dets = [], []
+        for v in ventas:
+            filas.append([
+                str(v.get("numero_recibo", "")),
+                str(v.get("tipo_venta", "")),
+                (f"S/{v.get('monto_total', 0):.2f}", {"weight": "bold"}),
+                str(v.get("metodo_pago", "")),
+                str(v.get("fecha_venta", "")),
+            ])
+            dets.append(lambda frame, _v=v: self._poblar_detalle_venta(frame, _v))
+        crear_tabla_densa(self.scroll, cols, filas, dets, cap=50)
 
     # ── Pestaña Campeonatos: inscribir+ cobrar por división, resumen y arbitraje ──
     def _crear_tab_campeonatos(self):

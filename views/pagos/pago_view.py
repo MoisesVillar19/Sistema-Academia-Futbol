@@ -80,6 +80,15 @@ class PagoView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+        # Fase 7b: toggle Cards/Tabla
+        self._vista_modo = "Cards"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Cards")
+        except Exception:
+            pass
+        self.seg_vista.pack(side="left", padx=5)
 
         # Fase 1: banner de comprobantes pendientes (la secretaria registra,
         # otro usuario sube el comprobante después)
@@ -210,6 +219,13 @@ class PagoView(ctk.CTkFrame):
             return
         self._cargar_paginado()
 
+    def _render_lista_pagos(self, pagos):
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_pagos(pagos)
+        else:
+            for pago in pagos:
+                self._crear_card_pago(pago)
+
     def _cargar_paginado(self):
         for widget in self.scroll_pagos.winfo_children():
             widget.destroy()
@@ -237,7 +253,6 @@ class PagoView(ctk.CTkFrame):
             return
 
         q = self._q_actual
-        estado_val = "TODOS"  # filtros por fecha se mantienen en date pickers
         try:
             from repositories import pago_repository
             offset = (self._pagina - 1) * self._per_page
@@ -263,8 +278,7 @@ class PagoView(ctk.CTkFrame):
             self.label_status.configure(text=f"Total: {self._total} • Página {self._pagina}")
             return
 
-        for pago in rows:
-            self._crear_card_pago(pago)
+        self._render_lista_pagos(rows)
 
         total_paginas = max(1, (self._total + self._per_page - 1) // self._per_page)
         self.label_status.configure(text=f"✅ Total: {self._total} pago(s) • Página {self._pagina}/{total_paginas} • 50 por página")
@@ -315,8 +329,7 @@ class PagoView(ctk.CTkFrame):
             ctk.CTkLabel(self.scroll_pagos, text="Registra tu primer pago con + Nuevo Pago", font=ctk.CTkFont(size=12), text_color="#9CA3AF").pack()
             self.label_status.configure(text="Total: 0 pagos • Prueba filtros de fecha")
             return
-        for pago in pagos:
-            self._crear_card_pago(pago)
+        self._render_lista_pagos(pagos)
         self.label_status.configure(text=f"✅ Total: {len(pagos)} pago(s) • {sum(p.get('monto_total',0) for p in pagos):.2f} S/ en total")
 
     def _crear_card_pago(self, pago):
@@ -357,18 +370,45 @@ class PagoView(ctk.CTkFrame):
         badge.pack(side="right", padx=10)
         ctk.CTkLabel(badge, text=f"S/{pago.get('monto_total',0):.2f}", font=ctk.CTkFont(size=14, weight="bold"), text_color="#7C3AED").pack(padx=10, pady=6)
 
-        # ── Detalle expandible inline ──
-        def _poblar_detalle(frame, _p=pago):
-            linea_detalle(frame, "ID pago", _p.get("id_pago"))
-            linea_detalle(frame, "Estudiante", f"{_p.get('nombres','')} {_p.get('apellidos','')} • DNI {_p.get('dni','')}")
-            linea_detalle(frame, "Cuota / Periodo", f"{_p.get('id_cuota','')} • {_p.get('periodo','')}")
-            linea_detalle(frame, "Observación", _p.get("observacion"))
-            linea_detalle(frame, "Comprobante", _p.get("comprobante_path") or _p.get("comprobante"))
-            linea_detalle(frame, "Registrado por", _p.get("username"))
-            linea_detalle(frame, "Fecha pago", _p.get("fecha_pago"))
-
-        toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar_detalle)
+        # ── Detalle expandible inline (mismo que la vista Tabla) ──
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _p=pago: self._poblar_detalle_pago(frame, _p))
         toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
+
+    @staticmethod
+    def _poblar_detalle_pago(frame, pago):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "ID pago", pago.get("id_pago"))
+        linea_detalle(frame, "Estudiante", f"{pago.get('nombres','')} {pago.get('apellidos','')} • DNI {pago.get('dni','')}")
+        linea_detalle(frame, "Cuota / Periodo", f"{pago.get('id_cuota','')} • {pago.get('periodo','')}")
+        linea_detalle(frame, "Observación", pago.get("observacion"))
+        linea_detalle(frame, "Comprobante", pago.get("comprobante_path") or pago.get("comprobante"))
+        linea_detalle(frame, "Registrado por", pago.get("username"))
+        linea_detalle(frame, "Fecha pago", pago.get("fecha_pago"))
+
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._solo_pendientes = False
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
+    def _render_tabla_pagos(self, pagos):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Recibo", 120), ("Estudiante", 200), ("Monto", 90),
+                ("Método", 110), ("Fecha", 100)]
+        filas, dets = [], []
+        for p in pagos:
+            filas.append([
+                str(p.get("numero_recibo", "")),
+                f"{p.get('nombres', '')} {p.get('apellidos', '')}".strip() or "—",
+                (f"S/{p.get('monto_total', 0):.2f}", {"weight": "bold"}),
+                str(p.get("metodo_pago", "")),
+                str(p.get("fecha_pago", "")),
+            ])
+            dets.append(lambda frame, _p=p: self._poblar_detalle_pago(frame, _p))
+        crear_tabla_densa(self.scroll_pagos, cols, filas, dets, cap=50)
 
     def _buscar_por_fecha(self):
         fecha_inicio = self.date_picker_inicio.get()

@@ -261,6 +261,15 @@ class MatriculaView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+        # Fase 7b: toggle Cards/Tabla
+        self._vista_modo = "Cards"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Cards")
+        except Exception:
+            pass
+        self.seg_vista.pack(side="left", padx=5)
         crear_nota(sec_filtros, "Tip: clic en ▾ Ver detalle de cada tarjeta para tarifa, montos y vencimiento.")
 
         # Fase 1: aviso de matrículas sin apoderado principal
@@ -457,8 +466,11 @@ class MatriculaView(ctk.CTkFrame):
             self.label_status.configure(text=f"Total: {self._total} • Página {self._pagina}")
             return
 
-        for mat in rows:
-            self._crear_card(mat)
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_matriculas(rows)
+        else:
+            for mat in rows:
+                self._crear_card(mat)
 
         total_paginas = max(1, (self._total + self._per_page - 1) // self._per_page)
         self.label_status.configure(text=f"Total: {self._total} matrícula(s) • Página {self._pagina}/{total_paginas} • 50 por página")
@@ -504,20 +516,54 @@ class MatriculaView(ctk.CTkFrame):
             command=lambda m=mat: self._ver_cuotas(m),
         ).pack(side="left", padx=2)
 
-        # ── Detalle expandible inline ──
-        def _poblar(frame, _m=mat):
-            linea_detalle(frame, "ID matrícula", _m.get("id_matricula"))
-            linea_detalle(frame, "Estudiante", f"{_m.get('nombres','')} {_m.get('apellidos','')} • DNI {_m.get('dni','')}")
-            linea_detalle(frame, "Tarifa", f"{_m.get('tarifa_nombre','')} • {monto_txt}")
-            linea_detalle(frame, "Monto pactado", _m.get("monto_pactado"))
-            linea_detalle(frame, "Beca", _m.get("beca_nombre") or _m.get("beca"))
-            linea_detalle(frame, "Concepto", _m.get("concepto_nombre") or _m.get("concepto"))
-            linea_detalle(frame, "Inicio", _m.get("fecha_inicio"))
-            linea_detalle(frame, "Día vencimiento", _m.get("dia_vencimiento"))
-            linea_detalle(frame, "Estado", _m.get("estado"))
-
-        toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar)
+        # ── Detalle expandible inline (mismo que la vista Tabla) ──
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _m=mat: self._poblar_detalle_matricula(frame, _m))
         toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
+
+    @staticmethod
+    def _poblar_detalle_matricula(frame, mat):
+        from utils.ui_helpers import linea_detalle
+        try:
+            monto_txt = f"S/{mat.get('tarifa_monto', 0):.2f}"
+        except Exception:
+            monto_txt = f"S/{mat.get('tarifa_monto', 0)}"
+        linea_detalle(frame, "ID matrícula", mat.get("id_matricula"))
+        linea_detalle(frame, "Estudiante", f"{mat.get('nombres','')} {mat.get('apellidos','')} • DNI {mat.get('dni','')}")
+        linea_detalle(frame, "Tarifa", f"{mat.get('tarifa_nombre','')} • {monto_txt}")
+        linea_detalle(frame, "Monto pactado", mat.get("monto_pactado"))
+        linea_detalle(frame, "Beca", mat.get("beca_nombre") or mat.get("beca"))
+        linea_detalle(frame, "Concepto", mat.get("concepto_nombre") or mat.get("concepto"))
+        linea_detalle(frame, "Inicio", mat.get("fecha_inicio"))
+        linea_detalle(frame, "Día vencimiento", mat.get("dia_vencimiento"))
+        linea_detalle(frame, "Estado", mat.get("estado"))
+
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
+    def _render_tabla_matriculas(self, rows):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Estudiante", 200), ("Documento", 110), ("Tarifa", 170),
+                ("Monto", 90), ("Inicio", 100)]
+        filas, dets = [], []
+        for m in rows:
+            try:
+                monto = f"S/{m.get('tarifa_monto', 0):.2f}"
+            except Exception:
+                monto = f"S/{m.get('tarifa_monto', 0)}"
+            filas.append([
+                f"{m.get('nombres', '')} {m.get('apellidos', '')}".strip(),
+                str(m.get("dni", "")),
+                str(m.get("tarifa_nombre", "")),
+                monto,
+                str(m.get("fecha_inicio", "")),
+            ])
+            dets.append(lambda frame, _m=m: self._poblar_detalle_matricula(frame, _m))
+        crear_tabla_densa(self.scroll_matriculas, cols, filas, dets, cap=50)
 
     def _nueva_matricula(self):
         self._cargar_combo_estudiantes()

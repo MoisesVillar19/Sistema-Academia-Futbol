@@ -81,6 +81,15 @@ class EstudianteView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+        # Fase 7b: toggle Cards/Tabla
+        self._vista_modo = "Cards"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Cards")
+        except Exception:
+            pass
+        self.seg_vista.pack(side="left", padx=5)
         crear_nota(sec_filtros, "Tip: clic en ▾ Ver detalle de cada tarjeta para ver contacto y apoderados sin abrir el formulario.")
 
         self.scroll_estudiantes = ctk.CTkScrollableFrame(self.tab_lista)
@@ -384,31 +393,52 @@ class EstudianteView(ctk.CTkFrame):
                 command=lambda e=est: self._desactivar(e),
             ).pack(side="left", padx=2)
 
-        # ── Detalle expandible inline (contacto + apoderados, lazy) ──
-        def _poblar_detalle(frame, _est=est):
-            linea_detalle(frame, "Dirección", _est.get("direccion"))
-            linea_detalle(frame, "Teléfono", _est.get("telefono"))
-            linea_detalle(frame, "Correo", _est.get("correo"))
-            linea_detalle(frame, "F. nacimiento", _est.get("fecha_nacimiento"))
-            linea_detalle(frame, "Edad", _est.get("edad"))
-            linea_detalle(frame, "Sexo", _est.get("sexo"))
-            linea_detalle(frame, "Carnet", _est.get("carnet"))
-            try:
-                apods = estudiante_controller.obtener_apoderados_por_estudiante(_est.get("id_estudiante"))
-            except Exception:
-                apods = []
-            if apods:
-                for a in apods[:3]:
-                    tag = "principal" if a.get("es_principal") else "secundario"
-                    linea_detalle(frame, f"Apoderado ({tag})",
-                                  f"{a.get('nombres','')} {a.get('apellidos','')} • {a.get('parentesco','')} • {a.get('telefono','')}")
-                if len(apods) > 3:
-                    linea_detalle(frame, "Apoderados", f"+ {len(apods)-3} más (ver pestaña Apoderados)")
-            else:
-                linea_detalle(frame, "Apoderados", "Sin apoderados registrados")
-
-        toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar_detalle)
+        # ── Detalle expandible inline (mismo que la vista Tabla) ──
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _e=est: self._poblar_detalle_estudiante(frame, _e))
         toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
+
+    @staticmethod
+    def _poblar_detalle_estudiante(frame, est):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "Dirección", est.get("direccion"))
+        linea_detalle(frame, "Teléfono", est.get("telefono"))
+        linea_detalle(frame, "Correo", est.get("correo"))
+        linea_detalle(frame, "F. nacimiento", est.get("fecha_nacimiento"))
+        linea_detalle(frame, "Edad", est.get("edad"))
+        linea_detalle(frame, "Sexo", est.get("sexo"))
+        linea_detalle(frame, "Carnet", est.get("carnet"))
+        try:
+            apods = estudiante_controller.obtener_apoderados_por_estudiante(est.get("id_estudiante"))
+        except Exception:
+            apods = []
+        if apods:
+            for a in apods[:3]:
+                tag = "principal" if a.get("es_principal") else "secundario"
+                linea_detalle(frame, f"Apoderado ({tag})",
+                              f"{a.get('nombres','')} {a.get('apellidos','')} • {a.get('parentesco','')} • {a.get('telefono','')}")
+            if len(apods) > 3:
+                linea_detalle(frame, "Apoderados", f"+ {len(apods)-3} más (ver pestaña Apoderados)")
+        else:
+            linea_detalle(frame, "Apoderados", "Sin apoderados registrados")
+
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._on_busqueda_cambiar()
+
+    def _render_tabla_estudiantes(self, estudiantes):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Estudiante", 200), ("Documento", 110), ("Estado", 110), ("Contacto", 160)]
+        filas, dets = [], []
+        for e in estudiantes:
+            filas.append([
+                f"{e.get('nombres', '')} {e.get('apellidos', '')}".strip(),
+                str(e.get("dni", "")),
+                str(e.get("estado", "")),
+                str(e.get("telefono", "") or "—"),
+            ])
+            dets.append(lambda frame, _e=e: self._poblar_detalle_estudiante(frame, _e))
+        crear_tabla_densa(self.scroll_estudiantes, cols, filas, dets, cap=100)
 
     def _nuevo_estudiante(self):
         self._limpiar_formulario()
@@ -807,8 +837,11 @@ class EstudianteView(ctk.CTkFrame):
             self.label_status.configure(text="Total: 0")
             return
 
-        for est in estudiantes:
-            self._crear_card_estudiante(est)
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_estudiantes(estudiantes)
+        else:
+            for est in estudiantes:
+                self._crear_card_estudiante(est)
 
         self.label_status.configure(text=f"Total: {len(estudiantes)} estudiante(s)")
 

@@ -35,6 +35,15 @@ class EgresoView(ctk.CTkFrame):
         )
         crear_boton_interactivo(sec, text="Actualizar", width=110, command=self._cargar_egresos,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
+        # Fase 7b: toggle Cards/Tabla
+        self._vista_modo = "Cards"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            sec, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Cards")
+        except Exception:
+            pass
+        self.seg_vista.pack(anchor="e", padx=10, pady=(0, 8))
         crear_nota(sec, "Tip: cada tarjeta se expande inline con el detalle completo.")
         self.scroll = ctk.CTkScrollableFrame(self.tab_lista)
         self.scroll.pack(fill="both", expand=True, padx=5, pady=5)
@@ -110,63 +119,92 @@ class EgresoView(ctk.CTkFrame):
         if not egresos:
             crear_lista_vacia(self.scroll, "No hay egresos", "Registra el primero en la pestaña Registrar Egreso")
             return
+        if getattr(self, "_vista_modo", "Cards") == "Tabla":
+            self._render_tabla_egresos(egresos)
+            return
         for e in egresos:
-            card = crear_card_interactiva(self.scroll)
-            card.pack(fill="x", padx=6, pady=4)
-            top = ctk.CTkFrame(card, fg_color="transparent")
-            top.pack(fill="x", padx=10, pady=8)
-            info = ctk.CTkFrame(top, fg_color="transparent")
-            info.pack(side="left", fill="x", expand=True)
-            try:
-                titulo = f"{e['concepto']} - S/{e['monto']:.2f} - {e['fecha']}"
-            except Exception:
-                titulo = f"{e.get('concepto','')} - S/{e.get('monto',0)} - {e.get('fecha','')}"
-            ctk.CTkLabel(info, text=titulo, font=ctk.CTkFont(size=13, weight="bold"), text_color="#1F0A33").pack(anchor="w")
-            ctk.CTkLabel(info, text=f"Resp: {e.get('responsable','')} | {e.get('observacion','')}", text_color="#6B5B7B", font=ctk.CTkFont(size=12)).pack(anchor="w")
-            badge = ctk.CTkFrame(top, fg_color="#F3E8FF", corner_radius=8)
-            badge.pack(side="right", padx=10)
-            try:
-                ctk.CTkLabel(badge, text=f"S/{e['monto']:.2f}", font=ctk.CTkFont(size=14, weight="bold"), text_color="#7C3AED").pack(padx=10, pady=6)
-            except Exception:
-                pass
+            self._crear_card_egreso(e)
 
-            comp = e.get("comprobante_path")
-            if comp and os.path.isfile(comp) and Image:
-                try:
-                    img = Image.open(comp)
-                    img.thumbnail((60, 60))
-                    ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(60, 60))
-                    if not hasattr(self, "_comp_cache"):
-                        self._comp_cache = {}
-                    self._comp_cache[e.get("id_egreso", id(comp))] = ctk_img
-                    lbl = ctk.CTkLabel(info, image=ctk_img, text="")
-                    lbl.pack(anchor="w", pady=2)
-                    lbl.bind("<Button-1>", lambda ev, p=comp: os.startfile(p) if os.path.exists(p) else None)
-                    ctk.CTkLabel(info, text=f"📎 {os.path.basename(comp)} (clic para ampliar)", font=ctk.CTkFont(size=11), text_color="#7C3AED").pack(anchor="w")
-                except Exception:
-                    ctk.CTkLabel(info, text=f"📎 {os.path.basename(comp)}", font=ctk.CTkFont(size=11), text_color="#7C3AED").pack(anchor="w")
-            elif comp:
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._cargar_egresos()
+
+    def _render_tabla_egresos(self, egresos):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Concepto", 150), ("Monto", 90), ("Fecha", 100),
+                ("Responsable", 150)]
+        filas, dets = [], []
+        for e in egresos:
+            filas.append([
+                str(e.get("concepto", "")),
+                (f"S/{e.get('monto', 0):.2f}", {"weight": "bold"}),
+                str(e.get("fecha", "")),
+                str(e.get("responsable", "") or "—"),
+            ])
+            dets.append(lambda frame, _e=e: self._poblar_detalle_egreso(frame, _e))
+        crear_tabla_densa(self.scroll, cols, filas, dets, cap=100)
+
+    @staticmethod
+    def _poblar_detalle_egreso(frame, e):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "ID egreso", e.get("id_egreso"))
+        linea_detalle(frame, "Concepto", e.get("concepto"))
+        if e.get("id_tarifa"):
+            try:
+                from controllers import tarifa_controller
+                _t = tarifa_controller.obtener_tarifa(e.get("id_tarifa"))
+                linea_detalle(frame, "División", f"{_t.get('nombre','')} (S/{_t.get('monto',0)})" if _t else e.get("id_tarifa"))
+            except Exception:
+                linea_detalle(frame, "División", e.get("id_tarifa"))
+        linea_detalle(frame, "Monto", f"S/{e.get('monto',0)}")
+        linea_detalle(frame, "Fecha", e.get("fecha"))
+        linea_detalle(frame, "Responsable", e.get("responsable"))
+        linea_detalle(frame, "Observación", e.get("observacion"))
+        linea_detalle(frame, "Comprobante", e.get("comprobante_path"))
+        linea_detalle(frame, "Registrado por", e.get("username") or e.get("usuario"))
+
+    def _crear_card_egreso(self, e):
+        from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible
+        card = crear_card_interactiva(self.scroll)
+        card.pack(fill="x", padx=6, pady=4)
+        top = ctk.CTkFrame(card, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=8)
+        info = ctk.CTkFrame(top, fg_color="transparent")
+        info.pack(side="left", fill="x", expand=True)
+        try:
+            titulo = f"{e['concepto']} - S/{e['monto']:.2f} - {e['fecha']}"
+        except Exception:
+            titulo = f"{e.get('concepto','')} - S/{e.get('monto',0)} - {e.get('fecha','')}"
+        ctk.CTkLabel(info, text=titulo, font=ctk.CTkFont(size=13, weight="bold"), text_color="#1F0A33").pack(anchor="w")
+        ctk.CTkLabel(info, text=f"Resp: {e.get('responsable','')} | {e.get('observacion','')}", text_color="#6B5B7B", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        badge = ctk.CTkFrame(top, fg_color="#F3E8FF", corner_radius=8)
+        badge.pack(side="right", padx=10)
+        try:
+            ctk.CTkLabel(badge, text=f"S/{e['monto']:.2f}", font=ctk.CTkFont(size=14, weight="bold"), text_color="#7C3AED").pack(padx=10, pady=6)
+        except Exception:
+            pass
+
+        comp = e.get("comprobante_path")
+        if comp and os.path.isfile(comp) and Image:
+            try:
+                img = Image.open(comp)
+                img.thumbnail((60, 60))
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(60, 60))
+                if not hasattr(self, "_comp_cache"):
+                    self._comp_cache = {}
+                self._comp_cache[e.get("id_egreso", id(comp))] = ctk_img
+                lbl = ctk.CTkLabel(info, image=ctk_img, text="")
+                lbl.pack(anchor="w", pady=2)
+                lbl.bind("<Button-1>", lambda ev, p=comp: os.startfile(p) if os.path.exists(p) else None)
+                ctk.CTkLabel(info, text=f"📎 {os.path.basename(comp)} (clic para ampliar)", font=ctk.CTkFont(size=11), text_color="#7C3AED").pack(anchor="w")
+            except Exception:
                 ctk.CTkLabel(info, text=f"📎 {os.path.basename(comp)}", font=ctk.CTkFont(size=11), text_color="#7C3AED").pack(anchor="w")
+        elif comp:
+            ctk.CTkLabel(info, text=f"📎 {os.path.basename(comp)}", font=ctk.CTkFont(size=11), text_color="#7C3AED").pack(anchor="w")
 
-            def _poblar(frame, _e=e):
-                linea_detalle(frame, "ID egreso", _e.get("id_egreso"))
-                linea_detalle(frame, "Concepto", _e.get("concepto"))
-                if _e.get("id_tarifa"):
-                    try:
-                        from controllers import tarifa_controller
-                        _t = tarifa_controller.obtener_tarifa(_e.get("id_tarifa"))
-                        linea_detalle(frame, "División", f"{_t.get('nombre','')} (S/{_t.get('monto',0)})" if _t else _e.get("id_tarifa"))
-                    except Exception:
-                        linea_detalle(frame, "División", _e.get("id_tarifa"))
-                linea_detalle(frame, "Monto", f"S/{_e.get('monto',0)}")
-                linea_detalle(frame, "Fecha", _e.get("fecha"))
-                linea_detalle(frame, "Responsable", _e.get("responsable"))
-                linea_detalle(frame, "Observación", _e.get("observacion"))
-                linea_detalle(frame, "Comprobante", _e.get("comprobante_path"))
-                linea_detalle(frame, "Registrado por", _e.get("username") or _e.get("usuario"))
-
-            toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar)
-            toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
+        toggle_btn, _, _ = agregar_detalle_expandible(
+            card, lambda frame, _e=e: self._poblar_detalle_egreso(frame, _e))
+        toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
 
     def _on_concepto_changed(self, selection):
         # División visible solo para ARBITRAJE/CAMPEONATO_FIJO
