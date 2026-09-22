@@ -102,6 +102,38 @@ def crear_nota(parent, texto):
     return lbl
 
 
+COLORES_SEVERIDAD = {
+    "alta": ("#FDE8E8", "#DC2626"),
+    "media": ("#FEF3E2", "#D97706"),
+    "info": ("#F3E8FF", "#7C3AED"),
+}
+
+
+def crear_banner_avisos(parent, texto, cantidad=None, severidad="media", command=None):
+    """Fase 1: chip de aviso por módulo (sin toast). Si hay command, es clickeable."""
+    fondo, borde = COLORES_SEVERIDAD.get(severidad, COLORES_SEVERIDAD["media"])
+    marco = ctk.CTkFrame(parent, fg_color=fondo, corner_radius=8,
+                         border_width=1, border_color=borde)
+    marco.pack(fill="x", padx=8, pady=4)
+    icono = {"alta": "🔴", "media": "🟠", "info": "🟣"}.get(severidad, "🟠")
+    txt = f"{icono} {texto}" if cantidad is None else f"{icono} {texto} ({cantidad})"
+    lbl = ctk.CTkLabel(marco, text=txt, font=ctk.CTkFont(size=12, weight="bold"),
+                       text_color=borde)
+    lbl.pack(side="left", padx=10, pady=8)
+    if command is not None:
+        btn = ctk.CTkButton(marco, text="Ver", width=80, height=28,
+                            fg_color=borde, hover_color=borde, command=command)
+        btn.pack(side="right", padx=10, pady=6)
+        try:
+            marco.configure(cursor="hand2")
+            lbl.configure(cursor="hand2")
+            marco.bind("<Button-1>", lambda e: command(), add="+")
+            lbl.bind("<Button-1>", lambda e: command(), add="+")
+        except Exception:
+            pass
+    return marco
+
+
 def mostrar_cargando(parent, texto="Cargando"):
     """Indicador flotante con puntos animados. Retorna detener() que lo quita.
 

@@ -102,6 +102,26 @@ class DashboardView(ctk.CTkFrame):
         self.btn_actualizar.pack(side="right")
         self.titulo_label.configure(text="Dashboard")
 
+        # Fase 1: Pendientes primero (avisos por módulo, sin toast)
+        try:
+            from services import avisos_service
+            from utils.ui_helpers import crear_banner_avisos
+            avisos = avisos_service.obtener_avisos()
+        except Exception:
+            avisos = []
+        if avisos:
+            sec = ctk.CTkFrame(self.cards_frame, fg_color="white", corner_radius=8)
+            sec.pack(fill="x", pady=5)
+            ctk.CTkLabel(sec, text="🔔  Pendientes", font=ctk.CTkFont(size=14, weight="bold"),
+                         text_color="#3D1559").pack(anchor="w", padx=10, pady=(8, 2))
+            _mapa_detalle = {"comprobantes": "comprobantes", "vencidas": "vencidas",
+                             "por_vencer": "por_vencer", "stock_bajo": "stock",
+                             "sin_apoderado": "sin_apoderado"}
+            for av in avisos:
+                crear_banner_avisos(
+                    sec, av["texto"], None, av["severidad"],
+                    command=lambda t=_mapa_detalle.get(av["codigo"], "vencidas"): self._mostrar_detalle(t))
+
         try:
             din = dashboard_controller.resumen_dinero()
         except Exception:
@@ -317,6 +337,8 @@ class DashboardView(ctk.CTkFrame):
             "dinero_compras": "Compras del Mes (Yape/Efectivo)",
             "dinero_ventas": "Ventas del Mes (Yape/Efectivo)",
             "dinero_ganancias": "Ganancias del Mes (Yape/Efectivo)",
+            "comprobantes": "Pagos con Comprobante Pendiente",
+            "sin_apoderado": "Matrículas sin Apoderado Principal",
         }
         self.titulo_label.configure(text=titulos.get(tipo, "Detalle"))
 
@@ -364,6 +386,10 @@ class DashboardView(ctk.CTkFrame):
                 self._detalle_dinero_ventas()
             elif tipo == "dinero_ganancias":
                 self._detalle_dinero_ganancias()
+            elif tipo == "comprobantes":
+                self._detalle_comprobantes()
+            elif tipo == "sin_apoderado":
+                self._detalle_sin_apoderado()
         except Exception as e:
             from utils.logger import logger
             logger.error(f"Dashboard detalle '{tipo}' fallo: {e}", exc_info=True)
@@ -455,6 +481,51 @@ class DashboardView(ctk.CTkFrame):
               str(p.get("fecha_pago", ""))] for p in pagos],
             cap=30,
             nota_mas=f"Mostrando 30 de {len(pagos)} pagos",
+        )
+
+    def _detalle_comprobantes(self):
+        from services import avisos_service
+        pagos = avisos_service.listar_pagos_sin_comprobante()
+        ctk.CTkLabel(
+            self.detalle_frame,
+            text=f"Total: {len(pagos)} pago(s) no-efectivo sin comprobante archivado",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", pady=(10, 5))
+        if not pagos:
+            ctk.CTkLabel(self.detalle_frame, text="Sin pendientes 🎉").pack(pady=10)
+            return
+        crear_tabla_cards(
+            self.detalle_frame,
+            [("N° Recibo", 120), ("Estudiante", 200), ("Monto", 80), ("Método", 100), ("Fecha", 100)],
+            [[str(p.get("numero_recibo", "")),
+              f"{p.get('nombres', '')} {p.get('apellidos', '')}".strip() or "—",
+              (f"S/{_num(p.get('monto_total')):.2f}", {"text_color": "green", "weight": "bold"}),
+              str(p.get("metodo_pago", "")),
+              str(p.get("fecha_pago", ""))] for p in pagos],
+            cap=30,
+            nota_mas=f"Mostrando 30 de {len(pagos)} pagos",
+        )
+
+    def _detalle_sin_apoderado(self):
+        from services import avisos_service
+        mats = avisos_service.listar_matriculas_sin_apoderado()
+        ctk.CTkLabel(
+            self.detalle_frame,
+            text=f"Total: {len(mats)} matrícula(s) activa(s) sin apoderado principal",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", pady=(10, 5))
+        if not mats:
+            ctk.CTkLabel(self.detalle_frame, text="Sin pendientes 🎉").pack(pady=10)
+            return
+        crear_tabla_cards(
+            self.detalle_frame,
+            [("Estudiante", 220), ("DNI", 100), ("Tarifa", 160), ("Inicio", 100)],
+            [[f"{m.get('nombres', '')} {m.get('apellidos', '')}".strip(),
+              str(m.get("dni", "")),
+              str(m.get("tarifa_nombre", "")),
+              str(m.get("fecha_inicio", ""))] for m in mats],
+            cap=30,
+            nota_mas=f"Mostrando 30 de {len(mats)} matrículas",
         )
 
     def _detalle_ingresos_hoy(self):

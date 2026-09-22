@@ -126,6 +126,28 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list
     return rows, total
 
 
+def obtener_sin_comprobante(limit: int = 200) -> list[dict]:
+    """Fase 1: pagos no-efectivo sin comprobante archivado (RN-042 pendiente).
+
+    Cubre históricos (pre-Fase-0, cuando se descartaba) y cualquier vía que
+    guarde sin archivo.
+    """
+    return fetch_all(
+        """SELECT DISTINCT p.*, u.username, per.dni, per.nombres, per.apellidos
+           FROM pago p
+           JOIN usuario u ON p.id_usuario = u.id_usuario
+           LEFT JOIN detalle_pago dp ON dp.id_pago = p.id_pago
+           LEFT JOIN cuota c ON c.id_cuota = dp.id_cuota
+           LEFT JOIN matricula m ON m.id_matricula = c.id_matricula
+           LEFT JOIN estudiante e ON e.id_estudiante = m.id_estudiante
+           LEFT JOIN persona per ON per.id_persona = e.id_persona
+           WHERE p.activo = 1 AND p.metodo_pago <> 'EFECTIVO'
+                 AND (p.comprobante_path IS NULL OR p.comprobante_path = '')
+           ORDER BY p.fecha_pago DESC LIMIT ?""",
+        (limit,),
+    )
+
+
 def buscar_por_texto(texto: str) -> list[dict]:
     like = f"%{texto}%"
     return fetch_all(

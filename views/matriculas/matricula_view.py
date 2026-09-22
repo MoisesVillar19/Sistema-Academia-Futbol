@@ -43,6 +43,18 @@ class MatriculaView(ctk.CTkFrame):
             self.pagination.reset()
         self._cargar_matriculas()
 
+    def _refrescar_banner(self):
+        from utils.ui_helpers import crear_banner_avisos
+        for w in self.banner_frame.winfo_children():
+            w.destroy()
+        try:
+            from services import avisos_service
+            avisos = avisos_service.avisos_por_modulo("matriculas")
+        except Exception:
+            avisos = []
+        for av in avisos:
+            crear_banner_avisos(self.banner_frame, av["texto"], None, av["severidad"])
+
     def _on_page(self, page, per_page):
         self._pagina = page
         self._cargar_matriculas()
@@ -217,6 +229,11 @@ class MatriculaView(ctk.CTkFrame):
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
         crear_nota(sec_filtros, "Tip: clic en ▾ Ver detalle de cada tarjeta para tarifa, montos y vencimiento.")
+
+        # Fase 1: aviso de matrículas sin apoderado principal
+        self.banner_frame = ctk.CTkFrame(self.tab_lista, fg_color="transparent")
+        self.banner_frame.pack(fill="x", padx=5)
+        self._refrescar_banner()
 
         self.scroll_matriculas = ctk.CTkScrollableFrame(self.tab_lista)
         self.scroll_matriculas.pack(fill="both", expand=True, padx=5, pady=5)
@@ -691,6 +708,7 @@ class MatriculaView(ctk.CTkFrame):
             self.label_form_status.configure(text=msg, text_color="green")
             self._cargar_matriculas()
             self._cargar_combo_matriculas()
+            self._refrescar_banner()
             self.tabview.set("Matrículas")
         else:
             self.label_form_status.configure(text=msg, text_color="red")

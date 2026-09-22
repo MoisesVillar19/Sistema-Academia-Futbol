@@ -21,6 +21,7 @@ class PagoView(ctk.CTkFrame):
         self._per_page = 50
         self._total = 0
         self._q_actual = ""
+        self._solo_pendientes = False
         self._crear_widgets()
         self._cargar_pagos()
         self._bus_handler = lambda *a, **k: self.after(200, lambda: self._recargar_actual())
@@ -79,6 +80,12 @@ class PagoView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+
+        # Fase 1: banner de comprobantes pendientes (la secretaria registra,
+        # otro usuario sube el comprobante después)
+        self.banner_frame = ctk.CTkFrame(self.tab_lista, fg_color="transparent")
+        self.banner_frame.pack(fill="x", padx=8)
+        self._refrescar_banner()
 
         self.scroll_pagos = ctk.CTkScrollableFrame(self.tab_lista, fg_color="#F8F5FA")
         self.scroll_pagos.pack(fill="both", expand=True, padx=8, pady=6)
@@ -204,6 +211,28 @@ class PagoView(ctk.CTkFrame):
         for widget in self.scroll_pagos.winfo_children():
             widget.destroy()
 
+        if getattr(self, "_solo_pendientes", False):
+            from repositories import pago_repository
+            rows = pago_repository.obtener_sin_comprobante(limit=500)
+            self._total = len(rows)
+            if hasattr(self, 'pagination'):
+                self.pagination.set_total(self._total)
+            if not rows:
+                ctk.CTkLabel(self.scroll_pagos, text="Sin comprobantes pendientes 🎉",
+                             font=ctk.CTkFont(size=14), text_color="green").pack(pady=30)
+                self.label_status.configure(text="Total: 0")
+                return
+            from utils.ui_helpers import crear_boton_interactivo
+            crear_boton_interactivo(
+                self.scroll_pagos, text="← Ver todos los pagos", width=170,
+                command=self._ver_todos, fg_color="#E5E7EB",
+                hover_color="#DDD6E5", text_color="#1F0A33").pack(anchor="w", padx=6, pady=4)
+            for pago in rows:
+                self._crear_card_pago(pago)
+            self.label_status.configure(
+                text=f"⚠ {self._total} pago(s) con comprobante pendiente")
+            return
+
         q = self._q_actual
         estado_val = "TODOS"  # filtros por fecha se mantienen en date pickers
         try:
@@ -237,8 +266,38 @@ class PagoView(ctk.CTkFrame):
         total_paginas = max(1, (self._total + self._per_page - 1) // self._per_page)
         self.label_status.configure(text=f"✅ Total: {self._total} pago(s) • Página {self._pagina}/{total_paginas} • 50 por página")
 
+    def _refrescar_banner(self):
+        from utils.ui_helpers import crear_banner_avisos
+        for w in self.banner_frame.winfo_children():
+            w.destroy()
+        try:
+            from services import avisos_service
+            n = len(avisos_service.listar_pagos_sin_comprobante(limit=1000))
+        except Exception:
+            n = 0
+        if n:
+            crear_banner_avisos(
+                self.banner_frame,
+                "Pagos con comprobante pendiente", n, "alta",
+                command=self._ver_pendientes)
+
+    def _ver_pendientes(self):
+        self._solo_pendientes = True
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
+    def _ver_todos(self):
+        self._solo_pendientes = False
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
     def _on_busqueda_cambiar(self, event=None):
         self._q_actual = self.entry_busqueda.get().strip()
+        self._solo_pendientes = False
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()
@@ -423,6 +482,7 @@ class PagoView(ctk.CTkFrame):
         if exito:
             self.label_form_status.configure(text=msg, text_color="green")
             self._cargar_pagos()
+            self._refrescar_banner()
             self.entry_monto.delete(0, "end")
             self.entry_observacion.delete(0, "end")
             self._comprobante_path = None
