@@ -368,6 +368,10 @@ class InventarioView(ctk.CTkFrame):
         self.combo_compra_metodo.set("EFECTIVO")
         self.combo_compra_metodo.pack(side="left", padx=10)
 
+        from widgets.date_picker import DatePicker
+        self.date_compra = DatePicker(cuerpo, label_text="Fecha de compra:", default="today")
+        self.date_compra.pack(anchor="w", pady=3)
+
         self.label_compra_status = ctk.CTkLabel(cuerpo, text="", font=ctk.CTkFont(size=12))
         self.label_compra_status.pack(anchor="w", pady=5)
 
@@ -398,7 +402,8 @@ class InventarioView(ctk.CTkFrame):
         data = {"id_producto": prod["id_producto"], "cantidad": cant,
                 "monto_total": self.entry_compra_monto.get().strip(),
                 "metodo_pago": self.combo_compra_metodo.get(),
-                "motivo": "Compra a proveedor"}
+                "motivo": "Compra a proveedor",
+                "fecha_movimiento": self.date_compra.get() or None}
         exito, msg, _ = inventario_controller.registrar_compra(data)
         self.label_compra_status.configure(text=msg, text_color="green" if exito else "red")
         if exito:
@@ -453,6 +458,10 @@ class InventarioView(ctk.CTkFrame):
         ctk.CTkLabel(cuerpo, text="Motivo:").pack(anchor="w")
         self.entry_motivo = ctk.CTkEntry(cuerpo, placeholder_text="Motivo del movimiento", width=400)
         self.entry_motivo.pack(anchor="w", pady=3)
+
+        from widgets.date_picker import DatePicker as _DP
+        self.date_mov = _DP(cuerpo, label_text="Fecha del movimiento:", default="today")
+        self.date_mov.pack(anchor="w", pady=3)
         crear_nota(sec, "Todo movimiento queda en el Historial con usuario y fecha.")
 
         footer = ctk.CTkFrame(scroll, fg_color="white", corner_radius=8)
@@ -906,6 +915,7 @@ class InventarioView(ctk.CTkFrame):
             "cantidad": cantidad_str,
             "motivo": self.entry_motivo.get().strip(),
             "id_usuario": usuario["id_usuario"],
+            "fecha_movimiento": self.date_mov.get() or None,
         }
 
         exito, msg, _ = inventario_controller.registrar_movimiento(data)

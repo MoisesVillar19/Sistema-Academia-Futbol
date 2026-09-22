@@ -52,7 +52,7 @@ def registrar_pago(data: dict) -> tuple[bool, str, int | None]:
     pago = Pago(
         id_usuario=id_usuario,
         numero_recibo=numero_recibo,
-        fecha_pago=get_today(),
+        fecha_pago=(str(data.get("fecha_pago") or "").strip() or get_today()),
         monto_total=monto_pagado,
         metodo_pago=metodo_pago,
         observacion=data.get("observacion", ""),

@@ -138,6 +138,9 @@ class PagoView(ctk.CTkFrame):
         self.entry_observacion = ctk.CTkEntry(cuerpo2, placeholder_text="Referencia o nota", width=400)
         self.entry_observacion.pack(anchor="w", pady=(0, 5))
 
+        self.date_pago = DatePicker(cuerpo2, label_text="Fecha de pago:", default="today")
+        self.date_pago.pack(anchor="w", pady=(0, 5))
+
         ctk.CTkLabel(cuerpo2, text="Comprobante foto (obligatorio si YAPE/PLIN/TRANSFERENCIA)", font=ctk.CTkFont(size=12)).pack(anchor="w")
         comp_frame = ctk.CTkFrame(cuerpo2, fg_color="transparent")
         comp_frame.pack(fill="x", anchor="w", pady=2)
@@ -475,6 +478,7 @@ class PagoView(ctk.CTkFrame):
             "metodo_pago": self.combo_metodo.get(),
             "observacion": self.entry_observacion.get().strip(),
             "comprobante_path": comprobante,
+            "fecha_pago": self.date_pago.get() or None,
         }
 
         exito, msg, id_pago = pago_controller.registrar_pago(data)

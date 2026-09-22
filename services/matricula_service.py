@@ -38,7 +38,7 @@ def crear_matricula(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | N
         id_estudiante=id_estudiante,
         id_tarifa=id_tarifa,
         monto_pactado=monto_pactado,
-        fecha_inicio=data.get("fecha_inicio", get_today()),
+        fecha_inicio=(str(data.get("fecha_inicio") or "").strip() or get_today()),
         dia_vencimiento=dia_vencimiento,
         tipo=data.get("tipo"),
         estado=STATUS_ACTIVO,
@@ -350,6 +350,7 @@ def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict 
                 "dia_vencimiento": 1,
                 "diferir_meses": 0,
                 "tipo": tipo,
+                "fecha_inicio": (str(data.get("fecha_inicio") or "").strip() or get_today()),
             }, id_usuario=id_usuario)
             if not ok_m:
                 raise ValueError(msg_m)
@@ -367,6 +368,7 @@ def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict 
                 "monto_pagado": a_pagar,
                 "metodo_pago": metodo,
                 "comprobante_path": comprobante,
+                "fecha_pago": (str(data.get("fecha_inicio") or "").strip() or get_today()),
                 "observacion": "Matrícula express " + tipo,
             })
             if not ok_p:

@@ -86,6 +86,9 @@ class VentaView(ctk.CTkFrame):
         self.combo_metodo = ctk.CTkComboBox(cuerpo2, width=200, values=["EFECTIVO","YAPE","PLIN","TRANSFERENCIA"])
         self.combo_metodo.set("EFECTIVO")
         self.combo_metodo.pack(anchor="w", pady=3)
+        from widgets.date_picker import DatePicker
+        self.date_venta = DatePicker(cuerpo2, label_text="Fecha de venta:", default="today")
+        self.date_venta.pack(anchor="w", pady=3)
         ctk.CTkLabel(cuerpo2, text="ID Estudiante (opcional, para reingreso/inscripción)").pack(anchor="w")
         self.entry_est = ctk.CTkEntry(cuerpo2, width=200, placeholder_text="ID estudiante")
         self.entry_est.pack(anchor="w", pady=3)
@@ -199,6 +202,9 @@ class VentaView(ctk.CTkFrame):
         self.label_equipos_hint = ctk.CTkLabel(row2, text="", font=ctk.CTkFont(size=11), text_color="#6B5B7B")
         self.label_equipos_hint.pack(side="left", padx=5)
         self.entry_equipos_camp.bind("<KeyRelease>", lambda e: self._actualizar_hint_equipos())
+        from widgets.date_picker import DatePicker as _DP
+        self.date_camp = _DP(row2, label_text="Fecha:", default="today")
+        self.date_camp.pack(side="left", padx=5)
         self.btn_comp_camp = ctk.CTkButton(row2, text="📎 Comprobante", width=130, command=self._elegir_comprobante_camp)
         self.btn_comp_camp.pack(side="left", padx=5)
         self.label_comp_camp = ctk.CTkLabel(row2, text="Sin comprobante", text_color="gray")
@@ -335,7 +341,8 @@ class VentaView(ctk.CTkFrame):
         data = {"id_estudiante": id_est, "tipo_venta": "CAMPEONATO",
                 "metodo_pago": self.combo_metodo_camp.get(), "items": [],
                 "id_tarifa": t["id_tarifa"], "monto_total": monto,
-                "comprobante_path": self._comprobante_camp}
+                "comprobante_path": self._comprobante_camp,
+                "fecha_venta": self.date_camp.get() or None}
         exito, msg, vid = venta_controller.registrar_venta(data)
         if exito and self._comprobante_camp and vid:
             try:
@@ -417,6 +424,7 @@ class VentaView(ctk.CTkFrame):
                 "id_tarifa": t["id_tarifa"],
                 "monto_total": monto,
                 "comprobante_path": comprobante_path,
+                "fecha_venta": self.date_venta.get() or None,
             }
         else:
             sel = self.combo_producto.get()
@@ -437,6 +445,7 @@ class VentaView(ctk.CTkFrame):
                 "metodo_pago": self.combo_metodo.get(),
                 "items": [{"id_producto": prod["id_producto"], "cantidad": cant}],
                 "comprobante_path": comprobante_path,
+                "fecha_venta": self.date_venta.get() or None,
             }
         exito, msg, vid = venta_controller.registrar_venta(data)
         if exito and comprobante_path and vid:

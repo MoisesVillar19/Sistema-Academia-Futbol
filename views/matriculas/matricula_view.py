@@ -133,6 +133,10 @@ class MatriculaView(ctk.CTkFrame):
         self.label_exp_comp = ctk.CTkLabel(comp_row, text="Sin comprobante", text_color="gray")
         self.label_exp_comp.pack(side="left", padx=5)
         self._exp_comprobante = None
+
+        from widgets.date_picker import DatePicker as _DP2
+        self.date_express = _DP2(cuerpo, label_text="Fecha de inicio (INICIO):", default="today")
+        self.date_express.pack(anchor="w", pady=3)
         crear_nota(sec, "Yape exige comprobante (RN-042). Efectivo no.")
 
         footer = ctk.CTkFrame(scroll, fg_color="white", corner_radius=8)
@@ -186,7 +190,8 @@ class MatriculaView(ctk.CTkFrame):
                 "tipo_documento": self.combo_exp_tipodoc.get(),
                 "monto": self.entry_exp_monto.get().strip() or None,
                 "metodo_pago": self.combo_exp_metodo.get(),
-                "comprobante_path": self._exp_comprobante}
+                "comprobante_path": self._exp_comprobante,
+                "fecha_inicio": self.date_express.get() or None}
         exito, msg, _ids = matricula_controller.matricula_express(data)
         self.label_exp_status.configure(text=msg, text_color="green" if exito else "red")
         if exito:
@@ -292,6 +297,10 @@ class MatriculaView(ctk.CTkFrame):
         self.entry_dia_venc = ctk.CTkEntry(row1, placeholder_text="1-31", width=60)
         self.entry_dia_venc.insert(0, "1")
         self.entry_dia_venc.pack(side="left", padx=5)
+
+        from widgets.date_picker import DatePicker
+        self.date_matricula = DatePicker(cuerpo2, label_text="Fecha de inicio (INICIO):", default="today")
+        self.date_matricula.pack(anchor="w", pady=(5, 0))
 
         ctk.CTkLabel(cuerpo2, text="Beca (opcional):").pack(anchor="w")
         self.combo_beca = ctk.CTkComboBox(cuerpo2, width=400, values=["Ninguna"])
@@ -684,6 +693,7 @@ class MatriculaView(ctk.CTkFrame):
             "monto_pactado": self.entry_monto_pactado.get().strip() or None,
             "dia_vencimiento": self.entry_dia_venc.get().strip() or "1",
             "diferir_meses": diferir_map.get(self.combo_diferir.get(), 0),
+            "fecha_inicio": self.date_matricula.get() or None,
         }
         concepto_sel = self.combo_concepto.get()
         if concepto_sel != "Ninguno" and concepto_sel in self._conceptos_map:

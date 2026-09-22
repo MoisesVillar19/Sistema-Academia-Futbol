@@ -103,7 +103,7 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
             venta = Venta(
                 id_estudiante=id_estudiante,
                 id_usuario=id_usuario,
-                fecha_venta=data.get("fecha_venta", get_today()),
+                fecha_venta=(str(data.get("fecha_venta") or "").strip() or get_today()),
                 monto_total=round(total, 2),
                 metodo_pago=metodo,
                 tipo_venta=tipo_venta,

@@ -371,7 +371,7 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
         cantidad=cantidad,
         stock_anterior=stock_anterior,
         stock_nuevo=stock_nuevo,
-        fecha_movimiento=get_now(),
+        fecha_movimiento=(str(data.get("fecha_movimiento") or "").strip() or get_now()),
         motivo=data.get("motivo", ""),
         metodo_pago=metodo_pago,
         monto_total=round(monto_total, 2),
@@ -411,6 +411,7 @@ def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
         "metodo_pago": metodo,
         "monto_total": round(monto, 2),
         "id_usuario": data.get("id_usuario", 1),
+        "fecha_movimiento": (str(data.get("fecha_movimiento") or "").strip() or get_now()),
     })
 
 
