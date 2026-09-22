@@ -1,7 +1,8 @@
 # Plan de Refactorización v2 — Tiendita / Almacén + Avisos + Precios Excel
 
-> Estado: PLANIFICADO (documentado antes de empezar, 2026-09-22).
-> Decisiones del usuario ya tomadas. Ejecutar por fases, con tests y commit por fase.
+> Estado: EJECUTADO 2026-09-22 (fases 0–8, commit por fase/subfase).
+> Cierre: suite completa 467 passed. Conceptos fuera del flujo (tabla dormida).
+> Updater apunta a Sistema-Academia-Futbol (fix previo incluido en release).
 > Fuente operativa: `D:\Hp\Desktop\AcademiaFutbol\INFORMACION ACADEMIA RONCALLI.xlsx`
 > (hojas: RELACIÓN DE ALUMNOS, INGRESOS, VENTA UNIFORME, BALANCE TIENDA MAYO/JUNIO/AGOSTO).
 > Directriz: una acción en los menos pasos posibles.

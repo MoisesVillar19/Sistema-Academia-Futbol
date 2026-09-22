@@ -7,13 +7,14 @@ from services import pago_service, inventario_service, venta_service, matricula_
 from repositories import pago_repository
 
 
-def _producto(id_cat=None):
+def _producto(id_cat=None, canal="ALMACEN"):
+    # Fase 6a: movimientos manuales solo en ALMACEN
     from services import inventario_service as inv
     cats = inv.listar_categorias()
     id_cat = id_cat or cats[0]["id_categoria_producto"]
     ok, _, id_prod = inv.crear_producto({
         "id_categoria_producto": id_cat, "nombre": "Fecha QA",
-        "canal": "TIENDITA", "precio_venta": 10.0,
+        "canal": canal, "precio_venta": 10.0,
     })
     assert ok
     return id_prod
@@ -60,7 +61,7 @@ def test_compra_y_movimiento_fecha_explicita(usuario_admin):
 
 
 def test_venta_fecha_explicita(usuario_admin):
-    id_prod = _producto()
+    id_prod = _producto(canal="TIENDITA")
     inventario_service.registrar_compra({
         "id_producto": id_prod, "cantidad": 5, "monto_total": "10.00",
         "metodo_pago": "EFECTIVO",

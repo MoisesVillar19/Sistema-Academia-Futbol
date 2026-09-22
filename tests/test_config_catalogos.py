@@ -72,9 +72,10 @@ def test_render_solo_catalogos_para_secretaria(crear_vista, usuario_admin):
     vista.update_idletasks()
     textos = " ".join(_textos(vista))
     assert "Acceso denegado" not in textos
-    # catálogos visibles (7-10)
-    for esperado in ("Categorías de Edad", "Tipos de Uniforme", "Conceptos Flexibles", "Apariencia Visual"):
+    # catálogos visibles (7, 8, 9, 11; conceptos se retiró en Fase 7e)
+    for esperado in ("Categorías de Edad", "Tipos de Uniforme", "Categorías de Productos", "Apariencia Visual"):
         assert esperado in textos, f"falta sección catálogo: {esperado}"
+    assert "Conceptos Flexibles" not in textos
     assert "CATÁLOGOS" in textos
     # globales ocultas + sin Guardar global
     assert "Información General" not in textos
