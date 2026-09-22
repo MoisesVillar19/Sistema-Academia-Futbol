@@ -93,6 +93,47 @@ class DashboardView(ctk.CTkFrame):
             except Exception:
                 pass
 
+    def _crear_bloque(self, titulo, icono, expandido=True):
+        # Fase 7c: bloque colapsable (menos mareo que ~20 cards sueltas)
+        clave = f"_bloque_abierto_{titulo}"
+        if not hasattr(self, "_bloques_estado"):
+            self._bloques_estado = {}
+        abierto = self._bloques_estado.get(clave, expandido)
+        sec = ctk.CTkFrame(self.cards_frame, fg_color="white", corner_radius=8)
+        sec.pack(fill="x", pady=5)
+        head = ctk.CTkFrame(sec, fg_color="transparent")
+        head.pack(fill="x", padx=10, pady=(8, 4))
+        btn = ctk.CTkButton(head, text="▾" if abierto else "▸", width=36, height=28,
+                            fg_color="#E5E7EB", text_color="#3D1559", hover_color="#DDD6E5")
+        btn.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(head, text=f"{icono}  {titulo}",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color="#3D1559").pack(side="left")
+        cuerpo = ctk.CTkFrame(sec, fg_color="transparent")
+        if abierto:
+            cuerpo.pack(fill="x", padx=5, pady=(0, 6))
+
+        def _toggle():
+            esta = bool(cuerpo.winfo_ismapped()) if cuerpo.winfo_exists() else False
+            try:
+                if esta:
+                    cuerpo.pack_forget()
+                    btn.configure(text="▸")
+                else:
+                    cuerpo.pack(fill="x", padx=5, pady=(0, 6))
+                    btn.configure(text="▾")
+                self._bloques_estado[clave] = not esta
+            except Exception:
+                pass
+
+        btn.configure(command=_toggle)
+        return cuerpo
+
+    def _fila_cards(self, parent):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", pady=5)
+        return row
+
     def _cargar_indicadores_impl(self):
         self._reset_contenedores()
 
@@ -101,72 +142,6 @@ class DashboardView(ctk.CTkFrame):
         self.btn_volver.pack_forget()
         self.btn_actualizar.pack(side="right")
         self.titulo_label.configure(text="Dashboard")
-
-        # Fase 1: Pendientes primero (avisos por módulo, sin toast)
-        try:
-            from services import avisos_service
-            from utils.ui_helpers import crear_banner_avisos
-            avisos = avisos_service.obtener_avisos()
-        except Exception:
-            avisos = []
-        if avisos:
-            sec = ctk.CTkFrame(self.cards_frame, fg_color="white", corner_radius=8)
-            sec.pack(fill="x", pady=5)
-            ctk.CTkLabel(sec, text="🔔  Pendientes", font=ctk.CTkFont(size=14, weight="bold"),
-                         text_color="#3D1559").pack(anchor="w", padx=10, pady=(8, 2))
-            _mapa_detalle = {"comprobantes": "comprobantes", "vencidas": "vencidas",
-                             "por_vencer": "por_vencer", "stock_bajo": "stock",
-                             "sin_apoderado": "sin_apoderado"}
-            for av in avisos:
-                crear_banner_avisos(
-                    sec, av["texto"], None, av["severidad"],
-                    command=lambda t=_mapa_detalle.get(av["codigo"], "vencidas"): self._mostrar_detalle(t))
-
-        try:
-            din = dashboard_controller.resumen_dinero()
-        except Exception:
-            din = None
-        if din:
-            row0 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-            row0.pack(fill="x", pady=5)
-            self._crear_card_dinero(row0, "Compras (mes)", din["compras_yape"], din["compras_efectivo"],
-                                    "#F59E0B", lambda: self._mostrar_detalle("dinero_compras"))
-            self._crear_card_dinero(row0, "Ventas (mes)", din["ventas_yape"], din["ventas_efectivo"],
-                                    "#22C55E", lambda: self._mostrar_detalle("dinero_ventas"))
-            self._crear_card_dinero(row0, "Ganancias (mes)", din["ganancia_yape"], din["ganancia_efectivo"],
-                                    "#7C3AED", lambda: self._mostrar_detalle("dinero_ganancias"))
-            self._crear_card_dinero(row0, "Ganancia Total (mes)", din["ganancia_total"], None,
-                                    "#1F0A33", lambda: self._mostrar_detalle("dinero_ganancias"))
-
-        row1 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row1.pack(fill="x", pady=5)
-
-        self._crear_card(row1, "Alumnos Activos", str(data["alumnos_activos"]), "#7C3AED",
-                         lambda: self._mostrar_detalle("alumnos"))
-        self._crear_card(row1, "Cuotas Vencidas", str(data["cuotas_vencidas"]), "#DC2626",
-                         lambda: self._mostrar_detalle("vencidas"))
-        self._crear_card(row1, "Por Vencer", str(data["cuotas_por_vencer"]), "#F59E0B",
-                         lambda: self._mostrar_detalle("por_vencer"))
-
-        row2 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row2.pack(fill="x", pady=5)
-
-        self._crear_card(row2, "Pagos Hoy", str(data.get("pagos_hoy", 0) or 0), "#22C55E",
-                         lambda: self._mostrar_detalle("pagos_hoy"))
-        self._crear_card(row2, "Ingresos Hoy", f"S/{_num(data.get('ingresos_hoy')):.2f}", "#22C55E",
-                         lambda: self._mostrar_detalle("ingresos_hoy"))
-        self._crear_card(row2, "Ingresos Mes", f"S/{_num(data.get('ingresos_mes')):.2f}", "#6B21A8",
-                         lambda: self._mostrar_detalle("ingresos_mes"))
-
-        row3 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row3.pack(fill="x", pady=5)
-
-        self._crear_card(row3, "Monto Vencido", f"S/{_num(data.get('monto_vencido')):.2f}", "#DC2626",
-                         lambda: self._mostrar_detalle("monto_vencido"))
-        self._crear_card(row3, "Monto por Vencer", f"S/{_num(data.get('monto_por_vencer')):.2f}", "#F59E0B",
-                         lambda: self._mostrar_detalle("monto_por_vencer"))
-        self._crear_card(row3, "Stock Bajo", str(data["stock_bajo"]), "#F59E0B",
-                         lambda: self._mostrar_detalle("stock"))
 
         # Helper para mostrar — si es None (error) muestra —
         def _fmt(v, suf=""):
@@ -177,37 +152,88 @@ class DashboardView(ctk.CTkFrame):
             except Exception:
                 return str(v)
 
-        # 3 cards por fila: con 4 la última se corta (overflow horizontal)
-        row4 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row4.pack(fill="x", pady=5)
+        # ── Bloque 1: Pendientes (avisos por módulo, sin toast) ──
+        try:
+            from services import avisos_service
+            from utils.ui_helpers import crear_banner_avisos
+            avisos = avisos_service.obtener_avisos()
+        except Exception:
+            avisos = []
+        if avisos:
+            b = self._crear_bloque("Pendientes", "🔔", expandido=True)
+            _mapa_detalle = {"comprobantes": "comprobantes", "vencidas": "vencidas",
+                             "por_vencer": "por_vencer", "stock_bajo": "stock",
+                             "sin_apoderado": "sin_apoderado"}
+            for av in avisos:
+                crear_banner_avisos(
+                    b, av["texto"], None, av["severidad"],
+                    command=lambda t=_mapa_detalle.get(av["codigo"], "vencidas"): self._mostrar_detalle(t))
 
+        # ── Bloque 2: Academia (alumnos, matrículas, cuotas) ──
+        b_acad = self._crear_bloque("Academia", "🎓", expandido=True)
+        row1 = self._fila_cards(b_acad)
+        self._crear_card(row1, "Alumnos Activos", str(data["alumnos_activos"]), "#7C3AED",
+                         lambda: self._mostrar_detalle("alumnos"))
+        self._crear_card(row1, "Cuotas Vencidas", str(data["cuotas_vencidas"]), "#DC2626",
+                         lambda: self._mostrar_detalle("vencidas"))
+        self._crear_card(row1, "Por Vencer", str(data["cuotas_por_vencer"]), "#F59E0B",
+                         lambda: self._mostrar_detalle("por_vencer"))
+        row1b = self._fila_cards(b_acad)
+        self._crear_card(row1b, "Monto Vencido", f"S/{_num(data.get('monto_vencido')):.2f}", "#DC2626",
+                         lambda: self._mostrar_detalle("monto_vencido"))
+        self._crear_card(row1b, "Monto por Vencer", f"S/{_num(data.get('monto_por_vencer')):.2f}", "#F59E0B",
+                         lambda: self._mostrar_detalle("monto_por_vencer"))
+        self._crear_card(row1b, "Total Matrículas Mes", str(data.get("matriculas_mes", 0)), "#3D1559",
+                         lambda: self._mostrar_detalle("matriculas_mes"))
+        row1c = self._fila_cards(b_acad)
+        self._crear_card(row1c, "Nuevos Mes", str(data.get("nuevos_mes", 0)), "#22C55E",
+                         lambda: self._mostrar_detalle("nuevos_mes"))
+        self._crear_card(row1c, "Antiguos Mes", str(data.get("antiguos_mes", 0)), "#6B21A8",
+                         lambda: self._mostrar_detalle("antiguos_mes"))
+
+        # ── Bloque 3: Dinero (pagos, ingresos, egresos, neto) ──
+        b_din = self._crear_bloque("Dinero", "💰", expandido=True)
+        row2 = self._fila_cards(b_din)
+        self._crear_card(row2, "Pagos Hoy", str(data.get("pagos_hoy", 0) or 0), "#22C55E",
+                         lambda: self._mostrar_detalle("pagos_hoy"))
+        self._crear_card(row2, "Ingresos Hoy", f"S/{_num(data.get('ingresos_hoy')):.2f}", "#22C55E",
+                         lambda: self._mostrar_detalle("ingresos_hoy"))
+        self._crear_card(row2, "Ingresos Mes", f"S/{_num(data.get('ingresos_mes')):.2f}", "#6B21A8",
+                         lambda: self._mostrar_detalle("ingresos_mes"))
+        row4 = self._fila_cards(b_din)
         self._crear_card(row4, "Ventas Mes", _fmt(data.get('ingresos_ventas_mes')), "#7C3AED",
                          lambda: self._mostrar_detalle("ventas_mes"))
         self._crear_card(row4, "Egresos Mes", _fmt(data.get('egresos_mes')), "#DC2626",
                          lambda: self._mostrar_detalle("egresos_mes"))
         neto = data.get('neto_mes')
-        self._crear_card(row4, "Neto Mes", _fmt(neto), "#22C55E" if (neto or 0) >=0 else "#DC2626",
+        self._crear_card(row4, "Neto Mes", _fmt(neto), "#22C55E" if (neto or 0) >= 0 else "#DC2626",
                          lambda: self._mostrar_detalle("neto_mes"))
-
-        row5 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row5.pack(fill="x", pady=5)
-
-        # MoM si existe (en fila propia para no cortar)
         mom = data.get('mom_ingresos')
         if mom is not None:
             mom_txt = f"{mom:+.1f}% vs mes anterior"
-            mom_color = "#22C55E" if mom >=0 else "#DC2626"
+            mom_color = "#22C55E" if mom >= 0 else "#DC2626"
+            row5 = self._fila_cards(b_din)
             self._crear_card(row5, "MoM Ingresos", mom_txt, mom_color, lambda: self._mostrar_detalle("mom"))
-        self._crear_card(row5, "Nuevos Mes", str(data.get("nuevos_mes",0)), "#22C55E",
-                         lambda: self._mostrar_detalle("nuevos_mes"))
-        self._crear_card(row5, "Antiguos Mes", str(data.get("antiguos_mes",0)), "#6B21A8",
-                         lambda: self._mostrar_detalle("antiguos_mes"))
 
-        row6 = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
-        row6.pack(fill="x", pady=5)
-
-        self._crear_card(row6, "Total Matrículas Mes", str(data.get("matriculas_mes",0)), "#3D1559",
-                         lambda: self._mostrar_detalle("matriculas_mes"))
+        # ── Bloque 4: Tienda y Almacén (compras, ventas, ganancias, stock) ──
+        b_tda = self._crear_bloque("Tienda y Almacén", "🏪", expandido=True)
+        try:
+            din = dashboard_controller.resumen_dinero()
+        except Exception:
+            din = None
+        if din:
+            row0 = self._fila_cards(b_tda)
+            self._crear_card_dinero(row0, "Compras (mes)", din["compras_yape"], din["compras_efectivo"],
+                                    "#F59E0B", lambda: self._mostrar_detalle("dinero_compras"))
+            self._crear_card_dinero(row0, "Ventas (mes)", din["ventas_yape"], din["ventas_efectivo"],
+                                    "#22C55E", lambda: self._mostrar_detalle("dinero_ventas"))
+            self._crear_card_dinero(row0, "Ganancias (mes)", din["ganancia_yape"], din["ganancia_efectivo"],
+                                    "#7C3AED", lambda: self._mostrar_detalle("dinero_ganancias"))
+            self._crear_card_dinero(row0, "Ganancia Total (mes)", din["ganancia_total"], None,
+                                    "#1F0A33", lambda: self._mostrar_detalle("dinero_ganancias"))
+        row3 = self._fila_cards(b_tda)
+        self._crear_card(row3, "Stock Bajo", str(data["stock_bajo"]), "#F59E0B",
+                         lambda: self._mostrar_detalle("stock"))
 
         for widget in self.detalle_frame.winfo_children():
             widget.destroy()
