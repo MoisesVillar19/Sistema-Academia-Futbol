@@ -173,11 +173,17 @@ class MatriculaView(ctk.CTkFrame):
             pass
 
     def _elegir_comprobante_exp(self):
-        from tkinter import filedialog
+        from tkinter import filedialog, messagebox
         import os
         from utils.constants import COMPROBANTES_DIR
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen", "*.jpg *.jpeg *.png"), ("Todos", "*.*")])
         if path:
+            ok, msg = validar_imagen(path, max_mb=5)
+            if not ok:
+                messagebox.showerror("Comprobante no válido", msg)
+                self.label_exp_status.configure(text=f"❌ {msg}", text_color="red")
+                return
             os.makedirs(COMPROBANTES_DIR, exist_ok=True)
             self._exp_comprobante = path
             self.label_exp_comp.configure(text=os.path.basename(path))

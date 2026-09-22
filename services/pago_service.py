@@ -49,6 +49,23 @@ def registrar_pago(data: dict) -> tuple[bool, str, int | None]:
 
     numero_recibo = generate_receipt_number()
 
+    # Fase 3: centralizar comprobante (R-{recibo}.ext); si falla, se guarda
+    # la ruta original igual (mejor que descartarla como antes de Fase 0).
+    comprobante = (data.get("comprobante_path") or "").strip()
+    if comprobante:
+        try:
+            import os
+            import shutil
+            from utils.constants import COMPROBANTES_DIR
+            from utils.imagenes import extension_real
+            os.makedirs(COMPROBANTES_DIR, exist_ok=True)
+            dest = os.path.join(
+                COMPROBANTES_DIR, f"{numero_recibo}{extension_real(comprobante)}")
+            shutil.copy2(comprobante, dest)
+            comprobante = dest
+        except Exception as e:
+            logger.warning(f"No se pudo centralizar comprobante {comprobante}: {e}")
+
     pago = Pago(
         id_usuario=id_usuario,
         numero_recibo=numero_recibo,
@@ -56,7 +73,7 @@ def registrar_pago(data: dict) -> tuple[bool, str, int | None]:
         monto_total=monto_pagado,
         metodo_pago=metodo_pago,
         observacion=data.get("observacion", ""),
-        comprobante_path=data.get("comprobante_path", "") or "",
+        comprobante_path=comprobante,
     )
 
     with transaccion():

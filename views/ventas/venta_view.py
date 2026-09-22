@@ -316,8 +316,15 @@ class VentaView(ctk.CTkFrame):
             self.label_equipos_hint.configure(text="")
 
     def _elegir_comprobante_camp(self):
+        from tkinter import messagebox
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen", "*.jpg *.jpeg *.png"), ("Todos", "*.*")])
         if path:
+            ok, msg = validar_imagen(path, max_mb=5)
+            if not ok:
+                messagebox.showerror("Comprobante no válido", msg)
+                self.label_camp_status.configure(text=f"❌ {msg}", text_color="red")
+                return
             os.makedirs(COMPROBANTES_DIR, exist_ok=True)
             self._comprobante_camp = path
             self.label_comp_camp.configure(text=os.path.basename(path))
@@ -347,9 +354,11 @@ class VentaView(ctk.CTkFrame):
         if exito and self._comprobante_camp and vid:
             try:
                 import shutil
+                from utils.imagenes import extension_real
                 v = venta_controller.obtener_venta(vid)
                 if v:
-                    shutil.copy2(self._comprobante_camp, os.path.join(COMPROBANTES_DIR, f"{v['numero_recibo']}.jpg"))
+                    shutil.copy2(self._comprobante_camp, os.path.join(
+                        COMPROBANTES_DIR, f"{v['numero_recibo']}{extension_real(self._comprobante_camp)}"))
             except Exception:
                 pass
             self._comprobante_camp = None
@@ -361,8 +370,15 @@ class VentaView(ctk.CTkFrame):
             self._cargar_ventas()
 
     def _elegir_comprobante(self):
+        from tkinter import messagebox
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen","*.jpg *.jpeg *.png"),("Todos","*.*")])
         if path:
+            ok, msg = validar_imagen(path, max_mb=5)
+            if not ok:
+                messagebox.showerror("Comprobante no válido", msg)
+                self.label_status.configure(text=f"❌ {msg}", text_color="red")
+                return
             os.makedirs(COMPROBANTES_DIR, exist_ok=True)
             self._comprobante_tmp = path
             self.label_comp.configure(text=os.path.basename(path))
@@ -449,13 +465,14 @@ class VentaView(ctk.CTkFrame):
             }
         exito, msg, vid = venta_controller.registrar_venta(data)
         if exito and comprobante_path and vid:
-            # copiar a central con recibo
+            # copiar a central con recibo (conserva extensión real)
             try:
                 import glob
+                from utils.imagenes import extension_real
                 # el service ya generó recibo, obtener venta para nombre
                 v = venta_controller.obtener_venta(vid)
                 if v:
-                    dest = os.path.join(COMPROBANTES_DIR, f"{v['numero_recibo']}.jpg")
+                    dest = os.path.join(COMPROBANTES_DIR, f"{v['numero_recibo']}{extension_real(comprobante_path)}")
                     shutil.copy2(comprobante_path, dest)
             except Exception:
                 pass

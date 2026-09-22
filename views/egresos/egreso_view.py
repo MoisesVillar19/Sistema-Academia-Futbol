@@ -206,11 +206,15 @@ class EgresoView(ctk.CTkFrame):
         self._tarifas_egr_map = {n: t["id_tarifa"] for n, t in zip(nombres[1:], tarifas)}
 
     def _elegir_comprobante(self):
+        from tkinter import messagebox
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen/PDF","*.jpg *.jpeg *.png *.pdf"),("Todos","*.*")])
         if not path:
             return
-        if os.path.getsize(path) > 5 * 1024 * 1024:
-            self.label_status.configure(text="❌ Comprobante debe ser ≤5MB", text_color="red")
+        ok, msg = validar_imagen(path, max_mb=5, permitir_pdf=True)
+        if not ok:
+            messagebox.showerror("Comprobante no válido", msg)
+            self.label_status.configure(text=f"❌ {msg}", text_color="red")
             return
         os.makedirs(COMPROBANTES_DIR, exist_ok=True)
         # copiar a OneDrive con nombre temporal, se renombrará al guardar con recibo
@@ -224,7 +228,7 @@ class EgresoView(ctk.CTkFrame):
                 self._comp_preview = ctk_img
                 self.label_comp_preview.configure(image=ctk_img, text="")
             except Exception:
-                pass
+                self.label_comp_preview.configure(image=None, text="⚠ vista no disponible")
 
     def _guardar(self):
         comprobante_dest = None

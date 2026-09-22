@@ -622,11 +622,15 @@ class EstudianteView(ctk.CTkFrame):
         self.tabview.set("Estudiantes")
 
     def _seleccionar_foto(self):
+        from tkinter import messagebox
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen","*.jpg *.jpeg *.png"),("Todos","*.*")])
         if not path:
             return
-        if os.path.getsize(path) > 2 * 1024 * 1024:
-            self.label_form_status.configure(text="❌ Foto debe ser ≤2MB", text_color="red")
+        ok, msg = validar_imagen(path, max_mb=2)
+        if not ok:
+            messagebox.showerror("Foto no válida", msg)
+            self.label_form_status.configure(text=f"❌ {msg}", text_color="red")
             return
         self._foto_tmp_path = path
         self.label_foto.configure(text=f"✅ {os.path.basename(path)}")
@@ -639,7 +643,7 @@ class EstudianteView(ctk.CTkFrame):
                 self._foto_preview = ctk_img
                 self.label_foto_preview.configure(image=ctk_img, text="")
             except Exception:
-                pass
+                self.label_foto_preview.configure(image=None, text="⚠ vista no disponible")
 
     def _limpiar_formulario(self):
         self._id_estudiante_editando = None

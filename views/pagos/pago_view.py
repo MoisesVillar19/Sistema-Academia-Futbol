@@ -495,12 +495,15 @@ class PagoView(ctk.CTkFrame):
             self.label_form_status.configure(text=msg, text_color="red")
 
     def _elegir_comprobante(self):
-        from tkinter import filedialog
+        from tkinter import filedialog, messagebox
         from utils.constants import COMPROBANTES_DIR
+        from utils.imagenes import validar_imagen
         path = filedialog.askopenfilename(filetypes=[("Imagen","*.jpg *.jpeg *.png"),("Todos","*.*")])
         if path:
-            if os.path.getsize(path) > 5 * 1024 * 1024:
-                self.label_form_status.configure(text="❌ Comprobante debe ser ≤5MB", text_color="red")
+            ok, msg = validar_imagen(path, max_mb=5)
+            if not ok:
+                messagebox.showerror("Comprobante no válido", msg)
+                self.label_form_status.configure(text=f"❌ {msg}", text_color="red")
                 return
             os.makedirs(COMPROBANTES_DIR, exist_ok=True)
             self._comprobante_path = path
@@ -513,7 +516,7 @@ class PagoView(ctk.CTkFrame):
                     self._comprobante_preview = ctk_img
                     self.label_comprobante_preview.configure(image=ctk_img, text="")
                 except Exception:
-                    pass
+                    self.label_comprobante_preview.configure(image=None, text="⚠ vista no disponible")
 
     def _cargar_morosos(self):
         for widget in self.scroll_morosos.winfo_children():
