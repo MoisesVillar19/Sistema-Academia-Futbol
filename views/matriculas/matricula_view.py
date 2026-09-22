@@ -89,8 +89,12 @@ class MatriculaView(ctk.CTkFrame):
             cuerpo, values=["NUEVO", "ANTIGUO"], command=self._on_exp_tipo)
         self.seg_exp_tipo.set("NUEVO")
         self.seg_exp_tipo.pack(anchor="w", pady=3)
+        try:
+            self._default_nuevo = f"{matricula_controller.monto_express_default():.2f}"
+        except Exception:
+            self._default_nuevo = "120.00"
         self.label_exp_panel = ctk.CTkLabel(
-            cuerpo, text="🆕 Incluye uniforme + mensualidad • S/ 120 (editable)",
+            cuerpo, text=f"🆕 Incluye uniforme + mensualidad • S/ {self._default_nuevo} (editable)",
             font=ctk.CTkFont(size=11, weight="bold"), text_color="#7C3AED",
             wraplength=500, justify="left")
         self.label_exp_panel.pack(anchor="w", pady=(0, 5))
@@ -117,9 +121,9 @@ class MatriculaView(ctk.CTkFrame):
         self.entry_exp_dni = ctk.CTkEntry(row2, placeholder_text="12345678", width=140)
         self.entry_exp_dni.pack(side="left", padx=10)
         ctk.CTkLabel(row2, text="Monto S/ *").pack(side="left", padx=(10, 0))
-        self.entry_exp_monto = ctk.CTkEntry(row2, placeholder_text="120.00", width=120)
+        self.entry_exp_monto = ctk.CTkEntry(row2, placeholder_text=self._default_nuevo, width=120)
         self.entry_exp_monto.pack(side="left", padx=10)
-        self.entry_exp_monto.insert(0, "120.00")
+        self.entry_exp_monto.insert(0, self._default_nuevo)
         ctk.CTkLabel(row2, text="Pago *").pack(side="left", padx=(10, 0))
         self.combo_exp_metodo = ctk.CTkComboBox(row2, width=130, values=["YAPE", "EFECTIVO"])
         self.combo_exp_metodo.set("EFECTIVO")
@@ -150,10 +154,14 @@ class MatriculaView(ctk.CTkFrame):
         sel = selection if isinstance(selection, str) else self.seg_exp_tipo.get()
         try:
             if sel == "NUEVO":
+                try:
+                    self._default_nuevo = f"{matricula_controller.monto_express_default():.2f}"
+                except Exception:
+                    pass
                 self.label_exp_panel.configure(
-                    text="🆕 Incluye uniforme + mensualidad • S/ 120 (editable)")
+                    text=f"🆕 Incluye uniforme + mensualidad • S/ {self._default_nuevo} (editable)")
                 if not self.entry_exp_monto.get().strip():
-                    self.entry_exp_monto.insert(0, "120.00")
+                    self.entry_exp_monto.insert(0, self._default_nuevo)
             else:
                 self.label_exp_panel.configure(
                     text="Solo mensualidad, sin uniforme • Monto libre (vacío no permitido)")
@@ -204,7 +212,7 @@ class MatriculaView(ctk.CTkFrame):
             for e in (self.entry_exp_nombres, self.entry_exp_apellidos,
                       self.entry_exp_dni, self.entry_exp_monto):
                 e.delete(0, "end")
-            self.entry_exp_monto.insert(0, "120.00")
+            self.entry_exp_monto.insert(0, self._default_nuevo)
             self._exp_comprobante = None
             self.label_exp_comp.configure(text="Sin comprobante")
             try:

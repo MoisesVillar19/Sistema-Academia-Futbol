@@ -266,6 +266,18 @@ def obtener_becas_por_matricula(id_matricula: int) -> list[dict]:
 MONTO_EXPRESS_NUEVO_DEFAULT = 120.0
 
 
+def monto_express_nuevo_default() -> float:
+    """Fase 4: el default NUEVO lo manda la tarifa Inscripción (editable en
+    Tarifas); el constante solo es fallback si no hay tarifa."""
+    try:
+        tarifa = _tarifa_inscripcion_default()
+        if tarifa and float(tarifa.get("monto") or 0) > 0:
+            return float(tarifa["monto"])
+    except Exception:
+        pass
+    return MONTO_EXPRESS_NUEVO_DEFAULT
+
+
 def _tarifa_inscripcion_default() -> dict | None:
     from repositories import tarifa_repository
     try:
@@ -311,7 +323,7 @@ def matricula_express(data: dict, id_usuario: int = 1) -> tuple[bool, str, dict 
         return False, "Método no válido. Use Yape o Efectivo", None
     monto_raw = data.get("monto")
     if tipo == "NUEVO" and (monto_raw in (None, "")):
-        monto_raw = MONTO_EXPRESS_NUEVO_DEFAULT
+        monto_raw = monto_express_nuevo_default()
     try:
         monto = float(monto_raw)
     except (ValueError, TypeError):

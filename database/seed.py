@@ -152,7 +152,7 @@ def seed_database() -> None:
             conn,
             "SELECT id_producto FROM producto WHERE codigo = 'CAMISETA-ENT'", (),
             """INSERT INTO producto (id_categoria_producto, canal, codigo, nombre, stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme)
-                VALUES (?, 'TIENDITA', 'CAMISETA-ENT', 'Camiseta Entrenamiento', 50, 5, 20, 8, 20, ?)""",
+                VALUES (?, 'TIENDITA', 'CAMISETA-ENT', 'Camiseta Entrenamiento', 50, 5, 70, 8, 70, ?)""",
             (cat_dep["id_categoria_producto"], id_tipo_ent),
         ) if id_tipo_ent else fetch_one("SELECT id_producto FROM producto WHERE codigo = 'CAMISETA-ENT'")
         id_prod = prod["id_producto"] if prod else None

@@ -29,11 +29,12 @@ def test_express_nuevo_completo_con_uniforme():
         assert prod["stock_actual"] == 49
 
 
-def test_express_nuevo_monto_default_120():
+def test_express_nuevo_monto_default_tarifa():
+    # Fase 4: el default NUEVO lo manda la tarifa Inscripción (seed 150)
     ok, msg, ids = matricula_service.matricula_express(_base(dni="72727272", monto=None))
     assert ok, msg
     mat = matricula_repository.obtener_por_id(ids["id_matricula"])
-    assert float(mat["monto_pactado"]) == 120.0
+    assert float(mat["monto_pactado"]) == 150.0
 
 
 def test_express_antiguo_sin_uniforme_y_monto_obligatorio():
