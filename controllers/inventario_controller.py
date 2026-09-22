@@ -71,6 +71,10 @@ def listar_productos(activo: int | None = None) -> list[dict]:
     return inventario_service.listar_productos(activo=activo)
 
 
+def listar_por_canal(canal: str, activo: int | None = None) -> list[dict]:
+    return inventario_service.listar_por_canal(canal, activo=activo)
+
+
 def obtener_bajo_stock() -> list[dict]:
     return inventario_service.obtener_bajo_stock()
 

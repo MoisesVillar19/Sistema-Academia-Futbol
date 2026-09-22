@@ -6,8 +6,14 @@ from widgets.pagination import PaginationBar
 
 
 class InventarioView(ctk.CTkFrame):
-    def __init__(self, parent):
+    # Fase 6b: canal None = vista legacy completa (compat); "TIENDITA" o
+    # "ALMACEN" = vista estanca (tabs y listas filtradas, sin cruce).
+    CANAL_TITULOS = {None: "Inventario de Productos", "TIENDITA": "Tiendita",
+                     "ALMACEN": "Almacén"}
+
+    def __init__(self, parent, canal=None):
         super().__init__(parent, fg_color="transparent")
+        self._canal = canal
         self._categorias_map = {}
         self._productos_map = {}
         self._pagina = 1
@@ -24,8 +30,10 @@ class InventarioView(ctk.CTkFrame):
         self._cargar_productos()
         # A1: el combo de compra quedaba en "Cargando..." hasta la primera
         # compra; el de movimiento hasta el primer uso. Cargar al instanciar.
-        self._cargar_productos_compra()
-        self._cargar_combo_productos()
+        if self.tab_compra is not None:
+            self._cargar_productos_compra()
+        if self.tab_movimiento is not None:
+            self._cargar_combo_productos()
         self._bus_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_actual())
         event_bus.subscribe("producto_actualizado", self._bus_handler)
 
@@ -44,28 +52,49 @@ class InventarioView(ctk.CTkFrame):
             pass
         super().destroy()
 
+    def _tabs_para_canal(self):
+        # Tiendita: sin Movimiento ni Historial (stock vía Compras/Ventas).
+        # Almacén: sin Ventas (se agregan en TienditaView aparte).
+        if self._canal == "TIENDITA":
+            return ["Productos", "Registrar Producto", "Registrar Compra"]
+        if self._canal == "ALMACEN":
+            return ["Productos", "Registrar Producto", "Registrar Compra",
+                    "Movimiento", "Historial"]
+        return ["Productos", "Categorías", "Registrar Producto",
+                "Registrar Compra", "Movimiento", "Historial"]
+
     def _crear_widgets(self):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.tab_productos = self.tabview.add("Productos")
-        self.tab_categorias = self.tabview.add("Categorías")
-        self.tab_form = self.tabview.add("Registrar Producto")
-        self.tab_compra = self.tabview.add("Registrar Compra")
-        self.tab_movimiento = self.tabview.add("Movimiento")
-        self.tab_historial = self.tabview.add("Historial")
+        self._tabs = {}
+        for nombre in self._tabs_para_canal():
+            self._tabs[nombre] = self.tabview.add(nombre)
+        self.tab_productos = self._tabs.get("Productos")
+        self.tab_categorias = self._tabs.get("Categorías")
+        self.tab_form = self._tabs.get("Registrar Producto")
+        self.tab_compra = self._tabs.get("Registrar Compra")
+        self.tab_movimiento = self._tabs.get("Movimiento")
+        self.tab_historial = self._tabs.get("Historial")
 
-        self._crear_tab_productos()
-        self._crear_tab_categorias()
-        self._crear_tab_formulario()
-        self._crear_tab_compra()
-        self._crear_tab_movimiento()
-        self._crear_tab_historial()
+        if self.tab_productos is not None:
+            self._crear_tab_productos()
+        if self.tab_categorias is not None:
+            self._crear_tab_categorias()
+        if self.tab_form is not None:
+            self._crear_tab_formulario()
+        if self.tab_compra is not None:
+            self._crear_tab_compra()
+        if self.tab_movimiento is not None:
+            self._crear_tab_movimiento()
+        if self.tab_historial is not None:
+            self._crear_tab_historial()
 
     def _crear_tab_productos(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
         sec_titulo = crear_seccion(
-            self.tab_productos, titulo="Inventario de Productos", icono="📦",
+            self.tab_productos, titulo=self.CANAL_TITULOS.get(self._canal, "Inventario de Productos"),
+            icono="📦",
             descripcion="Stock, precios y movimientos. Clic en ▾ Ver detalle para valorizado, categoría y tallas.",
             nro=1,
         )
@@ -410,12 +439,15 @@ class InventarioView(ctk.CTkFrame):
             self.entry_compra_cant.delete(0, "end")
             self.entry_compra_monto.delete(0, "end")
             self._cargar_productos()
-            self._cargar_combo_productos()
+            if self.tab_movimiento is not None:
+                self._cargar_combo_productos()
             self._cargar_productos_compra()
 
     def _cargar_productos_compra(self):
         try:
             prods = inventario_controller.listar_productos(activo=1)
+            if self._canal is not None:
+                prods = [p for p in prods if p.get("canal") == self._canal]
         except Exception:
             prods = []
         nombres = [f"{p.get('codigo','')} - {p.get('nombre','')}" for p in prods]
@@ -524,13 +556,15 @@ class InventarioView(ctk.CTkFrame):
             offset = (self._pagina - 1) * self._per_page
             rows, total = producto_repository.buscar_paginado(
                 q=self._q_actual, limit=self._per_page, offset=offset,
-                id_categoria_producto=cat_id)
+                id_categoria_producto=cat_id, canal=self._canal)
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
         except Exception:
             from utils.busqueda import coincide as _coincide
             todos = inventario_controller.listar_productos()
+            if self._canal is not None:
+                todos = [p for p in todos if p.get("canal") == self._canal]
             if cat_id is not None:
                 todos = [p for p in todos if p.get("id_categoria_producto") == cat_id]
             if self._q_actual:
@@ -676,11 +710,14 @@ class InventarioView(ctk.CTkFrame):
             command=lambda p=prod: self._editar_producto(p),
         ).pack(side="left", padx=2)
 
-        ctk.CTkButton(
-            botones, text="Movimiento", width=90, height=28,
-            fg_color="#7C3AED", hover_color="#6D28D9",  # Morado
-            command=lambda p=prod: self._ir_movimiento(p),
-        ).pack(side="left", padx=2)
+        # Fase 6b: sin tab Movimiento (Tiendita) no hay botón directo;
+        # el stock se mueve en Compras/Ventas.
+        if self.tab_movimiento is not None:
+            ctk.CTkButton(
+                botones, text="Movimiento", width=90, height=28,
+                fg_color="#7C3AED", hover_color="#6D28D9",  # Morado
+                command=lambda p=prod: self._ir_movimiento(p),
+            ).pack(side="left", padx=2)
 
         # ── Detalle expandible inline (mismo que la vista Tabla) ──
         toggle_btn, _, _ = agregar_detalle_expandible(
@@ -693,6 +730,13 @@ class InventarioView(ctk.CTkFrame):
         self._cargar_combo_tipos_uniforme()
         self.label_codigo.configure(text="Código: Se generará al guardar")
         self._id_producto_editando = None
+        # Fase 6b: vista estanca → canal fijo y bloqueado (no se cruza)
+        if self._canal is not None:
+            try:
+                self.combo_tipo_uso.set(self._canal)
+                self.combo_tipo_uso.configure(state="disabled")
+            except Exception:
+                pass
         try:
             self.entry_stock_inicial.configure(state="normal")
         except Exception:
@@ -802,6 +846,10 @@ class InventarioView(ctk.CTkFrame):
         if cat_selection in self._categorias_map:
             data["id_categoria_producto"] = self._categorias_map[cat_selection]
 
+        # Fase 6b: en vista estanca el canal no se negocia (combo bloqueado)
+        if self._canal is not None:
+            data["canal"] = self._canal
+
         if self._id_producto_editando:
             exito, msg = inventario_controller.editar_producto(self._id_producto_editando, data)
         else:
@@ -867,6 +915,8 @@ class InventarioView(ctk.CTkFrame):
         self.seg_categoria = seg
 
     def _ir_movimiento(self, prod):
+        if self.tab_movimiento is None:
+            return
         self._cargar_combo_productos()
         self.tabview.set("Movimiento")
         for key, val in self._productos_map.items():
@@ -877,6 +927,8 @@ class InventarioView(ctk.CTkFrame):
 
     def _cargar_combo_productos(self):
         productos = inventario_controller.listar_productos(activo=1)
+        if self._canal is not None:
+            productos = [p for p in productos if p.get("canal") == self._canal]
         nombres = [f"{p.get('codigo', '')} - {p.get('nombre', '')}" for p in productos]
         self.combo_producto.configure(values=nombres if nombres else ["Sin productos"])
         self._productos_map = {n: p for n, p in zip(nombres, productos)}

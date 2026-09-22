@@ -260,13 +260,15 @@ class App(ctk.CTk):
         _header("FINANZAS")
         if _can("pagos"):
             _btn("💰  Pagos", self._mostrar_pagos, indent=True)
-        if _can("ventas"):
-            _btn("🛒  Ventas", self._mostrar_ventas, indent=True)
+        # Fase 6b: Ventas vive dentro de Tiendita (sin entrada propia)
         if _can("egresos"):
             _btn("💸  Egresos", self._mostrar_egresos, indent=True)
         _header("ALMACÉN")
-        if _can("inventario"):
-            _btn("📦  Inventario", self._mostrar_inventario, indent=True)
+        # Fase 6b: split estanco (secretaria solo Tiendita, Almacén solo ADMIN)
+        if _can("tiendita"):
+            _btn("🏪  Tiendita", self._mostrar_tiendita, indent=True)
+        if _can("almacen"):
+            _btn("📦  Almacén", self._mostrar_almacen, indent=True)
         _header("ANÁLISIS")
         if _can("reportes"):
             _btn("📈  Reportes", self._mostrar_reportes, indent=True)
@@ -416,6 +418,16 @@ class App(ctk.CTk):
         self._limpiar_contenido()
         from views.inventario.inventario_view import InventarioView
         InventarioView(self.contenido).pack(fill="both", expand=True)
+
+    def _mostrar_tiendita(self):
+        self._limpiar_contenido()
+        from views.tiendita.tiendita_view import TienditaView
+        TienditaView(self.contenido).pack(fill="both", expand=True)
+
+    def _mostrar_almacen(self):
+        self._limpiar_contenido()
+        from views.almacen.almacen_view import AlmacenView
+        AlmacenView(self.contenido).pack(fill="both", expand=True)
 
     def _mostrar_importar(self):
         self._limpiar_contenido()

@@ -131,12 +131,12 @@ MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
 # Bloque D: `catalogos` = secciones 7-10 de Configuración (categorías edad,
 # tipos uniforme, conceptos, apariencia). SECRETARIA lo tiene por defecto;
 # `configuracion` (secciones 1-6 + guardar) sigue solo ADMIN.
-# Fase 0 v2: `tiendita` (SECRETARIA) y `almacen` (solo ADMIN). `inventario` se
-# mantiene hasta Fase 6 (rewire del menú), luego sale de defaults.
+# Fase 6b: `tiendita` (SECRETARIA) y `almacen` (solo ADMIN). `inventario`
+# queda legacy (sin menú) para compatibilidad de grants existentes.
 # La migración es el seed idempotente de create_db (INSERT OR IGNORE).
 PERMISOS_ROL = {
     ROLE_ADMIN: set(MODULOS_SISTEMA),
-    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "inventario", "tiendita", "reportes", "egresos", "respaldo", "tarifas", "catalogos"},
+    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "tiendita", "reportes", "egresos", "respaldo", "tarifas", "catalogos"},
 }
 
 STATUS_ACTIVO = "ACTIVO"
