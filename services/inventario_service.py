@@ -161,6 +161,7 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
     if stock_inicial > 0:
         modo = data.get("modo_compra") or data.get("metodo_pago")
         ok_m, msg_m, _ = registrar_movimiento({
+            "_via_compra": True,
             "id_producto": id_producto,
             "tipo_movimiento": "ENTRADA",
             "cantidad": stock_inicial,
@@ -323,6 +324,14 @@ def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
     return True, "Producto actualizado correctamente"
 
 
+def listar_por_canal(canal: str, activo: int | None = None) -> list[dict]:
+    """Fase 6a: lista estanca por canal (Tiendita y Almacén no cruzan datos)."""
+    from utils.validators import validate_canal
+    if not validate_canal(canal):
+        return []
+    return [p for p in listar_productos(activo=activo) if p.get("canal") == canal]
+
+
 def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     id_producto = data.get("id_producto")
     tipo_movimiento = data.get("tipo_movimiento", "")
@@ -338,6 +347,11 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     producto = producto_repository.obtener_por_id(id_producto)
     if not producto:
         return False, "Producto no encontrado", None
+
+    # Fase 6a: movimientos manuales solo en ALMACEN (Tiendita mueve stock
+    # vía Compras y Ventas). Compras pasan _via_compra=True.
+    if not data.get("_via_compra") and (producto.get("canal") or "") != "ALMACEN":
+        return False, "Use Compras o Ventas para mover stock de Tiendita", None
 
     stock_anterior = producto["stock_actual"]
 
@@ -404,6 +418,7 @@ def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
     if monto <= 0:
         return False, "Monto total debe ser mayor a 0", None
     return registrar_movimiento({
+        "_via_compra": True,
         "id_producto": data.get("id_producto"),
         "tipo_movimiento": "ENTRADA",
         "cantidad": data.get("cantidad", 0),

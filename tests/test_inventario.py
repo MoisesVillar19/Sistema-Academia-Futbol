@@ -14,10 +14,11 @@ def _crear_categoria(nombre="Categoria QA"):
 
 
 def _crear_producto(id_cat=None, codigo=None, **overrides):
+    # Fase 6a: movimientos manuales viven en ALMACEN (Tiendita usa Compras/Ventas)
     data = {
         "id_categoria_producto": id_cat or _crear_categoria(),
         "nombre": "Balon #5",
-        "canal": "TIENDITA",
+        "canal": "ALMACEN",
         "precio": 50.0,
         "stock_minimo": 2,
     }

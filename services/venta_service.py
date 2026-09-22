@@ -74,6 +74,10 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
                     raise ValueError(f"Producto {it['id_producto']} no encontrado")
                 if prod["activo"] == 0:
                     raise ValueError(f"Producto {prod['nombre']} desactivado")
+                # Fase 6a: solo Tiendita se vende (Almacén no cruza a ventas)
+                if (prod.get("canal") or "") != "TIENDITA":
+                    raise ValueError(
+                        f"Producto {prod['nombre']} es de Almacén y no se puede vender")
                 id_variante = it.get("id_variante")
                 # si hay variante, validar stock_almacen de variante, no solo producto
                 disp = prod["stock_actual"]
