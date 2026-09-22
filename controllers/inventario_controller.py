@@ -21,6 +21,16 @@ def listar_categorias(activo: int | None = None) -> list[dict]:
     return inventario_service.listar_categorias(activo=activo)
 
 
+def _avisar_producto_cambiado() -> None:
+    # Fase 6e: el evento estaba muerto (cero publish); ahora combos de
+    # Tiendita/Almacén/Ventas/Matrícula se refrescan solos.
+    try:
+        from utils import event_bus
+        event_bus.publish("producto_actualizado")
+    except Exception:
+        pass
+
+
 def crear_producto(data: dict) -> tuple[bool, str, int | None]:
     error = validate_not_empty(data.get("nombre", ""), "Nombre")
     if error:
@@ -30,14 +40,20 @@ def crear_producto(data: dict) -> tuple[bool, str, int | None]:
     if canal and not validate_canal(canal):
         return False, "Canal no válido. Use TIENDITA o ALMACEN", None
 
-    return inventario_service.crear_producto(data)
+    ok, msg, id_prod = inventario_service.crear_producto(data)
+    if ok:
+        _avisar_producto_cambiado()
+    return ok, msg, id_prod
 
 
 def editar_producto(id_producto: int, data: dict) -> tuple[bool, str]:
     canal = data.get("canal", "")
     if canal and not validate_canal(canal):
         return False, "Canal no válido. Use TIENDITA o ALMACEN"
-    return inventario_service.editar_producto(id_producto, data)
+    ok, msg = inventario_service.editar_producto(id_producto, data)
+    if ok:
+        _avisar_producto_cambiado()
+    return ok, msg
 
 
 def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
@@ -48,7 +64,10 @@ def registrar_compra(data: dict) -> tuple[bool, str, int | None]:
         data["cantidad"] = cantidad
     except (ValueError, TypeError):
         return False, "Cantidad no válida", None
-    return inventario_service.registrar_compra(data)
+    ok, msg, id_mov = inventario_service.registrar_compra(data)
+    if ok:
+        _avisar_producto_cambiado()
+    return ok, msg, id_mov
 
 
 def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
@@ -64,7 +83,10 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     except (ValueError, TypeError):
         return False, "Cantidad no válida", None
 
-    return inventario_service.registrar_movimiento(data)
+    ok, msg, id_mov = inventario_service.registrar_movimiento(data)
+    if ok:
+        _avisar_producto_cambiado()
+    return ok, msg, id_mov
 
 
 def obtener_producto(id_producto: int) -> dict | None:

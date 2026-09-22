@@ -15,11 +15,31 @@ class VentaView(ctk.CTkFrame):
         self._est_camp_map = {}
         self._est_camp_map_inv = {}
         self._tarifas_camp2_map = {}
+        self._filtro_categoria_id = None
         self._crear_widgets()
         self._cargar_productos()
         self._cargar_ventas()
         try:
             self._cargar_campeonatos()
+        except Exception:
+            pass
+        # Fase 6e: refrescar combo cuando cambian productos en Tiendita
+        from utils import event_bus
+        self._bus_handler = lambda *a, **k: self.after(200, lambda: self._recargar_productos())
+        event_bus.subscribe("producto_actualizado", self._bus_handler)
+
+    def destroy(self):
+        try:
+            from utils import event_bus
+            if hasattr(self, "_bus_handler"):
+                event_bus.unsubscribe("producto_actualizado", self._bus_handler)
+        except Exception:
+            pass
+        super().destroy()
+
+    def _recargar_productos(self):
+        try:
+            self._cargar_productos()
         except Exception:
             pass
 
@@ -60,6 +80,16 @@ class VentaView(ctk.CTkFrame):
         ctk.CTkLabel(cuerpo1, text="Producto *").pack(anchor="w")
         self.combo_producto = ctk.CTkComboBox(cuerpo1, width=400, values=["Cargando..."])
         self.combo_producto.pack(anchor="w", pady=3)
+        # Fase 6e: filtro por categoría (insumos, vestimenta, etc.)
+        self.seg_categoria = ctk.CTkSegmentedButton(
+            cuerpo1, values=["Todas"], command=self._on_filtro_categoria)
+        try:
+            self.seg_categoria.set("Todas")
+        except Exception:
+            pass
+        self.seg_categoria.pack(anchor="w", pady=3)
+        self._categorias_venta_map = {"Todas": None}
+        self._reconstruir_filtro_categorias()
         ctk.CTkLabel(cuerpo1, text="Cantidad *").pack(anchor="w")
         self.entry_cant = ctk.CTkEntry(cuerpo1, width=150, placeholder_text="1")
         self.entry_cant.pack(anchor="w", pady=3)
@@ -111,9 +141,34 @@ class VentaView(ctk.CTkFrame):
         except Exception:
             prods = [p for p in inventario_controller.listar_productos(activo=1)
                      if p.get("canal") == "TIENDITA"]
+        cat_id = getattr(self, "_filtro_categoria_id", None)
+        if cat_id is not None:
+            prods = [p for p in prods if p.get("id_categoria_producto") == cat_id]
         nombres = [f"{p['codigo']} - {p['nombre']} (S/{p.get('precio_venta', p.get('precio',0)):.2f} stock:{p['stock_actual']})" for p in prods]
         self.combo_producto.configure(values=nombres if nombres else ["Sin productos"])
         self._productos_map = {n: p for n,p in zip(nombres, prods)}
+
+    def _on_filtro_categoria(self, valor):
+        self._filtro_categoria_id = self._categorias_venta_map.get(valor)
+        self._cargar_productos()
+
+    def _reconstruir_filtro_categorias(self):
+        try:
+            cats = inventario_controller.listar_categorias(activo=1)
+        except Exception:
+            cats = []
+        nombres = [c["nombre"] for c in cats]
+        self._categorias_venta_map = {"Todas": None}
+        self._categorias_venta_map.update(
+            {c["nombre"]: c["id_categoria_producto"] for c in cats})
+        try:
+            self.seg_categoria.configure(values=["Todas"] + nombres)
+            actual = next((k for k, v in self._categorias_venta_map.items()
+                           if v == self._filtro_categoria_id), "Todas")
+            self._filtro_categoria_id = self._categorias_venta_map[actual]
+            self.seg_categoria.set(actual)
+        except Exception:
+            pass
 
     def _cargar_ventas(self):
         from utils.ui_helpers import crear_lista_vacia

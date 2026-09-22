@@ -20,6 +20,15 @@ class MatriculaView(ctk.CTkFrame):
         self._cargar_matriculas()
         self._bus_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_actual())
         event_bus.subscribe("matricula_creada", self._bus_handler)
+        # Fase 6e: refrescar extras cuando cambian productos en Tiendita
+        self._bus_prod_handler = lambda *a, **kw: self.after(200, lambda: self._recargar_productos())
+        event_bus.subscribe("producto_actualizado", self._bus_prod_handler)
+
+    def _recargar_productos(self):
+        try:
+            self._cargar_productos_matricula()
+        except Exception:
+            pass
 
     def destroy(self):
         # Sin esto cada visita acumulaba un suscriptor zombi que retenía la
@@ -27,6 +36,11 @@ class MatriculaView(ctk.CTkFrame):
         try:
             if hasattr(self, "_bus_handler"):
                 event_bus.unsubscribe("matricula_creada", self._bus_handler)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_bus_prod_handler"):
+                event_bus.unsubscribe("producto_actualizado", self._bus_prod_handler)
         except Exception:
             pass
         try:

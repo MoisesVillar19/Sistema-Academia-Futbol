@@ -14,7 +14,18 @@ class TienditaView(InventarioView):
         except Exception:
             self._agregar_tab_ventas()
 
+    def destroy(self):
+        # La VentaView embebida no recibe destroy al destruir el padre
+        # (suscriptor zombi al evento); destruirla explícito.
+        try:
+            if getattr(self, "_venta_embebida", None) is not None:
+                self._venta_embebida.destroy()
+        except Exception:
+            pass
+        super().destroy()
+
     def _agregar_tab_ventas(self):
+        self._venta_embebida = None
         try:
             self.tab_ventas = self.tabview.add("Ventas")
             self._tabs["Ventas"] = self.tab_ventas
@@ -22,7 +33,8 @@ class TienditaView(InventarioView):
             return
         try:
             from views.ventas.venta_view import VentaView
-            VentaView(self.tab_ventas).pack(fill="both", expand=True)
+            self._venta_embebida = VentaView(self.tab_ventas)
+            self._venta_embebida.pack(fill="both", expand=True)
         except Exception as e:
             ctk.CTkLabel(self.tab_ventas, text=f"No se pudo cargar Ventas: {e}",
                          text_color="red").pack(pady=20)

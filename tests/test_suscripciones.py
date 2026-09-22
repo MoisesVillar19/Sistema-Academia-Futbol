@@ -33,7 +33,8 @@ def test_matricula_inventario_desuscriben(crear_vista, usuario_admin, ctk_root):
     vm = crear_vista(MatriculaView)
     vi = crear_vista(InventarioView)
     assert _n_suscriptores("matricula_creada") == b_m + 1
-    assert _n_suscriptores("producto_actualizado") == b_i + 1
+    # Fase 6e: Matrícula también escucha producto_actualizado (extras)
+    assert _n_suscriptores("producto_actualizado") == b_i + 2
     vm.destroy()
     vi.destroy()
     ctk_root.update_idletasks()

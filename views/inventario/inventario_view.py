@@ -528,10 +528,22 @@ class InventarioView(ctk.CTkFrame):
         self.label_status_hist.pack(pady=3)
 
     def _recargar_actual(self):
+        # Fase 6e: el evento ahora sí llega (publish en controllers);
+        # refresca lista + combos + categorías.
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()
         self._cargar_productos()
+        try:
+            if self.tab_compra is not None:
+                self._cargar_productos_compra()
+            if self.tab_movimiento is not None:
+                self._cargar_combo_productos()
+            if self.tab_categorias is not None:
+                self._cargar_categorias()
+                self._cargar_combo_categorias()
+        except Exception:
+            pass
 
     def _on_page(self, page, per_page):
         self._pagina = page
