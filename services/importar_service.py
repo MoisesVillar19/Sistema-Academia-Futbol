@@ -106,6 +106,22 @@ def validar_fila(fila: dict, idx: int, mapeo: dict | None = None) -> list[str]:
         if sexo_val not in ("M", "F"):
             errores.append(f"Fila {idx}: Sexo debe ser M o F")
 
+    # Fix: Fecha_Nacimiento nunca se validaba (llegaba basura a BD)
+    fecha_nac = None
+    for nombre_archivo, nombre_sys in mapping.items():
+        if nombre_sys == "fecha_nacimiento" and nombre_archivo in fila:
+            fecha_nac = fila[nombre_archivo]
+            break
+    if fecha_nac is None:
+        for nombre_archivo in fila:
+            if nombre_archivo.upper() == "FECHA_NACIMIENTO":
+                fecha_nac = fila[nombre_archivo]
+                break
+    if fecha_nac and str(fecha_nac).strip():
+        from utils.dates import parse_date
+        if parse_date(str(fecha_nac).strip()) is None:
+            errores.append(f"Fila {idx}: Fecha_Nacimiento debe ser AAAA-MM-DD")
+
     return errores
 
 
@@ -252,6 +268,214 @@ def _importar_fila(fila: dict, mapping: dict, id_usuario: int) -> dict:
         res["asociaciones"] = 1
 
     return res
+
+
+MAPEO_TIENDA = {
+    "PRODUCTOS": "nombre",
+    "CANTIDAD": "cantidad",
+    "COSTO_TOTAL": "costo_total",
+    "COSTO_X_UNIDAD": "costo_unitario",
+    "COSTO_VENTA": "costo_venta",
+    "YAPE": "monto_yape",
+    "EFECTIVO": "monto_efectivo",
+    "P_YAPE": "monto_yape",
+    "P_EFECTIVO": "monto_efectivo",
+    "CANTIDAD_VENDIDO": "vendidas",
+    "UNIDADES_VENDIDAS": "vendidas",
+    "QUEDAN": "quedan",
+    "CATEGORIA": "categoria",
+    "FECHA": "fecha",
+}
+
+CAMPOS_OBLIGATORIOS_TIENDA = ["PRODUCTOS"]
+
+
+def _numf(valor, defecto=0.0) -> float:
+    try:
+        txt = str(valor or "").strip().replace("s/", "").replace("S/", "").replace(",", "")
+        return float(txt or defecto)
+    except (ValueError, TypeError):
+        return float("nan")
+
+
+def _numi(valor, defecto=0) -> int:
+    try:
+        txt = str(valor or "").strip().replace("s/", "").replace("S/", "")
+        if txt == "":
+            return defecto
+        return int(float(txt))
+    except (ValueError, TypeError):
+        return -1
+
+
+def validar_fila_tienda(fila: dict, idx: int, mapeo: dict | None = None) -> list[str]:
+    errores = []
+    mapping = mapeo or MAPEO_TIENDA
+
+    def _norm(cab):
+        return str(cab or "").upper().replace(" ", "_")
+
+    def _campo(*nombres):
+        for nombre_archivo, nombre_sys in mapping.items():
+            if nombre_sys in nombres and nombre_archivo in fila:
+                return fila[nombre_archivo]
+        # fallback: cabecera del archivo (con o sin espacios) → sys vía MAPEO
+        rev = {_norm(k): v for k, v in mapping.items()}
+        for nombre_archivo in fila:
+            if rev.get(_norm(nombre_archivo)) in nombres:
+                return fila[nombre_archivo]
+        # último recurso: la cabecera ya es el nombre sys
+        for nombre_archivo in fila:
+            if _norm(nombre_archivo) in {n.upper() for n in nombres}:
+                return fila[nombre_archivo]
+        return ""
+
+    nombre = str(_campo("nombre") or "").strip()
+    if not nombre:
+        errores.append(f"Fila {idx}: PRODUCTOS es obligatorio")
+        return errores
+    cantidad = _numi(_campo("cantidad"))
+    total = _numf(_campo("costo_total"))
+    venta = _numf(_campo("costo_venta"))
+    yape = _numf(_campo("monto_yape"))
+    efec = _numf(_campo("monto_efectivo"))
+    vendidas = _numi(_campo("vendidas"))
+    quedan_raw = _campo("quedan")
+    for etiqueta, v in (("CANTIDAD", cantidad), ("VENDIDAS", vendidas)):
+        if v < 0:
+            errores.append(f"Fila {idx}: {etiqueta} debe ser número ≥ 0")
+    for etiqueta, v in (("COSTO TOTAL", total), ("COSTO VENTA", venta),
+                        ("YAPE", yape), ("EFECTIVO", efec)):
+        if v != v or v < 0:  # NaN o negativo
+            errores.append(f"Fila {idx}: {etiqueta} debe ser número ≥ 0")
+    if not errores and vendidas > cantidad:
+        errores.append(f"Fila {idx}: VENDIDAS ({vendidas}) > CANTIDAD ({cantidad})")
+    if not errores and cantidad > 0 and total <= 0:
+        errores.append(f"Fila {idx}: con CANTIDAD se exige COSTO TOTAL > 0")
+    if not errores and str(quedan_raw or "").strip() != "":
+        quedan = _numi(quedan_raw)
+        if quedan != cantidad - vendidas:
+            errores.append(f"Fila {idx}: QUEDAN ({quedan}) ≠ CANTIDAD−VENDIDAS ({cantidad - vendidas})")
+    return errores
+
+
+def validar_filas_tienda(filas: list[dict], mapeo: dict | None = None) -> tuple[bool, str, list[str]]:
+    todos = []
+    vistos = set()
+    mapping = mapeo or MAPEO_TIENDA
+    for idx, fila in enumerate(filas, 1):
+        todos.extend(validar_fila_tienda(fila, idx, mapeo))
+        nombre = ""
+        for na, ns in mapping.items():
+            if ns == "nombre" and na in fila:
+                nombre = str(fila[na]).strip().lower()
+        if nombre:
+            if nombre in vistos:
+                todos.append(f"Fila {idx}: producto duplicado en el archivo")
+            vistos.add(nombre)
+    if todos:
+        return False, f"{len(todos)} errores encontrados", todos
+    return True, "Validación correcta", []
+
+
+def _asegurar_categoria_tienda(nombre: str) -> int:
+    from repositories import categoria_producto_repository
+    from models.categoria_producto import CategoriaProducto
+    nombre = (nombre or "").strip() or "TIENDA"
+    row = categoria_producto_repository.obtener_todas()
+    for c in row:
+        if c["nombre"].lower() == nombre.lower():
+            return c["id_categoria_producto"]
+    return categoria_producto_repository.insertar(CategoriaProducto(nombre=nombre))
+
+
+def importar_tienda(filas: list[dict], id_usuario: int = 1,
+                    mapeo: dict | None = None) -> tuple[bool, str, dict]:
+    from database.connection import transaccion
+    from services import inventario_service, venta_service
+
+    resultados = {"productos_creados": 0, "compras": 0, "ventas": 0,
+                  "errores": [], "detalles": []}
+    mapping = mapeo or MAPEO_TIENDA
+
+    def _norm(cab):
+        return str(cab or "").upper().replace(" ", "_")
+
+    def _campo(fila, *nombres):
+        for na, ns in mapping.items():
+            if ns in nombres and na in fila:
+                return fila[na]
+        rev = {_norm(k): v for k, v in mapping.items()}
+        for na in fila:
+            if rev.get(_norm(na)) in nombres:
+                return fila[na]
+        for na in fila:
+            if _norm(na) in {n.upper() for n in nombres}:
+                return fila[na]
+        return ""
+
+    for idx, fila in enumerate(filas, 1):
+        try:
+            with transaccion():
+                nombre = str(_campo(fila, "nombre")).strip()
+                cantidad = _numi(_campo(fila, "cantidad"))
+                total = _numf(_campo(fila, "costo_total"))
+                venta_pv = _numf(_campo(fila, "costo_venta"))
+                yape = _numf(_campo(fila, "monto_yape"))
+                efec = _numf(_campo(fila, "monto_efectivo"))
+                vendidas = _numi(_campo(fila, "vendidas"))
+                fecha = str(_campo(fila, "fecha") or "").strip() or None
+                id_cat = _asegurar_categoria_tienda(str(_campo(fila, "categoria") or ""))
+                ok, msg, id_prod = inventario_service.crear_producto({
+                    "id_categoria_producto": id_cat, "nombre": nombre,
+                    "canal": "TIENDITA", "tipo_empaque": "Unidad",
+                    "precio_compra_total": total if total > 0 else None,
+                    "precio_venta": venta_pv, "stock_inicial": 0,
+                })
+                if not ok:
+                    raise ErrorFilaImportacion(msg)
+                resultados["productos_creados"] += 1
+                if cantidad > 0 and total > 0:
+                    # compra única (método EFECTIVO; el split YAPE/EFECTIVO es de ventas)
+                    ok_c, msg_c, _ = inventario_service.registrar_compra({
+                        "id_producto": id_prod, "cantidad": cantidad,
+                        "monto_total": total, "metodo_pago": "EFECTIVO",
+                        "motivo": "Importación balance tienda",
+                        "fecha_movimiento": fecha,
+                        "id_usuario": id_usuario,
+                    })
+                    if not ok_c:
+                        raise ErrorFilaImportacion(msg_c)
+                    resultados["compras"] += 1
+                if vendidas > 0:
+                    # reparte unidades por método según montos
+                    uy = round(yape / venta_pv) if venta_pv > 0 and yape > 0 else 0
+                    uy = min(max(uy, 0), vendidas)
+                    ue = vendidas - uy
+                    partes = ([("YAPE", uy)] if uy else []) + ([("EFECTIVO", ue)] if ue else [])
+                    if not partes:
+                        partes = [("EFECTIVO", vendidas)]
+                    for metodo, cant in partes:
+                        ok_v, msg_v, _ = venta_service.registrar_venta({
+                            "tipo_venta": "TIENDA", "metodo_pago": metodo,
+                            "items": [{"id_producto": id_prod, "cantidad": cant}],
+                            "fecha_venta": fecha, "id_usuario": id_usuario,
+                        })
+                        if not ok_v:
+                            raise ErrorFilaImportacion(msg_v)
+                        resultados["ventas"] += 1
+                resultados["detalles"].append(f"Fila {idx}: {nombre} importado")
+        except ErrorFilaImportacion as e:
+            resultados["errores"].append(f"Fila {idx}: {e.mensaje}")
+        except Exception as e:
+            resultados["errores"].append(f"Fila {idx}: Error inesperado - {str(e)}")
+            logger.debug(f"Importación tienda fila {idx}: {e}")
+
+    total = resultados["productos_creados"]
+    n_err = len(resultados["errores"])
+    logger.info(f"Importación tienda: {total} productos, "
+                f"{resultados['compras']} compras, {resultados['ventas']} ventas, {n_err} errores")
+    return True, f"{total} productos importados", resultados
 
 
 def obtener_campos_disponibles() -> list[str]:

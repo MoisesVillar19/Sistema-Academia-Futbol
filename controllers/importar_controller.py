@@ -41,26 +41,38 @@ def obtener_columnas(ruta_archivo: str, hoja: str | None = None) -> tuple[bool, 
     return False, "Formato no soportado", []
 
 
-def validar_datos(filas: list[dict], mapeo: dict | None = None) -> tuple[bool, str, list[str]]:
+TIPOS_IMPORTACION = ("Estudiantes", "Tienda")
+
+
+def validar_datos(filas: list[dict], mapeo: dict | None = None,
+                  tipo: str = "Estudiantes") -> tuple[bool, str, list[str]]:
     if not filas:
         return False, "No hay datos para validar", []
-
+    if tipo == "Tienda":
+        return importar_service.validar_filas_tienda(filas, mapeo)
     return importar_service.validar_filas(filas, mapeo)
 
 
-def ejecutar_importacion(filas: list[dict], mapeo: dict | None = None) -> tuple[bool, str, dict]:
+def ejecutar_importacion(filas: list[dict], mapeo: dict | None = None,
+                         tipo: str = "Estudiantes") -> tuple[bool, str, dict]:
     if not filas:
         return False, "No hay datos para importar", {}
 
     id_usuario = auth_service.id_usuario_sesion_or_system()
+    if tipo == "Tienda":
+        return importar_service.importar_tienda(filas, id_usuario, mapeo)
     return importar_service.importar_estudiantes(filas, id_usuario, mapeo)
 
 
-def obtener_campos_sistema() -> list[str]:
+def obtener_campos_sistema(tipo: str = "Estudiantes") -> list[str]:
+    if tipo == "Tienda":
+        return list(importar_service.MAPEO_TIENDA.keys())
     return importar_service.obtener_campos_disponibles()
 
 
-def obtener_campos_obligatorios() -> list[str]:
+def obtener_campos_obligatorios(tipo: str = "Estudiantes") -> list[str]:
+    if tipo == "Tienda":
+        return importar_service.CAMPOS_OBLIGATORIOS_TIENDA.copy()
     return importar_service.obtener_campos_obligatorios()
 
 

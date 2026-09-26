@@ -51,11 +51,23 @@ class ImportarView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             info_frame,
-            text="El archivo debe contener al menos: DNI, Nombres, Apellidos del estudiante.\n"
-                 "Opcionalmente puede incluir datos del apoderado (DNI_Apoderado, etc.).",
+            text="Estudiantes: DNI, Nombres, Apellidos (+ apoderado opcional).\n"
+                 "Tienda: PRODUCTOS, CANTIDAD, COSTO TOTAL, COSTO VENTA, YAPE, "
+                 "EFECTIVO, CANTIDAD VENDIDO, QUEDAN.",
             font=ctk.CTkFont(size=11),
             text_color="#666666",
         ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        self._tipo_importacion = "Estudiantes"
+        self.seg_tipo = ctk.CTkSegmentedButton(
+            info_frame, values=["Estudiantes", "Tienda"],
+            command=self._on_tipo_cambiar,
+        )
+        try:
+            self.seg_tipo.set("Estudiantes")
+        except Exception:
+            pass
+        self.seg_tipo.pack(anchor="w", padx=10, pady=(0, 10))
 
         file_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
         file_frame.pack(fill="x", padx=10, pady=10)
@@ -210,6 +222,11 @@ class ImportarView(ctk.CTkFrame):
         else:
             self.hoja_frame.pack_forget()
 
+    def _on_tipo_cambiar(self, seleccion):
+        self._tipo_importacion = seleccion
+        if self._datos_cargados:
+            self._configurar_mapeo()
+
     def _on_hoja_cambiar(self, seleccion):
         if self._archivo_actual:
             self._cargar_archivo()
@@ -291,8 +308,9 @@ class ImportarView(ctk.CTkFrame):
             return
 
         self._columnas_archivo = list(self._datos_cargados[0].keys())
-        campos_sistema = importar_controller.obtener_campos_sistema()
-        campos_obligatorios = importar_controller.obtener_campos_obligatorios()
+        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
+        campos_sistema = importar_controller.obtener_campos_sistema(tipo)
+        campos_obligatorios = importar_controller.obtener_campos_obligatorios(tipo)
 
         self._mapeo_actual = {}
 
@@ -389,7 +407,8 @@ class ImportarView(ctk.CTkFrame):
         self.update_idletasks()
 
         exito, msg, resultados = importar_controller.ejecutar_importacion(
-            self._datos_cargados, mapeo
+            self._datos_cargados, mapeo,
+            getattr(self, "_tipo_importacion", "Estudiantes"),
         )
 
         self._mostrar_resultados(exito, msg, resultados)
@@ -419,7 +438,11 @@ class ImportarView(ctk.CTkFrame):
             ("Estudiantes creados", resultados.get("estudiantes_creados", 0)),
             ("Apoderados creados", resultados.get("apoderados_creados", 0)),
             ("Asociaciones creadas", resultados.get("asociaciones_creadas", 0)),
+            ("Productos creados", resultados.get("productos_creados", 0)),
+            ("Compras registradas", resultados.get("compras", 0)),
+            ("Ventas registradas", resultados.get("ventas", 0)),
         ]
+        stats = [(k, v) for k, v in stats if v]
 
         for label, valor in stats:
             row = ctk.CTkFrame(stats_frame, fg_color="transparent")
