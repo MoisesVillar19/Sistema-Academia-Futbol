@@ -78,3 +78,25 @@ def obtener_campos_obligatorios(tipo: str = "Estudiantes") -> list[str]:
 
 def obtener_campos_apoderado() -> list[str]:
     return importar_service.obtener_campos_apoderado()
+
+
+def importar_historial_excel(ruta: str) -> tuple[bool, str, dict]:
+    """Historial Roncalli (RELACIÓN+INGRESOS+VENTA). Solo ADMIN, atómico por fila."""
+    if not puede_acceder():
+        return False, "Acceso denegado. Solo administradores.", {}
+    import os
+    if not ruta or not os.path.isfile(ruta):
+        return False, "Archivo no encontrado", {}
+    from services import importar_historial
+    id_usuario = auth_service.id_usuario_sesion_or_system()
+    try:
+        res = importar_historial.importar_historial_excel(ruta, id_usuario)
+    except Exception as e:
+        logger.error(f"Error en importación histórica: {e}")
+        return False, f"Error en importación histórica: {e}", {}
+    n_err = len(res.get("errores", []))
+    msg = (f"Histórico importado: {res.get('estudiantes', 0)} estudiantes, "
+           f"{res.get('matriculas', 0)} matrículas, {res.get('pagos', 0)} pagos, "
+           f"{res.get('ventas', 0)} ventas. Errores: {n_err}. "
+           f"Revisión manual: {len(res.get('revision', []))} casos.")
+    return True, msg, res

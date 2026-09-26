@@ -210,6 +210,23 @@ def obtener_cuotas_pendientes(id_matricula: int) -> list[dict]:
     return cuota_repository.obtener_pendientes_por_matricula(id_matricula)
 
 
+def anular_cuota(id_cuota: int, motivo: str = "") -> tuple[bool, str]:
+    """Anula cuota pendiente sin pagos (importación histórica). No toca pagadas."""
+    from models.cuota import Cuota
+    from services import auditoria_service
+    cuota = cuota_repository.obtener_por_id(id_cuota)
+    if not cuota:
+        return False, "Cuota no encontrada"
+    if float(cuota.get("monto_pagado", 0) or 0) > 0:
+        return False, "La cuota ya tiene pagos"
+    obj = Cuota(**{**cuota, "activo": 0})
+    cuota_repository.actualizar(obj)
+    auditoria_service.registrar_update(
+        auditoria_service.id_usuario_sesion(), "cuota", id_cuota,
+        f"estado={cuota.get('estado')}", f"activo=0 ({motivo or 'anulación'})")
+    return True, "Cuota anulada"
+
+
 def contar_por_estado(estado: str) -> int:
     return cuota_repository.contar_por_estado(estado)
 

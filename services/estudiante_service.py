@@ -126,7 +126,8 @@ def editar_estudiante(id_estudiante: int, data: dict) -> tuple[bool, str]:
     return True, "Estudiante actualizado correctamente"
 
 
-def registrar_retiro(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str]:
+def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
+                     fecha: str | None = None) -> tuple[bool, str]:
     from repositories import matricula_repository
 
     estudiante = estudiante_repository.obtener_por_id(id_estudiante)
@@ -136,7 +137,8 @@ def registrar_retiro(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str
     if estudiante["estado"] == STATUS_RETIRADO:
         return False, "El estudiante ya está retirado"
 
-    estudiante_repository.cambiar_estado(id_estudiante, STATUS_RETIRADO, get_today())
+    estudiante_repository.cambiar_estado(
+        id_estudiante, STATUS_RETIRADO, (fecha or "").strip() or get_today())
 
     # Cerrar las matriculas activas para permitir una nueva matricula al reingresar
     for m in matricula_repository.obtener_por_estudiante(id_estudiante):
