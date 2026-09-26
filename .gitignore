@@ -49,3 +49,7 @@ dist/
 
 # Instalador
 installer/Output/
+
+# Datos de importación (nombres reales de alumnos; no versionar)
+importacion/
+*.xlsx
