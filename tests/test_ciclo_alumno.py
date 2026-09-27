@@ -19,6 +19,18 @@ def test_filtro_inactivos_vacio_y_lleno(crear_vista, usuario_admin, crear_estudi
     assert "Total: 1" in vista.label_status.cget("text")
 
 
+def test_inactivos_incluye_retirados(crear_vista, usuario_admin, crear_estudiante):
+    from views.estudiantes.estudiante_view import EstudianteView
+    from controllers import estudiante_controller
+    id_est = crear_estudiante()
+    assert estudiante_controller.registrar_retiro(id_est)[0] is True
+    vista = crear_vista(EstudianteView)
+    vista.filtro_estado.set("Inactivos")
+    vista._on_busqueda_cambiar()
+    vista.update_idletasks()
+    assert "Total: 1" in vista.label_status.cget("text")
+
+
 def test_desactivar_requiere_admin(usuario_secretaria, crear_estudiante):
     from controllers import estudiante_controller
     id_est = crear_estudiante()

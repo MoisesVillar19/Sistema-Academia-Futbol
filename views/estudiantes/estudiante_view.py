@@ -862,6 +862,12 @@ class EstudianteView(ctk.CTkFrame):
 
         if filtro_estado == "Becados":
             todos = estudiante_controller.listar_becados()
+        elif filtro_estado == "Inactivos":
+            # Inactivos = retirados + desactivados (todos los que no vienen)
+            todos = [
+                e for e in estudiante_controller.listar_estudiantes(activo=None)
+                if not e.get("activo", 1) or e.get("estado") == "RETIRADO"
+            ]
         else:
             todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
 
