@@ -495,6 +495,47 @@ class App(ctk.CTk):
             self._nav_handler = lambda tab=None, tipo=None: self.after(
                 0, lambda t=tab, ti=tipo: _ir_tarifas(t, ti))
             event_bus.subscribe("abrir_tarifas", self._nav_handler)
+            if getattr(self, "_nav_modulo_handler", None) is not None:
+                event_bus.unsubscribe("abrir_modulo", self._nav_modulo_handler)
+            self._nav_modulo_handler = lambda modulo=None, params=None: self.after(
+                0, lambda m=modulo, p=params or {}: self._ir_modulo(m, p))
+            event_bus.subscribe("abrir_modulo", self._nav_modulo_handler)
+        except Exception:
+            pass
+
+    def _ir_modulo(self, modulo, params):
+        # E3: avisos navegables al origen (mismo patrón que abrir_tarifas).
+        rutas = {
+            "pagos": (self._mostrar_pagos, "Pagos"),
+            "estudiantes": (self._mostrar_estudiantes, "Estudiantes"),
+            "matriculas": (self._mostrar_matriculas, "Matrículas"),
+            "tiendita": (self._mostrar_tiendita, "Tiendita"),
+            "almacen": (self._mostrar_almacen, "Almacén"),
+        }
+        destino = rutas.get(modulo or "")
+        if destino is None:
+            return
+        mostrar, etiqueta = destino
+        try:
+            from services import auth_service
+            if not auth_service.tiene_permiso(modulo):
+                from tkinter import messagebox
+                messagebox.showwarning(
+                    "Sin permiso", f"Tu rol no tiene acceso a {etiqueta}.")
+                return
+        except Exception:
+            pass
+        self._on_menu_click(lambda: self._mostrar_y_navegar(
+            mostrar, params or {}), etiqueta)
+
+    def _mostrar_y_navegar(self, mostrar, params):
+        mostrar()
+        try:
+            for hijo in self.contenido.winfo_children():
+                aplicar = getattr(hijo, "aplicar_navegacion", None)
+                if callable(aplicar):
+                    aplicar(params)
+                    break
         except Exception:
             pass
 

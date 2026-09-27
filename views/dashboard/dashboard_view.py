@@ -165,9 +165,9 @@ class DashboardView(ctk.CTkFrame):
                              "por_vencer": "por_vencer", "stock_bajo": "stock",
                              "sin_apoderado": "sin_apoderado"}
             for av in avisos:
-                crear_banner_avisos(
-                    b, av["texto"], None, av["severidad"],
-                    command=lambda t=_mapa_detalle.get(av["codigo"], "vencidas"): self._mostrar_detalle(t))
+                self._banner_aviso(b, av, _mapa_detalle)
+            self._bloque_omitidos(b)
+
 
         # ── Bloque 2: Academia (alumnos, matrículas, cuotas) ──
         b_acad = self._crear_bloque("Academia", "🎓", expandido=True)
@@ -244,6 +244,74 @@ class DashboardView(ctk.CTkFrame):
             font=ctk.CTkFont(size=14), text_color="gray",
         ).pack(expand=True)
 
+    def _banner_aviso(self, parent, av, mapa):
+        # E3: Ver (detalle) + Ir (origen en su módulo) + Omitir (archivar).
+        from utils.ui_helpers import crear_banner_avisos
+        marco = crear_banner_avisos(
+            parent, av["texto"], None, av["severidad"],
+            command=lambda t=mapa.get(av["codigo"], "vencidas"): self._mostrar_detalle(t))
+        try:
+            from utils import event_bus
+            ir = av.get("ir")
+            if ir:
+                ctk.CTkButton(marco, text="Ir →", width=60, height=28,
+                              fg_color="#7C3AED", hover_color="#6D28D9",
+                              command=lambda: event_bus.publish(
+                                  "abrir_modulo", modulo=ir.get("modulo"),
+                                  params=ir.get("params", {}))).pack(side="right", padx=2, pady=6)
+            ctk.CTkButton(marco, text="Omitir", width=70, height=28,
+                          fg_color="#6c757d", hover_color="#5a6268",
+                          command=lambda: self._omitir_aviso(av)).pack(side="right", padx=2, pady=6)
+        except Exception:
+            pass
+
+    def _omitir_aviso(self, av):
+        from tkinter import simpledialog
+        try:
+            motivo = simpledialog.askstring(
+                "Omitir aviso", f"{av['texto']}\n\nMotivo (se archiva, no se borra):",
+                parent=self)
+        except Exception:
+            motivo = ""
+        if motivo is None:
+            return
+        try:
+            from services import avisos_service
+            avisos_service.omitir_aviso(av["codigo"], motivo or "sin motivo")
+            self._cargar_indicadores()
+        except Exception:
+            pass
+
+    def _bloque_omitidos(self, parent):
+        try:
+            from services import avisos_service
+            omitidos = avisos_service.listar_omitidos()
+        except Exception:
+            omitidos = []
+        if not omitidos:
+            return
+        ctk.CTkLabel(parent, text=f"🗄 {len(omitidos)} aviso(s) archivado(s):",
+                     font=ctk.CTkFont(size=11), text_color="#6B5B7B").pack(
+            anchor="w", padx=10, pady=(6, 0))
+        for om in omitidos[:10]:
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(fill="x", padx=10, pady=1)
+            ctk.CTkLabel(
+                row, text=f"{om.get('codigo','')} — {om.get('motivo','')}",
+                font=ctk.CTkFont(size=11), text_color="#6B5B7B").pack(side="left")
+            ctk.CTkButton(row, text="Reactivar", width=80, height=24,
+                          fg_color="#22C55E", hover_color="#16A34A",
+                          command=lambda o=om: self._reactivar_aviso(o)).pack(side="right")
+
+    def _reactivar_aviso(self, om):
+        try:
+            from services import avisos_service
+            avisos_service.reactivar_aviso(
+                om.get("codigo", ""), om.get("origen_tipo", ""),
+                om.get("origen_id", 0))
+            self._cargar_indicadores()
+        except Exception:
+            pass
     def _crear_card(self, parent, titulo, valor, color, comando):
         # Card clickeable estilo Configuración (frame blanco, sin hover que
         # repinte). NOTA: antes era CTkButton, pero en CustomTkinter 6 el
@@ -519,6 +587,66 @@ class DashboardView(ctk.CTkFrame):
             nota_mas=f"Mostrando 30 de {len(pagos)} pagos",
         )
 
+    def _tabla_con_ir(self, columnas, filas):
+        """E3: una fila por registro = datos + botón Ir → al origen + Omitir.
+
+        filas: [(celdas, ir_params, omit_args)] donde ir_params va al evento
+        abrir_modulo y omit_args=(codigo, origen_tipo, origen_id).
+        """
+        from utils import event_bus
+        ncols = len(columnas)
+        header = ctk.CTkFrame(self.detalle_frame, fg_color="#3D1559", corner_radius=6)
+        header.pack(fill="x", padx=6, pady=(4, 2))
+        for col, (texto, ancho) in enumerate(columnas):
+            ctk.CTkLabel(header, text=texto, width=ancho,
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color="white").grid(row=0, column=col, padx=2, pady=6, sticky="w")
+        ctk.CTkLabel(header, text="", width=140).grid(
+            row=0, column=ncols, padx=2, pady=6, sticky="w")
+        for celdas, ir, om in filas[:200]:
+            row = ctk.CTkFrame(self.detalle_frame, fg_color="white", corner_radius=6)
+            row.pack(fill="x", padx=6, pady=1)
+            for col, celda in enumerate(celdas):
+                if isinstance(celda, tuple):
+                    texto, opts = celda
+                else:
+                    texto, opts = celda, {}
+                ancho = columnas[col][1] if col < ncols else 100
+                ctk.CTkLabel(row, text=str(texto), width=ancho,
+                             font=ctk.CTkFont(size=11, weight=opts.get("weight", "normal")),
+                             text_color=opts.get("text_color", "#1F0A33")).grid(
+                    row=0, column=col, padx=2, pady=4, sticky="w")
+            btns = ctk.CTkFrame(row, fg_color="transparent")
+            btns.grid(row=0, column=ncols, padx=2, pady=4, sticky="e")
+            ctk.CTkButton(btns, text="Ir →", width=55, height=24,
+                          fg_color="#7C3AED", hover_color="#6D28D9",
+                          command=lambda p=dict(ir or {}): event_bus.publish(
+                              "abrir_modulo", modulo=p.pop("modulo", ""),
+                              params=p)).pack(side="left", padx=2)
+            if om:
+                codigo, otipo, oid = om
+                ctk.CTkButton(btns, text="Omitir", width=65, height=24,
+                              fg_color="#6c757d", hover_color="#5a6268",
+                              command=lambda a=(codigo, otipo, oid): self._omitir_origen(*a)
+                              ).pack(side="left", padx=2)
+
+    def _omitir_origen(self, codigo, origen_tipo, origen_id):
+        from tkinter import simpledialog
+        try:
+            motivo = simpledialog.askstring(
+                "Omitir aviso", "Motivo (se archiva, no se borra):", parent=self)
+        except Exception:
+            motivo = ""
+        if motivo is None:
+            return
+        try:
+            from services import avisos_service
+            avisos_service.omitir_aviso(codigo, motivo or "sin motivo",
+                                        origen_tipo, origen_id)
+            self._cargar_indicadores()
+        except Exception:
+            pass
+
     def _detalle_comprobantes(self):
         from services import avisos_service
         pagos = avisos_service.listar_pagos_sin_comprobante()
@@ -530,17 +658,22 @@ class DashboardView(ctk.CTkFrame):
         if not pagos:
             ctk.CTkLabel(self.detalle_frame, text="Sin pendientes 🎉").pack(pady=10)
             return
-        crear_tabla_cards(
-            self.detalle_frame,
-            [("N° Recibo", 120), ("Estudiante", 200), ("Monto", 80), ("Método", 100), ("Fecha", 100)],
-            [[str(p.get("numero_recibo", "")),
-              f"{p.get('nombres', '')} {p.get('apellidos', '')}".strip() or "—",
-              (f"S/{_num(p.get('monto_total')):.2f}", {"text_color": "green", "weight": "bold"}),
-              str(p.get("metodo_pago", "")),
-              str(p.get("fecha_pago", ""))] for p in pagos],
-            cap=30,
-            nota_mas=f"Mostrando 30 de {len(pagos)} pagos",
-        )
+        filas = []
+        for p in pagos[:30]:
+            nombre = f"{p.get('nombres', '')} {p.get('apellidos', '')}".strip() or "—"
+            filas.append((
+                [str(p.get("numero_recibo", "")), nombre,
+                 (f"S/{_num(p.get('monto_total')):.2f}", {"text_color": "green", "weight": "bold"}),
+                 str(p.get("metodo_pago", "")), str(p.get("fecha_pago", ""))],
+                {"modulo": "pagos", "busqueda": p.get("numero_recibo", "")},
+                ("comprobantes", "pago", p.get("id_pago", 0)),
+            ))
+        self._tabla_con_ir(
+            [("N° Recibo", 120), ("Estudiante", 200), ("Monto", 80),
+             ("Método", 100), ("Fecha", 100)], filas)
+        if len(pagos) > 30:
+            ctk.CTkLabel(self.detalle_frame, text=f"Mostrando 30 de {len(pagos)} pagos",
+                         text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
 
     def _detalle_sin_apoderado(self):
         from services import avisos_service
@@ -553,16 +686,20 @@ class DashboardView(ctk.CTkFrame):
         if not mats:
             ctk.CTkLabel(self.detalle_frame, text="Sin pendientes 🎉").pack(pady=10)
             return
-        crear_tabla_cards(
-            self.detalle_frame,
-            [("Estudiante", 220), ("DNI", 100), ("Tarifa", 160), ("Inicio", 100)],
-            [[f"{m.get('nombres', '')} {m.get('apellidos', '')}".strip(),
-              str(m.get("dni", "")),
-              str(m.get("tarifa_nombre", "")),
-              str(m.get("fecha_inicio", ""))] for m in mats],
-            cap=30,
-            nota_mas=f"Mostrando 30 de {len(mats)} matrículas",
-        )
+        filas = []
+        for m in mats[:30]:
+            nombre = f"{m.get('nombres', '')} {m.get('apellidos', '')}".strip()
+            filas.append((
+                [nombre, str(m.get("dni", "")), str(m.get("tarifa_nombre", "")),
+                 str(m.get("fecha_inicio", ""))],
+                {"modulo": "estudiantes", "busqueda": nombre},
+                ("sin_apoderado", "matricula", m.get("id_matricula", 0)),
+            ))
+        self._tabla_con_ir(
+            [("Estudiante", 220), ("DNI", 100), ("Tarifa", 160), ("Inicio", 100)], filas)
+        if len(mats) > 30:
+            ctk.CTkLabel(self.detalle_frame, text=f"Mostrando 30 de {len(mats)} matrículas",
+                         text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
 
     def _detalle_ingresos_hoy(self):
         pagos = dashboard_controller.listar_pagos_hoy()
@@ -1009,17 +1146,24 @@ class DashboardView(ctk.CTkFrame):
             ctk.CTkLabel(self.detalle_frame, text="No hay productos con stock bajo").pack(pady=10)
             return
 
-        crear_tabla_cards(
-            self.detalle_frame,
-            [("Código", 80), ("Nombre", 150), ("Categoría", 120), ("Stock Actual", 90), ("Stock Mínimo", 90)],
-            [[str(p.get("codigo", "")),
-              str(p.get("nombre", "")),
-              str(p.get("categoria_nombre", "")),
-              (str(p.get("stock_actual", 0)), {"text_color": "red", "weight": "bold"}),
-              str(p.get("stock_minimo", 0))] for p in productos],
-            cap=50,
-            nota_mas=f"Mostrando 50 de {len(productos)} productos",
-        )
+        filas = []
+        for p in productos[:50]:
+            destino = ("tiendita" if (p.get("canal") or "") == "TIENDITA"
+                       else "almacen")
+            filas.append((
+                [str(p.get("codigo", "")), str(p.get("nombre", "")),
+                 str(p.get("categoria_nombre", "")),
+                 (str(p.get("stock_actual", 0)), {"text_color": "red", "weight": "bold"}),
+                 str(p.get("stock_minimo", 0))],
+                {"modulo": destino, "busqueda": p.get("nombre", "")},
+                ("stock_bajo", "producto", p.get("id_producto", 0)),
+            ))
+        self._tabla_con_ir(
+            [("Código", 80), ("Nombre", 150), ("Categoría", 120),
+             ("Stock Actual", 90), ("Stock Mínimo", 90)], filas)
+        if len(productos) > 50:
+            ctk.CTkLabel(self.detalle_frame, text=f"Mostrando 50 de {len(productos)} productos",
+                         text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
 
     def _crear_grafico_barras_simple(self, etiquetas, valores, titulo, contenedor=None, ylabel="Monto (S/)", color_fijo=None):
         if not MATPLOTLIB_DISPONIBLE or not valores:

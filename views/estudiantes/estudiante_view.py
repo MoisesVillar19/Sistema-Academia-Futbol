@@ -799,6 +799,18 @@ class EstudianteView(ctk.CTkFrame):
         ctk.CTkButton(dialog, text="Vender", command=vender).pack(pady=10)
         ctk.CTkButton(dialog, text="Omitir", fg_color="gray", command=dialog.destroy).pack()
 
+    def aplicar_navegacion(self, params):
+        # E3: llegada desde un aviso (origen).
+        params = params or {}
+        try:
+            if params.get("busqueda"):
+                self.tabview.set("Estudiantes")
+                self.entry_busqueda.delete(0, "end")
+                self.entry_busqueda.insert(0, str(params["busqueda"]))
+                self._on_busqueda_cambiar()
+        except Exception:
+            pass
+
     def _filtrar(self, valor):
         self._on_busqueda_cambiar()
 

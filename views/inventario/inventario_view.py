@@ -574,6 +574,18 @@ class InventarioView(ctk.CTkFrame):
             self.pagination.reset()
         self._cargar_paginado()
 
+    def aplicar_navegacion(self, params):
+        # E3: llegada desde un aviso (origen).
+        params = params or {}
+        try:
+            if params.get("busqueda"):
+                self.tabview.set("Productos")
+                self.entry_busqueda.delete(0, "end")
+                self.entry_busqueda.insert(0, str(params["busqueda"]))
+                self._on_busqueda_cambiar()
+        except Exception:
+            pass
+
     def _on_busqueda_cambiar(self, event=None):
         self._q_actual = self.entry_busqueda.get().strip()
         self._pagina = 1

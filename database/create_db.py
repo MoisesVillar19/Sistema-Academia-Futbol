@@ -377,6 +377,18 @@ CREATE TABLE IF NOT EXISTS concepto_item (
     cantidad INTEGER NOT NULL DEFAULT 1 CHECK(cantidad > 0),
     UNIQUE(id_concepto, id_producto)
 );
+
+CREATE TABLE IF NOT EXISTS aviso_omitido (
+    id_omitido INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL,
+    origen_tipo TEXT NOT NULL DEFAULT '',
+    origen_id INTEGER NOT NULL DEFAULT 0,
+    motivo TEXT NOT NULL DEFAULT '',
+    id_usuario INTEGER,
+    fecha TEXT NOT NULL,
+    activo INTEGER DEFAULT 1,
+    UNIQUE(codigo, origen_tipo, origen_id)
+);
 """
 
 INDEXES_SQL = """
