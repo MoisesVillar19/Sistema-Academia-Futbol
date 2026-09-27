@@ -48,6 +48,14 @@ class TarifaView(ctk.CTkFrame):
         )
         self.filtro_estado.set("Activas")
         self.filtro_estado.pack(side="left")
+        self._vista_modo = "Tabla"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Tabla")
+        except Exception:
+            pass
+        self.seg_vista.pack(side="left", padx=5)
         self.filtro_tipo = ctk.CTkSegmentedButton(
             filtros, values=["Todas", "ACADEMIA", "SERVICIO", "CAMPEONATO"],
             command=self._filtrar_tipo,
@@ -77,6 +85,14 @@ class TarifaView(ctk.CTkFrame):
         )
         crear_boton_interactivo(sec, text="+ Nueva Beca", width=130, command=self._nueva_beca,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
+        self.seg_vista_becas = ctk.CTkSegmentedButton(
+            sec, values=["Cards", "Tabla"], command=self._on_vista_becas_cambiar)
+        try:
+            self.seg_vista_becas.set("Tabla")
+        except Exception:
+            pass
+        self.seg_vista_becas.pack(anchor="e", padx=10, pady=(0, 8))
+        self._vista_modo_becas = "Tabla"
         crear_nota(sec, "En matrícula se elige 1 beca (o varias si Configuración lo permite).")
         self.scroll_becas = ctk.CTkScrollableFrame(self.tab_becas)
         self.scroll_becas.pack(fill="both", expand=True, padx=5, pady=5)
@@ -94,6 +110,10 @@ class TarifaView(ctk.CTkFrame):
         if not becas:
             crear_lista_vacia(self.scroll_becas, "No hay becas", "Crea la primera con + Nueva Beca")
             self.label_becas_status.configure(text="Total: 0")
+            return
+        if getattr(self, "_vista_modo_becas", "Tabla") == "Tabla":
+            self._render_tabla_becas(becas)
+            self.label_becas_status.configure(text=f"Total: {len(becas)} beca(s)")
             return
         for b in becas:
             card = crear_card_interactiva(self.scroll_becas)
@@ -132,6 +152,37 @@ class TarifaView(ctk.CTkFrame):
             toggle_btn, _, _ = agregar_detalle_expandible(card, _poblar)
             toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
         self.label_becas_status.configure(text=f"Total: {len(becas)} beca(s)")
+
+    def _on_vista_becas_cambiar(self, valor):
+        self._vista_modo_becas = valor
+        self._cargar_becas()
+
+    def _render_tabla_becas(self, becas):
+        from utils.ui_helpers import crear_tabla_densa, linea_detalle
+        cols = [("Beca", 200), ("Tipo", 120), ("Valor", 90), ("Estado", 100)]
+        filas, dets = [], []
+        for b in becas:
+            suf = "%" if b.get("tipo") == "PORCENTAJE" else " S/"
+            filas.append([
+                str(b.get("nombre", "")),
+                str(b.get("tipo", "")),
+                (f"{b.get('valor', 0)}{suf}", {"weight": "bold"}),
+                (("Activa", {"text_color": "green", "weight": "bold"})
+                 if b.get("activo") else ("Desactivada", {"text_color": "red"})),
+            ])
+            dets.append(lambda frame, _b=b: self._poblar_detalle_beca(frame, _b))
+        crear_tabla_densa(self.scroll_becas, cols, filas, dets, cap=100)
+        ctk.CTkLabel(self.scroll_becas, text="En Tabla solo se consulta: cambia a Cards para editar.",
+                     font=ctk.CTkFont(size=11), text_color="gray").pack(pady=4)
+
+    @staticmethod
+    def _poblar_detalle_beca(frame, b):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "ID beca", b.get("id_beca"))
+        linea_detalle(frame, "Tipo", b.get("tipo"))
+        linea_detalle(frame, "Valor", f"{b.get('valor', 0)}{'%' if b.get('tipo') == 'PORCENTAJE' else ' S/'}")
+        linea_detalle(frame, "Observación", b.get("observacion"))
+        linea_detalle(frame, "Estado", "Activa" if b.get("activo") else "Desactivada")
 
     def _crear_formulario(self):
         self.form_window = ctk.CTkToplevel(self)
@@ -296,10 +347,48 @@ class TarifaView(ctk.CTkFrame):
             self.label_status.configure(text=f"Total: 0")
             return
 
-        for t in tarifas:
-            self._crear_card(t)
+        if getattr(self, "_vista_modo", "Tabla") == "Tabla":
+            self._render_tabla_tarifas(tarifas)
+        else:
+            for t in tarifas:
+                self._crear_card(t)
 
         self.label_status.configure(text=f"Total: {len(tarifas)} tarifa(s)")
+
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._cargar_tarifas()
+        try:
+            self._cargar_becas()
+        except Exception:
+            pass
+
+    def _render_tabla_tarifas(self, tarifas):
+        from utils.ui_helpers import crear_tabla_densa, linea_detalle
+        cols = [("Tarifa", 220), ("Tipo", 110), ("Monto", 90), ("Estado", 100)]
+        filas, dets = [], []
+        for t in tarifas:
+            tipo_cat = t.get("categoria_tipo", "ACADEMIA") or "ACADEMIA"
+            filas.append([
+                f"{t.get('categoria_nombre', '')} - {t['nombre']}",
+                tipo_cat,
+                (f"S/{t['monto']:.2f}", {"weight": "bold"}),
+                (("Activa", {"text_color": "green", "weight": "bold"})
+                 if t.get("activo") else ("Desactivada", {"text_color": "red"})),
+            ])
+            dets.append(lambda frame, _t=t: self._poblar_detalle_tarifa(frame, _t))
+        crear_tabla_densa(self.scroll, cols, filas, dets, cap=100)
+        ctk.CTkLabel(self.scroll, text="En Tabla solo se consulta: cambia a Cards para editar.",
+                     font=ctk.CTkFont(size=11), text_color="gray").pack(pady=4)
+
+    @staticmethod
+    def _poblar_detalle_tarifa(frame, t):
+        from utils.ui_helpers import linea_detalle
+        linea_detalle(frame, "ID tarifa", t.get("id_tarifa"))
+        linea_detalle(frame, "Categoría", f"{t.get('categoria_nombre','')} [{t.get('categoria_tipo','ACADEMIA') or 'ACADEMIA'}]")
+        linea_detalle(frame, "Descripción", t.get("descripcion"))
+        linea_detalle(frame, "Observaciones", t.get("observaciones"))
+        linea_detalle(frame, "Estado", "Activa" if t.get("activo") else "Desactivada")
 
     def _crear_card(self, t):
         from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible, linea_detalle

@@ -608,21 +608,20 @@ class PagoView(ctk.CTkFrame):
             self.label_status_morosos.configure(text="Total: 0")
             return
 
+        from utils.ui_helpers import crear_tabla_densa
+        filas = []
         for m in morosos:
-            card = ctk.CTkFrame(self.scroll_morosos)
-            card.pack(fill="x", padx=5, pady=3)
-
-            ctk.CTkLabel(
-                card,
-                text=f"{m.get('nombres', '')} {m.get('apellidos', '')} - DNI: {m.get('dni', '')}",
-                font=ctk.CTkFont(size=13, weight="bold"),
-            ).pack(anchor="w", padx=10, pady=(5, 0))
-
-            ctk.CTkLabel(
-                card,
-                text=f"Cuota: {m.get('periodo', '')} | Venció: {m.get('fecha_vencimiento', '')} | "
-                     f"Saldo: S/{m.get('saldo', 0):.2f}",
-                font=ctk.CTkFont(size=12), text_color="red",
-            ).pack(anchor="w", padx=10, pady=(0, 5))
+            filas.append([
+                f"{m.get('nombres', '')} {m.get('apellidos', '')}".strip(),
+                str(m.get("dni", "")),
+                str(m.get("periodo", "")),
+                str(m.get("fecha_vencimiento", "")),
+                (f"S/{m.get('saldo', 0):.2f}", {"text_color": "red", "weight": "bold"}),
+            ])
+        crear_tabla_densa(
+            self.scroll_morosos,
+            [("Estudiante", 200), ("DNI", 100), ("Cuota", 90),
+             ("Venció", 100), ("Saldo", 90)],
+            filas, cap=100)
 
         self.label_status_morosos.configure(text=f"Total: {len(morosos)} cuota(s) vencida(s)")
