@@ -60,7 +60,7 @@ class ImportarView(ctk.CTkFrame):
 
         self._tipo_importacion = "Estudiantes"
         self.seg_tipo = ctk.CTkSegmentedButton(
-            info_frame, values=["Estudiantes", "Tienda"],
+            info_frame, values=["Estudiantes", "Tienda", "Historial"],
             command=self._on_tipo_cambiar,
         )
         try:
@@ -227,6 +227,9 @@ class ImportarView(ctk.CTkFrame):
         if self._datos_cargados:
             self._configurar_mapeo()
 
+    def _es_historial(self) -> bool:
+        return getattr(self, "_tipo_importacion", "Estudiantes") == "Historial"
+
     def _on_hoja_cambiar(self, seleccion):
         if self._archivo_actual:
             self._cargar_archivo()
@@ -303,6 +306,19 @@ class ImportarView(ctk.CTkFrame):
     def _configurar_mapeo(self):
         for widget in self.scroll_mapeo.winfo_children():
             widget.destroy()
+
+        if self._es_historial():
+            # El histórico es posicional por hoja (RELACIÓN/INGRESOS/VENTA);
+            # no usa mapeo de columnas.
+            ctk.CTkLabel(
+                self.scroll_mapeo,
+                text="Historial Excel: se leen las hojas RELACIÓN DE ALUMNOS, "
+                     "INGRESOS y VENTA UNIFORME directamente.\n"
+                     "No requiere mapeo. Use Vista Previa para verificar el archivo.",
+                font=ctk.CTkFont(size=11),
+                text_color="#666666",
+            ).pack(anchor="w", padx=5, pady=5)
+            return
 
         if not self._datos_cargados:
             return
@@ -385,6 +401,9 @@ class ImportarView(ctk.CTkFrame):
         return ""
 
     def _ejecutar_importacion(self):
+        if self._es_historial():
+            self._ejecutar_historial()
+            return
         if not self._datos_cargados:
             return
 
@@ -413,6 +432,26 @@ class ImportarView(ctk.CTkFrame):
 
         self._mostrar_resultados(exito, msg, resultados)
 
+    def _ejecutar_historial(self):
+        ruta = self._archivo_actual
+        if not ruta or not ruta.lower().endswith((".xlsx", ".xls")):
+            messagebox.showwarning(
+                "Historial Excel",
+                "Seleccione el archivo XLSX del historial (RELACIÓN/INGRESOS/VENTA).")
+            return
+        respuesta = messagebox.askyesno(
+            "Confirmar Importación Histórica",
+            "Se importará el historial Excel:\n"
+            "RELACIÓN (alumnos+cuotas+pagos) → INGRESOS (nuevos) → VENTA UNIFORME.\n"
+            "Cada fila es atómica. ¿Desea continuar?",
+        )
+        if not respuesta:
+            return
+        self.label_resultados.configure(text="Procesando historial...", text_color="#333333")
+        self.update_idletasks()
+        exito, msg, resultados = importar_controller.importar_historial_excel(ruta)
+        self._mostrar_resultados(exito, msg, resultados)
+
     def _mostrar_resultados(self, exito: bool, msg: str, resultados: dict):
         for widget in self.scroll_resultados.winfo_children():
             widget.destroy()
@@ -434,15 +473,17 @@ class ImportarView(ctk.CTkFrame):
         stats_frame = ctk.CTkFrame(self.scroll_resultados, fg_color="#f0f0f0", corner_radius=8)
         stats_frame.pack(fill="x", padx=5, pady=10)
 
-        stats = [
-            ("Estudiantes creados", resultados.get("estudiantes_creados", 0)),
-            ("Apoderados creados", resultados.get("apoderados_creados", 0)),
-            ("Asociaciones creadas", resultados.get("asociaciones_creadas", 0)),
-            ("Productos creados", resultados.get("productos_creados", 0)),
-            ("Compras registradas", resultados.get("compras", 0)),
-            ("Ventas registradas", resultados.get("ventas", 0)),
-        ]
-        stats = [(k, v) for k, v in stats if v]
+        etiquetas = {
+            "estudiantes": "Estudiantes creados", "estudiantes_creados": "Estudiantes creados",
+            "apoderados": "Apoderados creados", "apoderados_creados": "Apoderados creados",
+            "asociaciones": "Asociaciones creadas", "asociaciones_creadas": "Asociaciones creadas",
+            "productos": "Productos creados", "productos_creados": "Productos creados",
+            "compras": "Compras registradas", "ventas": "Ventas registradas",
+            "matriculas": "Matrículas creadas", "cuotas": "Cuotas creadas",
+            "pagos": "Pagos registrados", "becas": "Becas asignadas",
+        }
+        stats = [(etiquetas[k], v) for k, v in resultados.items()
+                 if k in etiquetas and isinstance(v, (int, float)) and v]
 
         for label, valor in stats:
             row = ctk.CTkFrame(stats_frame, fg_color="transparent")
@@ -460,6 +501,26 @@ class ImportarView(ctk.CTkFrame):
 
         errores = resultados.get("errores", [])
         detalles = resultados.get("detalles", [])
+        revision = resultados.get("revision", [])
+
+        if revision:
+            ctk.CTkLabel(
+                self.scroll_resultados, text="Revisión manual:",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#D97706",
+            ).pack(anchor="w", padx=5, pady=(10, 5))
+
+            scroll_revision = ctk.CTkScrollableFrame(
+                self.scroll_resultados, height=120,
+            )
+            scroll_revision.pack(fill="x", padx=5, pady=5)
+
+            for item in revision[:50]:
+                ctk.CTkLabel(
+                    scroll_revision, text=f"  ⚠ {item}",
+                    font=ctk.CTkFont(size=10),
+                    text_color="#D97706",
+                ).pack(anchor="w", padx=5)
 
         if detalles:
             ctk.CTkLabel(

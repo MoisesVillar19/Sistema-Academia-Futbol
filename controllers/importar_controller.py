@@ -90,6 +90,13 @@ def importar_historial_excel(ruta: str) -> tuple[bool, str, dict]:
     from services import importar_historial
     id_usuario = auth_service.id_usuario_sesion_or_system()
     try:
+        import openpyxl
+        wb = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
+        faltan = [h for h in ("RELACIÓN DE ALUMNOS", "INGRESOS", "VENTA UNIFORME")
+                  if h not in wb.sheetnames]
+        wb.close()
+        if faltan:
+            return False, f"Faltan hojas: {', '.join(faltan)}", {}
         res = importar_historial.importar_historial_excel(ruta, id_usuario)
     except Exception as e:
         logger.error(f"Error en importación histórica: {e}")
