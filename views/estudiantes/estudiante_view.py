@@ -81,6 +81,18 @@ class EstudianteView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+        # Filtro por mes de ingreso (fecha_ingreso)
+        from widgets.date_picker import DatePicker
+        self.date_ing_ini = DatePicker(filtros, label_text="Ing. desde:", default="")
+        self.date_ing_ini.pack(side="left", padx=5)
+        self.date_ing_fin = DatePicker(filtros, label_text="hasta:", default="")
+        self.date_ing_fin.pack(side="left", padx=5)
+        for dp in (self.date_ing_ini, self.date_ing_fin):
+            try:
+                dp.entry_fecha.bind("<KeyRelease>",
+                                    lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+            except Exception:
+                pass
         # Fase 7b: toggle Cards/Tabla
         self._vista_modo = "Cards"
         self.seg_vista = ctk.CTkSegmentedButton(
@@ -821,6 +833,25 @@ class EstudianteView(ctk.CTkFrame):
             todos = estudiante_controller.listar_becados()
         else:
             todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
+
+        # Filtro por rango de fecha de ingreso (vacío = sin filtro)
+        try:
+            f_ini = self.date_ing_ini.get().strip()
+            f_fin = self.date_ing_fin.get().strip()
+        except Exception:
+            f_ini, f_fin = "", ""
+        if f_ini or f_fin:
+            filtrados_fecha = []
+            for e in todos:
+                f_ing = str(e.get("fecha_ingreso", "") or "")
+                if not f_ing:
+                    continue
+                if f_ini and f_ing < f_ini:
+                    continue
+                if f_fin and f_ing > f_fin:
+                    continue
+                filtrados_fecha.append(e)
+            todos = filtrados_fecha
 
         if texto:
             filtrados = [

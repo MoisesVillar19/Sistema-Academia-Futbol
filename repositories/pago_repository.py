@@ -98,8 +98,15 @@ def sumar_por_fecha(fecha_inicio: str, fecha_fin: str) -> float:
     return row["total"] if row else 0.0
 
 
-def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
-    """Búsqueda SQL real (recibo/método/documento/nombres) con paginación."""
+def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
+                    fecha_inicio: str | None = None,
+                    fecha_fin: str | None = None) -> tuple[list[dict], int]:
+    """Búsqueda SQL real (recibo/método/documento/nombres) con paginación.
+
+    fecha_inicio/fin filtran por fecha_pago (los date pickers de la vista).
+    El viejo truco q="fecha:..a.." nunca funcionó como rango: se ignora
+    explícitamente para no ensuciar la búsqueda de texto.
+    """
     base = """
         FROM pago p
         JOIN usuario u ON p.id_usuario = u.id_usuario
@@ -111,11 +118,17 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list
         WHERE p.activo = 1
     """
     params: list = []
-    if q and q.strip():
+    if q and q.strip() and not q.strip().startswith("fecha:"):
         like = f"%{q.strip()}%"
         base += """ AND (p.numero_recibo LIKE ? OR p.metodo_pago LIKE ?
                          OR per.dni LIKE ? OR per.nombres LIKE ? OR per.apellidos LIKE ?)"""
         params.extend([like, like, like, like, like])
+    if fecha_inicio:
+        base += " AND p.fecha_pago >= ?"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        base += " AND p.fecha_pago <= ?"
+        params.append(fecha_fin)
     cnt = fetch_one(f"SELECT COUNT(DISTINCT p.id_pago) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
     rows = fetch_all(

@@ -513,6 +513,7 @@ class InventarioView(ctk.CTkFrame):
 
     def _crear_tab_historial(self):
         from utils.ui_helpers import crear_seccion, crear_boton_interactivo
+        from widgets.date_picker import DatePicker
         sec = crear_seccion(
             self.tab_historial, titulo="Historial de Movimientos", icono="📜",
             descripcion="Entradas, salidas y ajustes con usuario y fecha.",
@@ -520,6 +521,18 @@ class InventarioView(ctk.CTkFrame):
         )
         crear_boton_interactivo(sec, text="Actualizar", width=110, command=self._cargar_historial,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
+        filtros_hist = ctk.CTkFrame(sec, fg_color="transparent")
+        filtros_hist.pack(fill="x", padx=10, pady=(0, 8))
+        self.date_hist_ini = DatePicker(filtros_hist, label_text="Desde:", default="start_of_month")
+        self.date_hist_ini.pack(side="left", padx=5)
+        self.date_hist_fin = DatePicker(filtros_hist, label_text="Hasta:", default="today")
+        self.date_hist_fin.pack(side="left", padx=5)
+        crear_boton_interactivo(filtros_hist, text="Filtrar", width=90,
+                                command=self._filtrar_historial, fg_color="#7C3AED").pack(side="left", padx=5)
+        crear_boton_interactivo(filtros_hist, text="Limpiar", width=90,
+                                command=self._limpiar_filtro_historial, fg_color="#E5E7EB",
+                                hover_color="#DDD6E5", text_color="#1F0A33").pack(side="left", padx=5)
+        self._filtro_hist = None
 
         self.scroll_historial = ctk.CTkScrollableFrame(self.tab_historial)
         self.scroll_historial.pack(fill="both", expand=True, padx=5, pady=5)
@@ -1049,11 +1062,33 @@ class InventarioView(ctk.CTkFrame):
         else:
             self.label_mov_status.configure(text=msg, text_color="red")
 
+    def _filtrar_historial(self):
+        ini = self.date_hist_ini.get()
+        fin = self.date_hist_fin.get()
+        if not ini or not fin:
+            self.label_status_hist.configure(text="Selecciona ambas fechas", text_color="orange")
+            return
+        if ini > fin:
+            self.label_status_hist.configure(text="Desde debe ser anterior a Hasta", text_color="red")
+            return
+        self._filtro_hist = (ini, fin)
+        self._cargar_historial()
+
+    def _limpiar_filtro_historial(self):
+        self.date_hist_ini.delete()
+        self.date_hist_fin.delete()
+        self._filtro_hist = None
+        self._cargar_historial()
+
     def _cargar_historial(self):
         for widget in self.scroll_historial.winfo_children():
             widget.destroy()
 
-        movimientos = inventario_controller.listar_movimientos()
+        rango = getattr(self, "_filtro_hist", None)
+        if rango:
+            movimientos = inventario_controller.listar_movimientos_por_fecha(*rango)
+        else:
+            movimientos = inventario_controller.listar_movimientos()
 
         if not movimientos:
             ctk.CTkLabel(

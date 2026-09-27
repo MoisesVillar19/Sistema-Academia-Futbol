@@ -22,6 +22,8 @@ class PagoView(ctk.CTkFrame):
         self._total = 0
         self._q_actual = ""
         self._solo_pendientes = False
+        self._fecha_ini = None
+        self._fecha_fin = None
         self._crear_widgets()
         self._cargar_pagos()
         self._bus_handler = lambda *a, **k: self.after(200, lambda: self._recargar_actual())
@@ -259,10 +261,14 @@ class PagoView(ctk.CTkFrame):
             return
 
         q = self._q_actual
+        fi = getattr(self, "_fecha_ini", None)
+        ff = getattr(self, "_fecha_fin", None)
         try:
             from repositories import pago_repository
             offset = (self._pagina - 1) * self._per_page
-            rows, total = pago_repository.buscar_paginado(q=q, limit=self._per_page, offset=offset)
+            rows, total = pago_repository.buscar_paginado(
+                q=q, limit=self._per_page, offset=offset,
+                fecha_inicio=fi, fecha_fin=ff)
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
@@ -274,6 +280,10 @@ class PagoView(ctk.CTkFrame):
                     q, p.get('numero_recibo', ''), p.get('metodo_pago', ''),
                     p.get('dni', ''), p.get('nombres', ''), p.get('apellidos', ''),
                     f"{p.get('nombres', '')} {p.get('apellidos', '')}")]
+            if fi:
+                rows = [p for p in rows if str(p.get('fecha_pago', '')) >= fi]
+            if ff:
+                rows = [p for p in rows if str(p.get('fecha_pago', '')) <= ff]
             total = len(rows)
             rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             self._total = total
@@ -428,8 +438,9 @@ class PagoView(ctk.CTkFrame):
             self.label_status.configure(text="La fecha de inicio debe ser anterior a la fecha fin", text_color="red")
             return
 
-        # Usar paginación también para búsqueda por fecha
-        self._q_actual = f"fecha:{fecha_inicio}..{fecha_fin}"
+        # Rango real por fecha_pago (el viejo q="fecha:.." no filtraba nada)
+        self._fecha_ini = fecha_inicio
+        self._fecha_fin = fecha_fin
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()
@@ -439,6 +450,8 @@ class PagoView(ctk.CTkFrame):
         self.date_picker_inicio.delete()
         self.date_picker_fin.delete()
         self._q_actual = ""
+        self._fecha_ini = None
+        self._fecha_fin = None
         self._pagina = 1
         if hasattr(self, 'pagination'):
             self.pagination.reset()
