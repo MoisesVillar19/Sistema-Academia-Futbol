@@ -378,6 +378,23 @@ def validar_filas_tienda(filas: list[dict], mapeo: dict | None = None) -> tuple[
     return True, "Validación correcta", []
 
 
+def _buscar_producto_tienda(nombre: str) -> int | None:
+    import unicodedata
+    from repositories import producto_repository
+    objetivo = "".join(c for c in unicodedata.normalize(
+        "NFD", str(nombre or "").strip().upper())
+        if unicodedata.category(c) != "Mn")
+    objetivo = " ".join(objetivo.split())
+    for p in producto_repository.obtener_todos(activo=1):
+        if p.get("canal") != "TIENDITA":
+            continue
+        actual = "".join(c for c in unicodedata.normalize(
+            "NFD", str(p.get("nombre", ""))) if unicodedata.category(c) != "Mn")
+        if " ".join(actual.upper().split()) == objetivo:
+            return p["id_producto"]
+    return None
+
+
 def _asegurar_categoria_tienda(nombre: str) -> int:
     from repositories import categoria_producto_repository
     from models.categoria_producto import CategoriaProducto
@@ -426,15 +443,20 @@ def importar_tienda(filas: list[dict], id_usuario: int = 1,
                 vendidas = _numi(_campo(fila, "vendidas"))
                 fecha = str(_campo(fila, "fecha") or "").strip() or None
                 id_cat = _asegurar_categoria_tienda(str(_campo(fila, "categoria") or ""))
-                ok, msg, id_prod = inventario_service.crear_producto({
-                    "id_categoria_producto": id_cat, "nombre": nombre,
-                    "canal": "TIENDITA", "tipo_empaque": "Unidad",
-                    "precio_compra_total": total if total > 0 else None,
-                    "precio_venta": venta_pv, "stock_inicial": 0,
-                })
-                if not ok:
-                    raise ErrorFilaImportacion(msg)
-                resultados["productos_creados"] += 1
+                # reutiliza producto existente (importar varios meses no duplica)
+                id_prod = _buscar_producto_tienda(nombre)
+                if id_prod is None:
+                    ok, msg, id_prod = inventario_service.crear_producto({
+                        "id_categoria_producto": id_cat, "nombre": nombre,
+                        "canal": "TIENDITA", "tipo_empaque": "Unidad",
+                        "precio_compra_total": total if total > 0 else None,
+                        "precio_venta": venta_pv, "stock_inicial": 0,
+                    })
+                    if not ok:
+                        raise ErrorFilaImportacion(msg)
+                    resultados["productos_creados"] += 1
+                else:
+                    resultados["detalles"].append(f"Fila {idx}: {nombre} ya existía, se suma movimiento")
                 if cantidad > 0 and total > 0:
                     # compra única (método EFECTIVO; el split YAPE/EFECTIVO es de ventas)
                     ok_c, msg_c, _ = inventario_service.registrar_compra({

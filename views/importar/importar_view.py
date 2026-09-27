@@ -80,6 +80,31 @@ class ImportarView(ctk.CTkFrame):
             command=self._cargar_archivo,
             fg_color="#7C3AED")
         self.btn_cargar.pack(side="left", padx=10)
+        crear_boton_interactivo(
+            file_frame, text="Descargar plantilla", width=160,
+            command=self._descargar_plantilla,
+            fg_color="#E5E7EB", hover_color="#DDD6E5",
+            text_color="#1F0A33").pack(side="left", padx=10)
+
+    def _descargar_plantilla(self):
+        from tkinter import filedialog, messagebox
+        from services import importar_plantillas
+        tipos = importar_plantillas.listar_plantillas()
+        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
+        if tipo not in tipos:
+            tipo = "Estudiantes"
+        ruta = filedialog.asksaveasfilename(
+            title=f"Plantilla {tipo}",
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv")],
+            initialfile=f"plantilla_{tipo.lower()}.csv")
+        if not ruta:
+            return
+        ok, msg = importar_plantillas.generar_csv(tipo, ruta)
+        if ok:
+            messagebox.showinfo("Plantilla", msg)
+        else:
+            messagebox.showerror("Plantilla", msg)
 
         self.hoja_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
         self.hoja_frame.pack(fill="x", padx=10, pady=5)
@@ -586,6 +611,21 @@ class ImportarView(ctk.CTkFrame):
             combo.pack(side="left", padx=5)
             self._mapeo_actual[col_archivo] = combo
 
+        # Resumen de mapeadas + faltantes (visibilidad del mapeo automático)
+        auto = [(c, self._mapeo_actual[c].get()) for c in self._columnas_archivo]
+        auto = [(c, v) for c, v in auto if v and v != "(No importar)"]
+        sys_ok = {v for _, v in auto}
+        faltan = [o for o in campos_obligatorios
+                  if o not in sys_ok and o.upper() not in sys_ok]
+        txt = "Mapeadas: " + (", ".join(f"{c}→{v}" for c, v in auto) if auto else "ninguna")
+        color = "#22C55E" if not faltan else "#DC2626"
+        if faltan:
+            txt += f"  |  Faltan obligatorios: {', '.join(faltan)} (usa plantilla o corrige)"
+        self.label_mapeo_resumen = ctk.CTkLabel(
+            self.scroll_mapeo, text=txt, font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=color, wraplength=700, justify="left")
+        self.label_mapeo_resumen.pack(anchor="w", padx=5, pady=8)
+
     def _sugerir_mapeo(self, col_archivo: str, campos_sistema: list[str]) -> str:
         col_upper = col_archivo.upper().replace(" ", "_")
 
@@ -650,6 +690,25 @@ class ImportarView(ctk.CTkFrame):
         )
 
         self._mostrar_resultados(exito, msg, resultados)
+        self._avisar_resultado(exito, msg, resultados)
+
+    def _avisar_resultado(self, exito: bool, msg: str, resultados: dict):
+        # Nunca silencioso: toda ejecución termina en messagebox con conteos
+        n_err = len(resultados.get("errores", []))
+        n_rev = len(resultados.get("revision", []))
+        detalle = f"\n\nErrores: {n_err}."
+        if n_rev:
+            detalle += f"\nRevisión manual: {n_rev} caso(s) (ver Resultados)."
+        try:
+            self.tabview.set("Resultados")
+        except Exception:
+            pass
+        if exito and not n_err:
+            messagebox.showinfo("Importación", f"{msg}{detalle}")
+        elif exito:
+            messagebox.showwarning("Importación parcial", f"{msg}{detalle}")
+        else:
+            messagebox.showerror("Importación", f"{msg}{detalle}")
 
     def _ejecutar_historial(self):
         ruta = self._archivo_actual
@@ -670,6 +729,7 @@ class ImportarView(ctk.CTkFrame):
         self.update_idletasks()
         exito, msg, resultados = importar_controller.importar_historial_excel(ruta)
         self._mostrar_resultados(exito, msg, resultados)
+        self._avisar_resultado(exito, msg, resultados)
 
     def _mostrar_resultados(self, exito: bool, msg: str, resultados: dict):
         for widget in self.scroll_resultados.winfo_children():

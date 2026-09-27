@@ -149,3 +149,45 @@ Nuevo tipo "Tienda" en Importar (ADMIN, con mapeo + preview existentes):
 
 C (pequeño) → A (mediano) → B+D (mediano-grande), tests y commit por bloque,
 suite verde al cierre.
+
+## Ronda importación directa (2026-09-27, ejecutada)
+
+- Flujo automático: Cargar → Revisión validada sin clickear tabs; wizard
+  estricto por pasos; override de tipo solo si no detecta.
+- Bulk estilo Windows: Omitir/Generar/Corregir para todos + banner de
+  sugerencia + checkbox DNI provisional.
+- Plantillas descargables (`services/importar_plantillas.py`): Estudiantes,
+  Tienda (+Pagos/Productos/Compras a futuro sin tocar UI).
+- Normalizador (`tools/normalizar_roncalli.py`): relee el XLSX y genera
+  `importacion/normalizados/` con columnas de plantilla (MAYO fusionado,
+  AGOSTO posicional, duplicados fusionados, QUEDAN recalculado). Los 4 CSVs
+  validan limpio contra el importador.
+- Productos reutilizados entre meses (no duplica).
+- Mapeo visible (De→A + faltantes) + messagebox final siempre (éxito/parcial/error).
+- Docs de esquema y auditorías previas en este mismo archivo.
+
+## Dónde está cada cosa (índice)
+
+- Flujos: `services/importar_service.py` (Estudiantes/Tienda),
+  `services/importar_historial.py` (RELACIÓN/INGRESOS/VENTA),
+  `services/importar_revision.py` (hallazgos+resoluciones),
+  `services/importar_plantillas.py` (plantillas).
+- UI: `views/importar/importar_view.py` (wizard, preview paginado, revisión,
+  resultados+revisión manual). Permiso: `controllers/importar_controller.py`.
+- Parsers: `utils/csv_parser.py`, `utils/excel_parser.py`.
+- Datos (NO versionados): `INFORMACION ACADEMIA RONCALLI.xlsx` (raíz),
+  `importacion/*.csv` (fieles), `importacion/normalizados/*.csv` (listos).
+- Herramientas: `tools/excel_a_csv.py` (fiel), `tools/normalizar_roncalli.py`.
+- Tests: `tests/test_importar*.py` (7 archivos).
+- Precios/becas/grilla usados por el import: `services/matricula_service.py`,
+  `services/cuota_service.py`, `views/matriculas/matricula_view.py` (tab Año).
+
+## Propuesta: documentación por módulos (futura)
+
+Hoy hay ~25 md sueltos en `docs/` (sistema/desarrollo/despliegue/testing/manuales).
+Propuesta sin romper nada: mantener `docs/sistema/` (fuente de verdad) y crear
+`docs/modulos/<modulo>.md` (estudiantes, pagos, matricula, tiendita, inventario,
+ventas, egresos, tarifas, importar, dashboard, reportes, usuarios, configuracion,
+auditoria) con: qué hace, reglas RN, flujos UI, seeds/tarifas, tests y releases
+que lo tocaron. Los docs de desarrollo pasarían a `docs/historial/` como bitácora.
+Ejecutarlo es 1 tarea de reordenamiento con índice en `docs/README.md`.
