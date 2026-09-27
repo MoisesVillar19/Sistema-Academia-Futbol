@@ -71,6 +71,26 @@ def obtener_todos(activo: int | None = None, estado=None) -> list[dict]:
     return fetch_all(sql, tuple(params))
 
 
+def obtener_becados(activo: int | None = 1) -> list[dict]:
+    """Estudiantes con beca activa en matrícula, con nombre de beca (filtro Becados)."""
+    sql = """
+        SELECT DISTINCT e.*, p.dni, p.nombres, p.apellidos, p.fecha_nacimiento,
+               p.sexo, p.telefono, p.correo, b.nombre AS beca_nombre,
+               b.tipo AS beca_tipo, b.valor AS beca_valor
+        FROM estudiante e
+        JOIN persona p ON e.id_persona = p.id_persona
+        JOIN matricula m ON m.id_estudiante = e.id_estudiante AND m.activo = 1
+        JOIN matricula_beca mb ON mb.id_matricula = m.id_matricula AND mb.activo = 1
+        JOIN beca b ON b.id_beca = mb.id_beca AND b.activo = 1
+    """
+    params: list = []
+    if activo is not None:
+        sql += " WHERE e.activo = ?"
+        params.append(activo)
+    sql += " ORDER BY p.apellidos, p.nombres"
+    return fetch_all(sql, tuple(params))
+
+
 def obtener_por_id_con_persona(id_estudiante: int) -> dict | None:
     return fetch_one(
         """SELECT e.*, p.dni, p.nombres, p.apellidos, p.fecha_nacimiento,

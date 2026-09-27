@@ -225,6 +225,10 @@ def listar_estudiantes(activo: int | None = None, estado: str | None = None) -> 
     return estudiante_repository.obtener_todos(activo=activo, estado=estado)
 
 
+def listar_becados() -> list[dict]:
+    return estudiante_repository.obtener_becados(activo=1)
+
+
 def obtener_estudiante(id_estudiante: int) -> dict | None:
     return estudiante_repository.obtener_por_id_con_persona(id_estudiante)
 

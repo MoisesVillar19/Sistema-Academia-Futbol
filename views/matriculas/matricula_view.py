@@ -819,6 +819,12 @@ class MatriculaView(ctk.CTkFrame):
         from services import cuota_service
         for w in self.scroll_grilla.winfo_children():
             w.destroy()
+        # Becados marcados en el nombre (grilla = relación general)
+        try:
+            from controllers import estudiante_controller
+            becados = {b.get("dni", "") for b in estudiante_controller.listar_becados()}
+        except Exception:
+            becados = set()
         try:
             anio = int(self.combo_grilla_anio.get())
         except (ValueError, TypeError):
@@ -844,7 +850,9 @@ class MatriculaView(ctk.CTkFrame):
         for f in filas:
             row = ctk.CTkFrame(self.scroll_grilla, fg_color="white", corner_radius=6)
             row.pack(fill="x", padx=6, pady=1)
-            ctk.CTkLabel(row, text=f["nombre"], width=220,
+            nombre_grilla = (f"🎓 {f['nombre']}" if f.get("dni", "") in becados
+                             else f["nombre"])
+            ctk.CTkLabel(row, text=nombre_grilla, width=220,
                          font=ctk.CTkFont(size=11), text_color="#1F0A33").grid(
                 row=0, column=0, padx=2, pady=4, sticky="w")
             for j in range(1, 13):

@@ -74,6 +74,10 @@ def listar_estudiantes(activo: int | None = None, estado: str | None = None) -> 
     return estudiante_service.listar_estudiantes(activo=activo, estado=estado)
 
 
+def listar_becados() -> list[dict]:
+    return estudiante_service.listar_becados()
+
+
 def obtener_estudiante(id_estudiante: int) -> dict | None:
     return estudiante_service.obtener_estudiante(id_estudiante)
 

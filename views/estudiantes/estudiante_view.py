@@ -68,7 +68,7 @@ class EstudianteView(ctk.CTkFrame):
         filtros.pack(fill="x", padx=10, pady=(0, 8))
 
         self.filtro_estado = ctk.CTkSegmentedButton(
-            filtros, values=["Todos", "Activos", "Retirados", "Reingresantes"],
+            filtros, values=["Todos", "Activos", "Retirados", "Reingresantes", "Becados"],
             command=self._filtrar,
         )
         self.filtro_estado.set("Activos")
@@ -333,6 +333,8 @@ class EstudianteView(ctk.CTkFrame):
             info, text=f"DNI: {est.get('dni', '')}  |  Estado: {estado}",
             font=ctk.CTkFont(size=12), text_color="#6B5B7B",
         ).pack(anchor="w")
+        if est.get("beca_nombre"):
+            ctk.CTkLabel(info, text=f"🎓 {est.get('beca_nombre')}", font=ctk.CTkFont(size=11, weight="bold"), text_color="#D97706").pack(anchor="w")
         if int(est.get("es_nuevo", 0) or 0) == 1:
             ctk.CTkLabel(info, text="🆕 NUEVO • Regala Camiseta S/0 en 1ª matrícula", font=ctk.CTkFont(size=11, weight="bold"), text_color="#7C3AED").pack(anchor="w")
         # Mostrar foto thumbnail grande si existe (RN-041) — Pillow 12.3 ya en requirements
@@ -408,6 +410,8 @@ class EstudianteView(ctk.CTkFrame):
         linea_detalle(frame, "Edad", est.get("edad"))
         linea_detalle(frame, "Sexo", est.get("sexo"))
         linea_detalle(frame, "Carnet", est.get("carnet"))
+        if est.get("beca_nombre"):
+            linea_detalle(frame, "Beca", est.get("beca_nombre"))
         try:
             apods = estudiante_controller.obtener_apoderados_por_estudiante(est.get("id_estudiante"))
         except Exception:
@@ -428,13 +432,15 @@ class EstudianteView(ctk.CTkFrame):
 
     def _render_tabla_estudiantes(self, estudiantes):
         from utils.ui_helpers import crear_tabla_densa
-        cols = [("Estudiante", 200), ("Documento", 110), ("Estado", 110), ("Contacto", 160)]
+        cols = [("Estudiante", 190), ("Documento", 100), ("Estado", 100),
+                ("Beca", 130), ("Contacto", 140)]
         filas, dets = [], []
         for e in estudiantes:
             filas.append([
                 f"{e.get('nombres', '')} {e.get('apellidos', '')}".strip(),
                 str(e.get("dni", "")),
                 str(e.get("estado", "")),
+                str(e.get("beca_nombre", "") or "—"),
                 str(e.get("telefono", "") or "—"),
             ])
             dets.append(lambda frame, _e=e: self._poblar_detalle_estudiante(frame, _e))
@@ -811,14 +817,17 @@ class EstudianteView(ctk.CTkFrame):
             activo = 1
             estado = "REINGRESANTE"
 
-        todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
+        if filtro_estado == "Becados":
+            todos = estudiante_controller.listar_becados()
+        else:
+            todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
 
         if texto:
             filtrados = [
                 e for e in todos
                 if coincide(texto, e.get("nombres", ""), e.get("apellidos", ""),
                             f"{e.get('nombres', '')} {e.get('apellidos', '')}",
-                            e.get("dni", ""))
+                            e.get("dni", ""), e.get("beca_nombre", ""))
             ]
             self._renderizar_estudiantes(filtrados)
         else:
