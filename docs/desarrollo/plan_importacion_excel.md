@@ -18,7 +18,30 @@
   (RELACIÓN/INGRESOS/VENTA, DNI `9000000N`, C.M→enero, 100/120 temporal,
   120–150 pre-SET = NUEVO, vacío = no viene), UI Historial + Revisión visible,
   `anular_cuota`, bypass RN-042 documentado para importados.
-- Hover raíz (`8649690`): `aplicar_hover_borde` sin reflow en todas las cards.
+- Hover raíz (`8649690` + `d6c4835`): `aplicar_hover_borde` sin reflow en todas
+  las cards + debounce 80ms en salida + `bind_click_unico` (1 disparo por
+  serial; reemplaza la recursión con `add="+"` del dashboard y perfil).
+- E1 autodetección (`a18ce10`), E2 revisión con opciones (`ee9c697`),
+  E3 avisos navegables (`8f5e8c3`), E4a–c visuales (`e87a2a1`, `4abf36f`, `ff53e32`).
+- Importar: flujo automático (Cargar→Revisión sin clickear tabs), bulk
+  omitir/generar/corregir, segmentado eliminado (override solo si no detecta),
+  restyle morado, preview paginado (`467322d`).
+- Limpieza: `format_money` se conserva; resto de helpers muertos fuera.
+
+## Auditoría temporales/memoria/rendimiento (2026-09-27)
+
+- Temporales: `updater` limpia su `mkdtemp` en `finally`; logs rotan 5MB×5;
+  backups rotan 30 días; sin fugas (vistas destruidas al navegar, matplotlib
+  con `Figure` sin registro pyplot + `plt.close` al salir).
+- Módulos independientes: cada vista carga bajo demanda con paginación 50;
+  índices cubren FKs y fechas + 5 nuevos (`matricula.estudiante`,
+  `cuota.matricula`, `detalle_pago.*`, `producto.canal`).
+- Parpadeo: causa = ráfaga Enter/Leave por cruce padre↔hijo + redibujado Canvas
+  + scrollbar auto-oculto que re-empaqueta + multi-disparo de clic.
+  Fix en `utils/ui_helpers.py` (`aplicar_hover_borde` con debounce,
+  `bind_click_unico` con serial). Nota: `bind()`-query y `event_generate`
+  sintético no operan en CTk6 en este entorno; los tests usan ganchos
+  `_hover_enter/_click_unico`.
 
 ## Nuevo plan — importación unificada + revisión con opciones + avisos navegables
 
