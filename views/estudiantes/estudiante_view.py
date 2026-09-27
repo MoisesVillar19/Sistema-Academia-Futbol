@@ -268,38 +268,49 @@ class EstudianteView(ctk.CTkFrame):
         self._id_estudiante_editando = None
 
     def _crear_tab_apoderados(self):
-        header = ctk.CTkFrame(self.tab_apoderados, fg_color="transparent")
-        header.pack(fill="x", padx=5, pady=5)
-
-        ctk.CTkLabel(
-            header, text="Apoderados por Estudiante",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")
-
-        ctk.CTkButton(
-            header, text="+ Asociar", width=110,
-            command=self._asociar_apoderado,
-        ).pack(side="right")
+        from utils.ui_helpers import crear_seccion, crear_boton_interactivo
+        sec = crear_seccion(
+            self.tab_apoderados, titulo="Apoderados por Estudiante", icono="👨‍👩‍👧",
+            descripcion="Selecciona un estudiante para ver, asociar o quitar apoderados. "
+                        "El principal es obligatorio para matricular.",
+            nro=1)
+        crear_boton_interactivo(sec, text="+ Asociar", width=110,
+                                command=self._asociar_apoderado,
+                                fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
 
         self.combo_estudiante = ctk.CTkComboBox(
-            self.tab_apoderados, values=["Seleccionar estudiante..."],
+            sec, values=["Seleccionar estudiante..."],
             width=350, command=self._cargar_apoderados_estudiante,
         )
         self.combo_estudiante.set("Seleccionar estudiante...")
-        self.combo_estudiante.pack(anchor="w", padx=5, pady=5)
+        self.combo_estudiante.pack(anchor="w", padx=10, pady=5)
 
         self.entry_busqueda_apod = ctk.CTkEntry(
-            self.tab_apoderados, placeholder_text="Buscar apoderado por nombre o documento...",
+            sec, placeholder_text="Buscar apoderado por nombre o documento...",
             width=350,
         )
-        self.entry_busqueda_apod.pack(anchor="w", padx=5, pady=(0, 5))
+        self.entry_busqueda_apod.pack(anchor="w", padx=10, pady=(0, 8))
         self._debouncer_apod = Debouncer(self, 300)
         self.entry_busqueda_apod.bind("<KeyRelease>", lambda e: self._debouncer_apod.call(self._on_busqueda_apod_cambiar))
+
+        # Fase 7b-equivalente: toggle Cards/Tabla también aquí
+        self._vista_modo_apod = "Tabla"
+        self.seg_vista_apod = ctk.CTkSegmentedButton(
+            sec, values=["Cards", "Tabla"], command=self._on_vista_apod_cambiar)
+        try:
+            self.seg_vista_apod.set("Tabla")
+        except Exception:
+            pass
+        self.seg_vista_apod.pack(anchor="w", padx=10, pady=(0, 8))
 
         self.scroll_apoderados = ctk.CTkScrollableFrame(self.tab_apoderados)
         self.scroll_apoderados.pack(fill="both", expand=True, padx=5, pady=5)
 
+        self.label_apod_status = ctk.CTkLabel(self.tab_apoderados, text="", font=ctk.CTkFont(size=11))
+        self.label_apod_status.pack(pady=3)
+
         self._apoderados_actuales = []
+        self._est_apod_actual = None
         self._cargar_combo_estudiantes()
 
     def _cargar_estudiantes(self, activo=None, estado=None):
@@ -895,6 +906,9 @@ class EstudianteView(ctk.CTkFrame):
     def _cargar_apoderados_estudiante(self, selection):
         id_est = self._estudiantes_map.get(selection)
         if not id_est:
+            self._apoderados_actuales = []
+            self._id_est_apod_actual = None
+            self._renderizar_apoderados()
             return
 
         self._apoderados_actuales = estudiante_controller.obtener_apoderados_por_estudiante(id_est)
@@ -904,7 +918,12 @@ class EstudianteView(ctk.CTkFrame):
     def _on_busqueda_apod_cambiar(self, event=None):
         self._renderizar_apoderados()
 
+    def _on_vista_apod_cambiar(self, valor):
+        self._vista_modo_apod = valor
+        self._renderizar_apoderados()
+
     def _renderizar_apoderados(self):
+        from utils.ui_helpers import crear_lista_vacia, crear_card_interactiva, crear_tabla_densa
         for widget in self.scroll_apoderados.winfo_children():
             widget.destroy()
 
@@ -922,16 +941,50 @@ class EstudianteView(ctk.CTkFrame):
             ]
 
         id_est = getattr(self, "_id_est_apod_actual", None)
+        try:
+            self.label_apod_status.configure(text="")
+        except Exception:
+            pass
+        if id_est is None:
+            crear_lista_vacia(
+                self.scroll_apoderados, "Selecciona un estudiante",
+                "Elige uno en el combo de arriba para ver sus apoderados.")
+            return
         if not apoderados:
-            ctk.CTkLabel(
+            if texto:
+                crear_lista_vacia(self.scroll_apoderados, "Sin coincidencias",
+                                  "Prueba con otro nombre o documento.")
+            else:
+                crear_lista_vacia(
+                    self.scroll_apoderados, "Sin apoderados asociados",
+                    "Usa + Asociar. El principal es obligatorio para matricular.")
+            return
+
+        if getattr(self, "_vista_modo_apod", "Tabla") == "Tabla":
+            filas = []
+            for ap in apoderados:
+                tag = "PRINCIPAL" if ap.get("es_principal") else "—"
+                filas.append([
+                    f"{ap.get('nombres', '')} {ap.get('apellidos', '')}".strip(),
+                    str(ap.get("dni", "") or "—"),
+                    str(ap.get("parentesco", "") or "—"),
+                    (tag, {"weight": "bold",
+                           "text_color": "green" if ap.get("es_principal") else "gray"}),
+                ])
+            crear_tabla_densa(
                 self.scroll_apoderados,
-                text="Sin apoderados asociados" if not texto else "Sin coincidencias",
-                text_color="gray",
-            ).pack(pady=10)
+                [("Apoderado", 200), ("Documento", 110),
+                 ("Parentesco", 110), ("Rol", 100)],
+                filas, cap=100)
+            try:
+                self.label_apod_status.configure(
+                    text=f"Total: {len(apoderados)} apoderado(s) • Para quitar, cambia a Cards")
+            except Exception:
+                pass
             return
 
         for ap in apoderados:
-            card = ctk.CTkFrame(self.scroll_apoderados)
+            card = crear_card_interactiva(self.scroll_apoderados)
             card.pack(fill="x", padx=5, pady=3)
 
             principal_text = " (PRINCIPAL)" if ap.get("es_principal") else ""
@@ -946,6 +999,10 @@ class EstudianteView(ctk.CTkFrame):
                 fg_color="red", hover_color="darkred",
                 command=lambda a=ap, e=id_est: self._desasociar(e, a["id_apoderado"]),
             ).pack(side="right", padx=5, pady=5)
+        try:
+            self.label_apod_status.configure(text=f"Total: {len(apoderados)} apoderado(s)")
+        except Exception:
+            pass
 
     def _asociar_apoderado(self):
         selection = self.combo_estudiante.get()

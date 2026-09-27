@@ -10,13 +10,10 @@ class ReporteView(ctk.CTkFrame):
         self._crear_widgets()
 
     def _crear_widgets(self):
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=15, pady=(15, 5))
-
         ctk.CTkLabel(
-            header, text="Reportes",
-            font=ctk.CTkFont(size=24, weight="bold"),
-        ).pack(side="left")
+            self, text="📊  Reportes",
+            font=ctk.CTkFont(size=24, weight="bold"), text_color="#3D1559",
+        ).pack(anchor="w", padx=15, pady=(15, 5))
 
         self.contenido = ctk.CTkScrollableFrame(self)
         self.contenido.pack(fill="both", expand=True, padx=15, pady=5)
@@ -24,13 +21,14 @@ class ReporteView(ctk.CTkFrame):
         self._mostrar_lista_reportes()
 
     def _mostrar_lista_reportes(self):
+        from utils.ui_helpers import crear_card_interactiva, crear_boton_interactivo
         for widget in self.contenido.winfo_children():
             widget.destroy()
 
         reportes = reporte_controller.listar_reportes()
 
         for reporte in reportes:
-            card = ctk.CTkFrame(self.contenido)
+            card = crear_card_interactiva(self.contenido)
             card.pack(fill="x", padx=5, pady=5)
 
             info_frame = ctk.CTkFrame(card, fg_color="transparent")
@@ -38,33 +36,35 @@ class ReporteView(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 info_frame, text=reporte["nombre"],
-                font=ctk.CTkFont(size=16, weight="bold"),
+                font=ctk.CTkFont(size=16, weight="bold"), text_color="#1F0A33",
             ).pack(anchor="w")
 
             ctk.CTkLabel(
                 info_frame, text=reporte["descripcion"],
-                font=ctk.CTkFont(size=12), text_color="gray",
+                font=ctk.CTkFont(size=12), text_color="#6B5B7B",
             ).pack(anchor="w")
 
             btn_frame = ctk.CTkFrame(card, fg_color="transparent")
             btn_frame.pack(side="right", padx=10, pady=10)
 
-            ctk.CTkButton(
-                btn_frame, text="Exportar Excel", width=120,
+            crear_boton_interactivo(
+                btn_frame, text="Exportar Excel", width=130,
                 command=lambda r=reporte["id"], n=reporte["nombre"]: self._exportar(r, n),
-            ).pack(side="right")
+                fg_color="#7C3AED").pack(side="right")
 
     def _exportar(self, reporte_id, nombre_reporte):
+        from utils.ui_helpers import crear_boton_interactivo, crear_nota
         dialog = ctk.CTkToplevel(self)
         dialog.title(f"Exportar: {nombre_reporte}")
-        dialog.geometry("400x280")
+        dialog.geometry("400x340")
         dialog.transient(self)
         dialog.grab_set()
 
         ctk.CTkLabel(
             dialog, text="Seleccionar Período del Reporte",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"), text_color="#3D1559",
         ).pack(pady=(20, 10))
+        crear_nota(dialog, "El Excel respeta el rango elegido; el PDF es demo.")
 
         fecha_actual = get_today()
         mes_actual = fecha_actual[:7]
@@ -110,13 +110,13 @@ class ReporteView(ctk.CTkFrame):
 
         btn_row = ctk.CTkFrame(dialog, fg_color="transparent")
         btn_row.pack(pady=20)
-        ctk.CTkButton(
+        crear_boton_interactivo(
             btn_row, text="Seleccionar y Exportar", width=180,
-            command=confirmar,
+            command=confirmar, fg_color="#7C3AED",
         ).pack(side="left", padx=5)
-        ctk.CTkButton(
+        crear_boton_interactivo(
             btn_row, text="Cancelar", width=110, fg_color="gray",
-            command=dialog.destroy,
+            hover_color="#5a6268", command=dialog.destroy,
         ).pack(side="left", padx=5)
 
         dialog.wait_window()
