@@ -87,22 +87,29 @@ def test_click_en_interior_de_card_abre_detalle(crear_vista, usuario_admin, ctk_
             break
     assert btn is not None, "no se encontró la card Alumnos Activos"
 
-    # En CTk 6 los widgets son compuestos: el bind vive en el widget
-    # interno visible. Se dispara el evento donde hay binding real.
+    # En CTk 6 el query bind() no refleja bindings (retorna None aunque
+    # existan); se verifica el gancho _click_unico de bind_click_unico.
     con_bind = []
 
     def _buscar(w):
         try:
-            if w.bind("<Button-1>"):
+            if getattr(w, "_click_unico", None) is not None:
                 con_bind.append(w)
         except Exception:
             pass
-        for ch in w.winfo_children():
-            _buscar(ch)
+        try:
+            for ch in w.winfo_children():
+                _buscar(ch)
+        except Exception:
+            pass
 
     _buscar(btn)
     assert con_bind, "ningun widget interior de la card tiene clic"
-    con_bind[0].event_generate("<Button-1>")
+
+    class _Ev:
+        serial = 999001
+
+    con_bind[0]._click_unico(_Ev())
     ctk_root.update()
     assert vista.titulo_label.cget("text") == "Alumnos Activos", \
         f"el clic interior no abrio el detalle: {vista.titulo_label.cget('text')}"

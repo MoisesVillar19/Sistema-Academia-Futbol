@@ -410,6 +410,11 @@ CREATE INDEX IF NOT EXISTS idx_talla_codigo ON talla(codigo);
 CREATE INDEX IF NOT EXISTS idx_producto_variante_sku ON producto_variante(sku);
 CREATE INDEX IF NOT EXISTS idx_stock_almacen_producto ON stock_almacen(id_producto);
 CREATE INDEX IF NOT EXISTS idx_lote_caducidad ON lote(fecha_caducidad);
+CREATE INDEX IF NOT EXISTS idx_matricula_estudiante ON matricula(id_estudiante);
+CREATE INDEX IF NOT EXISTS idx_cuota_matricula ON cuota(id_matricula);
+CREATE INDEX IF NOT EXISTS idx_detalle_pago_cuota ON detalle_pago(id_cuota);
+CREATE INDEX IF NOT EXISTS idx_detalle_pago_pago ON detalle_pago(id_pago);
+CREATE INDEX IF NOT EXISTS idx_producto_canal ON producto(canal);
 """
 
 

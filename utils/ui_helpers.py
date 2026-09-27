@@ -48,35 +48,47 @@ def crear_boton_interactivo(parent, text, command, fg_color="#7C3AED", width=120
 
 def aplicar_hover_borde(widget, color_hover="#7C3AED", color_normal="#E5E7EB"):
     """Hover visual sin parpadeo: solo cambia border_color (mismo ancho, sin
-    reflow). La guarda winfo_containing evita el tintineo al pasar entre hijos."""
+    reflow) + debounce de 80ms en la salida (los cruces padre↔hijo generan
+    ráfagas Enter/Leave con el mouse rápido; el estado final queda correcto)."""
     try:
         widget.configure(cursor="hand2")
     except Exception:
         pass
 
+    def _cancelar():
+        try:
+            pending = getattr(widget, "_hover_after_id", None)
+            if pending is not None:
+                widget.after_cancel(pending)
+        except Exception:
+            pass
+        try:
+            widget._hover_after_id = None
+        except Exception:
+            pass
+
     def _enter(_e=None):
+        _cancelar()
         try:
             widget.configure(cursor="hand2", border_color=color_hover)
         except Exception:
             pass
 
     def _leave(_e=None):
-        try:
-            # solo restaura si el puntero salió del widget de verdad
-            dentro = widget.winfo_containing(widget.winfo_pointerx(),
-                                             widget.winfo_pointery())
-            w = dentro
-            salio = True
-            while w is not None and str(w) != ".":
-                if w == widget:
-                    salio = False
-                    break
-                try:
-                    w = w.master
-                except Exception:
-                    break
-            if salio:
+        _cancelar()
+
+        def _restaurar():
+            try:
+                widget._hover_after_id = None
+            except Exception:
+                pass
+            try:
                 widget.configure(cursor="", border_color=color_normal)
+            except Exception:
+                pass
+
+        try:
+            widget._hover_after_id = widget.after(80, _restaurar)
         except Exception:
             pass
 
@@ -88,6 +100,53 @@ def aplicar_hover_borde(widget, color_hover="#7C3AED", color_normal="#E5E7EB"):
         widget._hover_leave = _leave
     except Exception:
         pass
+    return widget
+
+
+def bind_click_unico(widget, comando):
+    """Clic en card + hijos con UN solo disparo: Tk invoca el binding en cada
+    nivel (padre e hijos) para el mismo clic físico; se deduce por e.serial."""
+    vistos = set()
+
+    def _hacer(w):
+        try:
+            key = str(w)
+        except Exception:
+            return
+        if key in vistos:
+            return
+        vistos.add(key)
+
+        def _al_clic(e=None):
+            try:
+                serial = getattr(e, "serial", None)
+            except Exception:
+                serial = None
+            raiz = widget
+            try:
+                if serial is not None and getattr(raiz, "_click_serial", None) == serial:
+                    return
+                raiz._click_serial = serial
+            except Exception:
+                pass
+            try:
+                comando()
+            except Exception:
+                pass
+
+        try:
+            w.bind("<Button-1>", _al_clic, add="+")
+            w.configure(cursor="hand2")
+            w._click_unico = _al_clic  # testeable
+        except Exception:
+            pass
+        try:
+            for hijo in w.winfo_children():
+                _hacer(hijo)
+        except Exception:
+            pass
+
+    _hacer(widget)
     return widget
 
 

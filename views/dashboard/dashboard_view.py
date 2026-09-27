@@ -313,12 +313,8 @@ class DashboardView(ctk.CTkFrame):
         except Exception:
             pass
     def _crear_card(self, parent, titulo, valor, color, comando):
-        # Card clickeable estilo Configuración (frame blanco, sin hover que
-        # repinte). NOTA: antes era CTkButton, pero en CustomTkinter 6 el
-        # botón es un compuesto (frame+canvas+label internos) que se traga
-        # los clics: solo el borde respondía. Con frame + clic propagado a
-        # TODO el interior, cualquier punto abre el detalle (sin doble
-        # disparo: los frames/labels no tienen comando nativo).
+        # Card clickeable: hover con debounce + clic único por serial
+        # (ver utils/ui_helpers). Sin doble disparo ni parpadeo.
         card = ctk.CTkFrame(
             parent, fg_color="white",
             border_width=1, border_color="#E5E7EB",
@@ -326,8 +322,9 @@ class DashboardView(ctk.CTkFrame):
         )
         card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
         try:
-            from utils.ui_helpers import aplicar_hover_borde
+            from utils.ui_helpers import aplicar_hover_borde, bind_click_unico
             aplicar_hover_borde(card)
+            bind_click_unico(card, comando)
         except Exception:
             pass
 
@@ -339,26 +336,6 @@ class DashboardView(ctk.CTkFrame):
         # sutil línea color
         ctk.CTkFrame(frame_interno, fg_color=color, height=3, corner_radius=2).pack(fill="x", padx=20, pady=(0,4))
 
-        try:
-            def _hacer_clickeable(w):
-                try:
-                    w.bind("<Button-1>", lambda e: comando(), add="+")
-                except Exception:
-                    pass
-                try:
-                    w.configure(cursor="hand2")
-                except Exception:
-                    pass
-                try:
-                    hijos = w.winfo_children()
-                except Exception:
-                    return
-                for ch in hijos:
-                    _hacer_clickeable(ch)
-            _hacer_clickeable(card)
-        except Exception:
-            pass
-
     def _crear_card_dinero(self, parent, titulo, valor_yape, valor_efectivo, color, comando):
         # Card doble línea Yape/Efectivo con clic en todo el interior
         card = ctk.CTkFrame(
@@ -368,8 +345,9 @@ class DashboardView(ctk.CTkFrame):
         )
         card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
         try:
-            from utils.ui_helpers import aplicar_hover_borde
+            from utils.ui_helpers import aplicar_hover_borde, bind_click_unico
             aplicar_hover_borde(card)
+            bind_click_unico(card, comando)
         except Exception:
             pass
 
@@ -383,26 +361,6 @@ class DashboardView(ctk.CTkFrame):
             ctk.CTkLabel(frame_interno, text=f"Yape S/{valor_yape:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 0))
             ctk.CTkLabel(frame_interno, text=f"Efectivo S/{valor_efectivo:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 2))
         ctk.CTkFrame(frame_interno, fg_color=color, height=3, corner_radius=2).pack(fill="x", padx=20, pady=(0, 4))
-
-        try:
-            def _hacer_clickeable(w):
-                try:
-                    w.bind("<Button-1>", lambda e: comando(), add="+")
-                except Exception:
-                    pass
-                try:
-                    w.configure(cursor="hand2")
-                except Exception:
-                    pass
-                try:
-                    hijos = w.winfo_children()
-                except Exception:
-                    return
-                for ch in hijos:
-                    _hacer_clickeable(ch)
-            _hacer_clickeable(card)
-        except Exception:
-            pass
 
     def _mostrar_detalle(self, tipo):
         from utils.ui_helpers import mostrar_cargando as _mc

@@ -191,29 +191,13 @@ class App(ctk.CTk):
         ctk.CTkLabel(user_frame, text=f"   {rol} • En línea  ✎", font=ctk.CTkFont(size=11), text_color="#c0c8d4", anchor="w").pack(fill="x", padx=10, pady=(0, 8))
         ctk.CTkLabel(user_frame, text="Click para editar perfil", font=ctk.CTkFont(size=10), text_color="#9CA3AF", anchor="w").pack(fill="x", padx=10, pady=(0, 6))
         # hacer clickeable (Bloque C1: frame + labels hijos; el clic en un
-        # label caía en el hijo sin binding y no pasaba nada)
-        _vistos = set()
-
-        def _hacer_clickeable(widget):
-            try:
-                key = str(widget)
-            except Exception:
-                return
-            if key in _vistos:
-                return
-            _vistos.add(key)
-            try:
-                widget.bind("<Button-1>", lambda e: self._mostrar_perfil(), add="+")
-                widget.configure(cursor="hand2")
-                # solo cursor (sin cambio de borde: evita repintados/parpadeo)
-            except Exception:
-                pass
-            try:
-                for hijo in widget.winfo_children():
-                    _hacer_clickeable(hijo)
-            except Exception:
-                pass
-        _hacer_clickeable(user_frame)
+        # label caía en el hijo sin binding y no pasaba nada).
+        # Un solo disparo por serial (ver utils/ui_helpers.bind_click_unico).
+        try:
+            from utils.ui_helpers import bind_click_unico
+            bind_click_unico(user_frame, self._mostrar_perfil)
+        except Exception:
+            pass
 
         ctk.CTkFrame(sidebar, fg_color=COLOR_SIDEBAR_HOVER, height=1).pack(fill="x", padx=15, pady=6)
 
