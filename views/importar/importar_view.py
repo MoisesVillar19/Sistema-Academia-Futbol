@@ -25,12 +25,16 @@ class ImportarView(ctk.CTkFrame):
         self.tab_seleccion = self.tabview.add("Seleccionar Archivo")
         self.tab_vista_previa = self.tabview.add("Vista Previa")
         self.tab_mapeo = self.tabview.add("Mapeo de Columnas")
+        self.tab_revision = self.tabview.add("Revisión")
         self.tab_resultados = self.tabview.add("Resultados")
 
         self._crear_tab_seleccion()
         self._crear_tab_vista_previa()
         self._crear_tab_mapeo()
+        self._crear_tab_revision()
         self._crear_tab_resultados()
+        self._hallazgos_actuales = []
+        self._vars_resolucion = {}
 
     def _crear_tab_seleccion(self):
         header = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
@@ -165,6 +169,131 @@ class ImportarView(ctk.CTkFrame):
             font=ctk.CTkFont(size=12),
         )
         self.label_mapeo.pack(anchor="w", padx=5, pady=5)
+
+    def _crear_tab_revision(self):
+        header = ctk.CTkFrame(self.tab_revision, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            header, text="Revisión Previa",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            header, text="Validar", width=120,
+            command=self._validar,
+        ).pack(side="right")
+
+        ctk.CTkLabel(
+            self.tab_revision,
+            text="Valida en seco: cada hallazgo trae opciones. "
+                 "Nada se importa hasta que ejecutes.",
+            font=ctk.CTkFont(size=11), text_color="#666666",
+        ).pack(anchor="w", padx=10)
+
+        self.scroll_revision = ctk.CTkScrollableFrame(self.tab_revision)
+        self.scroll_revision.pack(fill="both", expand=True, padx=10, pady=5)
+
+        self.label_revision = ctk.CTkLabel(
+            self.tab_revision, text="",
+            font=ctk.CTkFont(size=12),
+        )
+        self.label_revision.pack(anchor="w", padx=10, pady=5)
+
+        self.btn_ejecutar_rev = ctk.CTkButton(
+            self.tab_revision, text="Ejecutar Importación", width=180,
+            command=self._ejecutar_importacion, state="disabled",
+        )
+        self.btn_ejecutar_rev.pack(anchor="e", padx=10, pady=5)
+
+    def _mapeo_dict(self):
+        mapeo = {}
+        for col_archivo, combo in self._mapeo_actual.items():
+            try:
+                valor = combo.get()
+            except Exception:
+                continue
+            if valor and valor != "(No importar)":
+                mapeo[col_archivo] = valor
+        return mapeo
+
+    def _validar(self):
+        for widget in self.scroll_revision.winfo_children():
+            widget.destroy()
+        self._hallazgos_actuales = []
+        self._vars_resolucion = {}
+        self.btn_ejecutar_rev.configure(state="disabled")
+
+        if self._es_historial():
+            ctk.CTkLabel(
+                self.scroll_revision,
+                text="El Historial se valida por fila al ejecutar "
+                     "(ver Revisión manual en Resultados).",
+                font=ctk.CTkFont(size=12),
+            ).pack(anchor="w", padx=5, pady=5)
+            self.label_revision.configure(text="")
+            return
+
+        if not self._datos_cargados:
+            self.label_revision.configure(text="Carga un archivo primero.")
+            return
+
+        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
+        hallazgos = importar_controller.revisar_importacion(
+            self._datos_cargados, self._mapeo_dict(), tipo)
+        self._hallazgos_actuales = hallazgos
+
+        if not hallazgos:
+            ctk.CTkLabel(
+                self.scroll_revision, text="✅ Sin hallazgos. Listo para ejecutar.",
+                font=ctk.CTkFont(size=12), text_color="#22C55E",
+            ).pack(anchor="w", padx=5, pady=5)
+            self.label_revision.configure(text="0 hallazgos.")
+            self.btn_ejecutar_rev.configure(state="normal")
+            return
+
+        for h in hallazgos:
+            row = ctk.CTkFrame(self.scroll_revision, fg_color="#f8f8f8", corner_radius=6)
+            row.pack(fill="x", padx=5, pady=3)
+            ctk.CTkLabel(
+                row, text=h["mensaje"],
+                font=ctk.CTkFont(size=11), wraplength=420, justify="left",
+            ).pack(side="left", padx=8, pady=6)
+            var = ctk.StringVar(value=h["default"])
+            etiquetas = [o["label"] for o in h["opciones"]]
+            seg = ctk.CTkSegmentedButton(
+                row, values=etiquetas,
+                command=lambda v, hid=h["id"]: self._fijar_resolucion(hid, v),
+            )
+            try:
+                seg.set(next(o["label"] for o in h["opciones"]
+                             if o["id"] == h["default"]))
+            except Exception:
+                pass
+            seg.pack(side="right", padx=8, pady=6)
+            self._vars_resolucion[h["id"]] = (var, seg, h["opciones"])
+
+        self.label_revision.configure(
+            text=f"{len(hallazgos)} hallazgo(s). Elige opción por cada uno y ejecuta.")
+        self.btn_ejecutar_rev.configure(state="normal")
+
+    def _fijar_resolucion(self, hid, etiqueta):
+        var, _seg, opciones = self._vars_resolucion.get(hid, (None, None, []))
+        for o in opciones:
+            if o["label"] == etiqueta and var is not None:
+                try:
+                    var.set(o["id"])
+                except Exception:
+                    pass
+
+    def _resoluciones_dict(self):
+        out = {}
+        for hid, (var, _seg, _ops) in self._vars_resolucion.items():
+            try:
+                out[hid] = var.get()
+            except Exception:
+                pass
+        return out
 
     def _crear_tab_resultados(self):
         header = ctk.CTkFrame(self.tab_resultados, fg_color="transparent")
@@ -456,6 +585,7 @@ class ImportarView(ctk.CTkFrame):
         exito, msg, resultados = importar_controller.ejecutar_importacion(
             self._datos_cargados, mapeo,
             getattr(self, "_tipo_importacion", "Estudiantes"),
+            self._resoluciones_dict(),
         )
 
         self._mostrar_resultados(exito, msg, resultados)

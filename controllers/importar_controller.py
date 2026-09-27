@@ -54,14 +54,36 @@ def validar_datos(filas: list[dict], mapeo: dict | None = None,
 
 
 def ejecutar_importacion(filas: list[dict], mapeo: dict | None = None,
-                         tipo: str = "Estudiantes") -> tuple[bool, str, dict]:
+                         tipo: str = "Estudiantes",
+                         resoluciones: dict | None = None) -> tuple[bool, str, dict]:
     if not filas:
         return False, "No hay datos para importar", {}
 
     id_usuario = auth_service.id_usuario_sesion_or_system()
+    notas: list[str] = []
+    if resoluciones:
+        from services import importar_revision
+        filas, notas = importar_revision.aplicar_resoluciones(
+            tipo, filas, mapeo, resoluciones)
+        if not filas:
+            return False, "Todas las filas fueron omitidas", {"errores": []}
     if tipo == "Tienda":
-        return importar_service.importar_tienda(filas, id_usuario, mapeo)
-    return importar_service.importar_estudiantes(filas, id_usuario, mapeo)
+        ok, msg, res = importar_service.importar_tienda(filas, id_usuario, mapeo)
+    else:
+        ok, msg, res = importar_service.importar_estudiantes(filas, id_usuario, mapeo)
+    if notas:
+        res = dict(res)
+        res["detalles"] = list(res.get("detalles", [])) + notas
+    return ok, msg, res
+
+
+def revisar_importacion(filas: list[dict], mapeo: dict | None = None,
+                        tipo: str = "Estudiantes") -> list[dict]:
+    """E2: hallazgos PREVIOS a ejecutar (Historial usa su revisión post)."""
+    if tipo == "Historial":
+        return []
+    from services import importar_revision
+    return importar_revision.revisar(tipo, filas, mapeo)
 
 
 def obtener_campos_sistema(tipo: str = "Estudiantes") -> list[str]:
