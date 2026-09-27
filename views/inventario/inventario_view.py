@@ -22,7 +22,7 @@ class InventarioView(ctk.CTkFrame):
         self._q_actual = ""
         self._productos_compra_map = {}
         # Bloque B: vista Cards/Tabla + filtro por categoría (None = Todas)
-        self._vista_modo = "Cards"
+        self._vista_modo = "Tabla"
         self._filtro_categoria_id = None
         self._categorias_filtro_map = {}
         self._crear_widgets()
@@ -120,7 +120,7 @@ class InventarioView(ctk.CTkFrame):
             busqueda_frame, values=["Cards", "Tabla"],
             command=self._on_vista_cambiar,
         )
-        self.seg_vista.set("Cards")
+        self.seg_vista.set("Tabla")
         self.seg_vista.pack(side="left", padx=5)
         crear_nota(sec_busq, "Tip: clic en ▾ Ver detalle de cada tarjeta o fila para precios, valorizado y tallas.")
         # B2: filtro por categoría (segmentado Todas + cada una)

@@ -94,11 +94,11 @@ class EstudianteView(ctk.CTkFrame):
             except Exception:
                 pass
         # Fase 7b: toggle Cards/Tabla
-        self._vista_modo = "Cards"
+        self._vista_modo = "Tabla"
         self.seg_vista = ctk.CTkSegmentedButton(
             filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
         try:
-            self.seg_vista.set("Cards")
+            self.seg_vista.set("Tabla")
         except Exception:
             pass
         self.seg_vista.pack(side="left", padx=5)

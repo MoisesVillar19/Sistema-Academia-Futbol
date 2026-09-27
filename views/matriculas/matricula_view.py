@@ -269,11 +269,11 @@ class MatriculaView(ctk.CTkFrame):
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
         # Fase 7b: toggle Cards/Tabla
-        self._vista_modo = "Cards"
+        self._vista_modo = "Tabla"
         self.seg_vista = ctk.CTkSegmentedButton(
             filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
         try:
-            self.seg_vista.set("Cards")
+            self.seg_vista.set("Tabla")
         except Exception:
             pass
         self.seg_vista.pack(side="left", padx=5)

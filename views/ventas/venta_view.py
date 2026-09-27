@@ -68,11 +68,11 @@ class VentaView(ctk.CTkFrame):
         crear_boton_interactivo(sec, text="Actualizar", width=110, command=self._cargar_ventas,
                                 fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
         # Fase 7b: toggle Cards/Tabla
-        self._vista_modo = "Cards"
+        self._vista_modo = "Tabla"
         self.seg_vista = ctk.CTkSegmentedButton(
             sec, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
         try:
-            self.seg_vista.set("Cards")
+            self.seg_vista.set("Tabla")
         except Exception:
             pass
         self.seg_vista.pack(anchor="e", padx=10, pady=(0, 8))
