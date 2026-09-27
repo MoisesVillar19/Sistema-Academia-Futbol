@@ -372,6 +372,14 @@ class UsuarioView(ctk.CTkFrame):
         )
         self.filtro_estado.set("Todos")
         self.filtro_estado.pack(side="left")
+        self._vista_modo = "Tabla"
+        self.seg_vista = ctk.CTkSegmentedButton(
+            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+        try:
+            self.seg_vista.set("Tabla")
+        except Exception:
+            pass
+        self.seg_vista.pack(side="left", padx=5)
 
         self.scroll_frame = ctk.CTkScrollableFrame(self.tab_usuarios)
         self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=5)
@@ -449,13 +457,34 @@ class UsuarioView(ctk.CTkFrame):
             ).pack(pady=20)
             return
 
-        for usuario in usuarios:
-            self._crear_card(usuario)
+        if getattr(self, "_vista_modo", "Tabla") == "Tabla":
+            self._render_tabla_usuarios(usuarios)
+        else:
+            for usuario in usuarios:
+                self._crear_card(usuario)
 
         self.label_status.configure(text=f"Total: {len(usuarios)} usuario(s)")
 
+    def _on_vista_cambiar(self, valor):
+        self._vista_modo = valor
+        self._filtrar(self.filtro_estado.get())
+
+    def _render_tabla_usuarios(self, usuarios):
+        from utils.ui_helpers import crear_tabla_densa
+        cols = [("Usuario", 170), ("Rol", 120), ("Estado", 100)]
+        filas = []
+        for u in usuarios:
+            filas.append([
+                str(u.get("username", "")),
+                str(u.get("rol", "")),
+                (("Activo", {"text_color": "green", "weight": "bold"})
+                 if u.get("activo") else ("Inactivo", {"text_color": "red", "weight": "bold"})),
+            ])
+        crear_tabla_densa(self.scroll_frame, cols, filas, cap=100)
+
     def _crear_card(self, usuario):
-        card = ctk.CTkFrame(self.scroll_frame)
+        from utils.ui_helpers import crear_card_interactiva
+        card = crear_card_interactiva(self.scroll_frame)
         card.pack(fill="x", padx=5, pady=3)
 
         estado_color = "green" if usuario["activo"] else "red"
