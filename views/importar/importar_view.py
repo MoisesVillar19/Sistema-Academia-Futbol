@@ -138,6 +138,17 @@ class ImportarView(ctk.CTkFrame):
         self.scroll_preview = ctk.CTkScrollableFrame(self.tab_vista_previa)
         self.scroll_preview.pack(fill="both", expand=True, padx=10, pady=5)
 
+        pag = ctk.CTkFrame(self.tab_vista_previa, fg_color="transparent")
+        pag.pack(fill="x", padx=10, pady=3)
+        self._preview_pagina = 1
+        self._preview_por_pagina = 20
+        ctk.CTkButton(pag, text="◀", width=50,
+                      command=lambda: self._preview_paginar(-1)).pack(side="left", padx=2)
+        self.label_preview_pag = ctk.CTkLabel(pag, text="", font=ctk.CTkFont(size=11))
+        self.label_preview_pag.pack(side="left", padx=8)
+        ctk.CTkButton(pag, text="▶", width=50,
+                      command=lambda: self._preview_paginar(1)).pack(side="left", padx=2)
+
         self.label_preview = ctk.CTkLabel(
             self.scroll_preview, text="Cargue un archivo para ver la vista previa",
             font=ctk.CTkFont(size=12),
@@ -389,6 +400,7 @@ class ImportarView(ctk.CTkFrame):
             return
 
         self._datos_cargados = datos
+        self._preview_pagina = 1
         self.label_estado.configure(
             text=f"Archivo cargado: {len(datos)} registros",
             text_color="#22C55E",
@@ -420,6 +432,11 @@ class ImportarView(ctk.CTkFrame):
             self.label_deteccion.configure(
                 text="No reconocí el formato: elige el tipo manualmente.")
 
+    def _preview_paginar(self, delta):
+        total = max(1, (len(self._datos_cargados) + self._preview_por_pagina - 1) // self._preview_por_pagina)
+        self._preview_pagina = min(max(1, self._preview_pagina + delta), total)
+        self._mostrar_vista_previa()
+
     def _mostrar_vista_previa(self):
         for widget in self.scroll_preview.winfo_children():
             widget.destroy()
@@ -427,7 +444,19 @@ class ImportarView(ctk.CTkFrame):
         if not self._datos_cargados:
             return
 
-        self.label_info_previa.configure(text=f"Mostrando {min(10, len(self._datos_cargados))} de {len(self._datos_cargados)} registros")
+        por_pag = self._preview_por_pagina
+        total = max(1, (len(self._datos_cargados) + por_pag - 1) // por_pag)
+        self._preview_pagina = min(max(1, getattr(self, "_preview_pagina", 1)), total)
+        ini = (self._preview_pagina - 1) * por_pag
+        chunk = self._datos_cargados[ini:ini + por_pag]
+
+        self.label_info_previa.configure(
+            text=f"Filas {ini + 1}-{ini + len(chunk)} de {len(self._datos_cargados)} registros")
+        try:
+            self.label_preview_pag.configure(
+                text=f"Pág {self._preview_pagina}/{total}")
+        except Exception:
+            pass
 
         primer_fila = self._datos_cargados[0]
         columnas = list(primer_fila.keys())
@@ -446,7 +475,7 @@ class ImportarView(ctk.CTkFrame):
             )
             header_label.grid(row=0, column=col_idx, padx=1, pady=1, sticky="ew")
 
-        for row_idx, fila in enumerate(self._datos_cargados[:10]):
+        for row_idx, fila in enumerate(chunk):
             for col_idx, col in enumerate(columnas):
                 valor = str(fila.get(col, ""))[:30]
                 cell = ctk.CTkLabel(
