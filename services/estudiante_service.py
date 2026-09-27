@@ -128,6 +128,10 @@ def editar_estudiante(id_estudiante: int, data: dict) -> tuple[bool, str]:
 
 def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
                      fecha: str | None = None) -> tuple[bool, str]:
+    """Ciclo único: retirar = estado RETIRADO + archivar (activo=0).
+
+    No hay borrado físico; el reingreso lo revierte todo.
+    """
     from repositories import matricula_repository
 
     estudiante = estudiante_repository.obtener_por_id(id_estudiante)
@@ -139,6 +143,7 @@ def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
 
     estudiante_repository.cambiar_estado(
         id_estudiante, STATUS_RETIRADO, (fecha or "").strip() or get_today())
+    estudiante_repository.soft_delete(id_estudiante)
 
     # Cerrar las matriculas activas para permitir una nueva matricula al reingresar
     for m in matricula_repository.obtener_por_estudiante(id_estudiante):
@@ -156,8 +161,8 @@ def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
         id_usuario=id_usuario,
         tabla="estudiante",
         id_registro=id_estudiante,
-        valores_anteriores=f"estado={estudiante['estado']}",
-        valores_nuevos=f"estado={STATUS_RETIRADO}",
+        valores_anteriores=f"estado={estudiante['estado']}, activo=1",
+        valores_nuevos=f"estado={STATUS_RETIRADO}, activo=0",
     )
 
     logger.info(f"Estudiante retirado: ID={id_estudiante}")
@@ -173,6 +178,7 @@ def registrar_reingreso(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, 
         return False, "Solo pueden reingresar estudiantes retirados"
 
     estudiante_repository.cambiar_estado(id_estudiante, STATUS_REINGRESANTE)
+    estudiante_repository.activar(id_estudiante)
 
     auditoria_service.registrar_update(
         id_usuario=id_usuario,
@@ -186,50 +192,7 @@ def registrar_reingreso(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, 
     return True, "Reingreso registrado correctamente"
 
 
-def desactivar_estudiante(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str]:
-    """Soft delete del estudiante (activo=0) con registro de auditoria."""
-    estudiante = estudiante_repository.obtener_por_id(id_estudiante)
-    if not estudiante:
-        return False, "Estudiante no encontrado"
 
-    if estudiante["activo"] == 0:
-        return False, "El estudiante ya está desactivado"
-
-    estudiante_repository.soft_delete(id_estudiante)
-
-    auditoria_service.registrar_desactivacion(
-        id_usuario=id_usuario,
-        tabla="estudiante",
-        id_registro=id_estudiante,
-        valores_anteriores="activo=1",
-        valores_nuevos="activo=0",
-    )
-
-    logger.info(f"Estudiante desactivado: ID={id_estudiante}")
-    return True, "Estudiante desactivado correctamente"
-
-
-def reactivar_estudiante(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str]:
-    """Reversión del soft delete (activo=0 → 1) con auditoría. Solo ADMIN (gate en controller)."""
-    estudiante = estudiante_repository.obtener_por_id(id_estudiante)
-    if not estudiante:
-        return False, "Estudiante no encontrado"
-
-    if estudiante["activo"] == 1:
-        return False, "El estudiante ya está activo"
-
-    estudiante_repository.activar(id_estudiante)
-
-    auditoria_service.registrar_update(
-        id_usuario=id_usuario,
-        tabla="estudiante",
-        id_registro=id_estudiante,
-        valores_anteriores="activo=0",
-        valores_nuevos="activo=1",
-    )
-
-    logger.info(f"Estudiante reactivado: ID={id_estudiante}")
-    return True, "Estudiante reactivado correctamente"
 
 
 def asociar_apoderado(id_estudiante: int, id_apoderado: int,

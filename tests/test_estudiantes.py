@@ -19,7 +19,7 @@ def test_crear_y_obtener_estudiante_con_persona(crear_persona):
 def test_listar_filtros_activo(crear_estudiante):
     id_est1 = crear_estudiante()
     crear_estudiante()
-    estudiante_service.desactivar_estudiante(id_est1)
+    estudiante_service.registrar_retiro(id_est1)
 
     activos = estudiante_service.listar_estudiantes(activo=1)
     inactivos = estudiante_service.listar_estudiantes(activo=0)

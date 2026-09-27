@@ -68,7 +68,7 @@ class EstudianteView(ctk.CTkFrame):
         filtros.pack(fill="x", padx=10, pady=(0, 8))
 
         self.filtro_estado = ctk.CTkSegmentedButton(
-            filtros, values=["Todos", "Activos", "Retirados", "Reingresantes", "Becados", "Inactivos"],
+            filtros, values=["Todos", "Activos", "Reingresantes", "Becados", "Inactivos"],
             command=self._filtrar,
         )
         self.filtro_estado.set("Activos")
@@ -383,43 +383,24 @@ class EstudianteView(ctk.CTkFrame):
         botones = ctk.CTkFrame(top, fg_color="transparent")
         botones.pack(side="right", padx=5, pady=5)
 
-        from controllers import login_controller
-        es_admin = login_controller.es_admin()
-        inactivo = not est.get("activo", 1)
-
-        if inactivo:
-            # Flujo: Inactivos → Activar (solo admin, reversible)
-            if es_admin:
-                ctk.CTkButton(
-                    botones, text="Activar", width=80, height=28,
-                    fg_color="green", hover_color="darkgreen",
-                    command=lambda e=est: self._reactivar(e),
-                ).pack(side="left", padx=2)
+        # Ciclo único: activo → Retirar (archiva) → Reingreso (reactiva)
+        if not est.get("activo", 1):
+            ctk.CTkButton(
+                botones, text="Reingreso", width=80, height=28,
+                fg_color="orange", hover_color="darkorange",
+                command=lambda e=est: self._reingreso(e),
+            ).pack(side="left", padx=2)
         else:
             ctk.CTkButton(
                 botones, text="Editar", width=70, height=28,
                 command=lambda e=est: self._editar_estudiante(e),
             ).pack(side="left", padx=2)
 
-            if estado in ("ACTIVO", "REINGRESANTE"):
-                ctk.CTkButton(
-                    botones, text="Retirar", width=70, height=28,
-                    fg_color="red", hover_color="darkred",
-                    command=lambda e=est: self._retirar(e),
-                ).pack(side="left", padx=2)
-            elif estado == "RETIRADO":
-                ctk.CTkButton(
-                    botones, text="Reingreso", width=80, height=28,
-                    fg_color="orange", hover_color="darkorange",
-                    command=lambda e=est: self._reingreso(e),
-                ).pack(side="left", padx=2)
-
-            if es_admin:
-                ctk.CTkButton(
-                    botones, text="Desactivar", width=80, height=28,
-                    fg_color="#6c757d", hover_color="#5a6268",
-                    command=lambda e=est: self._desactivar(e),
-                ).pack(side="left", padx=2)
+            ctk.CTkButton(
+                botones, text="Retirar", width=70, height=28,
+                fg_color="red", hover_color="darkred",
+                command=lambda e=est: self._retirar(e),
+            ).pack(side="left", padx=2)
 
         # ── Detalle expandible inline (mismo que la vista Tabla) ──
         toggle_btn, _, _ = agregar_detalle_expandible(
@@ -737,10 +718,21 @@ class EstudianteView(ctk.CTkFrame):
         self.label_form_status.configure(text="")
 
     def _retirar(self, est):
+        from tkinter import messagebox
+        nombre = f"{est.get('nombres', '')} {est.get('apellidos', '')}"
+        respuesta = messagebox.askyesno(
+            "Confirmar retiro",
+            f"¿Retirar a {nombre}?\n\n"
+            "Pasará a Inactivos (se archiva, el historial se conserva).\n"
+            "Podrá volver con Reingreso.",
+        )
+        if not respuesta:
+            return
         exito, msg = estudiante_controller.registrar_retiro(est["id_estudiante"])
-        if exito:
-            self._cargar_estudiantes()
-            self._cargar_combo_estudiantes()
+        if not exito:
+            messagebox.showwarning("Retirar estudiante", msg)
+        self._cargar_estudiantes()
+        self._cargar_combo_estudiantes()
 
     def _reingreso(self, est):
         from tkinter import messagebox
@@ -807,36 +799,6 @@ class EstudianteView(ctk.CTkFrame):
         ctk.CTkButton(dialog, text="Vender", command=vender).pack(pady=10)
         ctk.CTkButton(dialog, text="Omitir", fg_color="gray", command=dialog.destroy).pack()
 
-    def _desactivar(self, est):
-        from tkinter import messagebox
-        nombre = f"{est.get('nombres', '')} {est.get('apellidos', '')}"
-        respuesta = messagebox.askyesno(
-            "Confirmar desactivación (solo ADMIN)",
-            f"¿Desactivar a {nombre}?\n\n"
-            "Pasará al filtro Inactivos (no se borra: el historial se conserva).\n"
-            "Solo un administrador puede reactivarlo.",
-        )
-        if respuesta:
-            exito, msg = estudiante_controller.desactivar_estudiante(est["id_estudiante"])
-            if not exito:
-                messagebox.showwarning("Desactivar estudiante", msg)
-            self._cargar_estudiantes()
-            self._cargar_combo_estudiantes()
-
-    def _reactivar(self, est):
-        from tkinter import messagebox
-        nombre = f"{est.get('nombres', '')} {est.get('apellidos', '')}"
-        respuesta = messagebox.askyesno(
-            "Reactivar estudiante",
-            f"¿Reactivar a {nombre}?\n\nVolverá a aparecer en Activos.",
-        )
-        if respuesta:
-            exito, msg = estudiante_controller.reactivar_estudiante(est["id_estudiante"])
-            if not exito:
-                messagebox.showwarning("Reactivar estudiante", msg)
-            self._cargar_estudiantes()
-            self._cargar_combo_estudiantes()
-
     def _filtrar(self, valor):
         self._on_busqueda_cambiar()
 
@@ -851,9 +813,6 @@ class EstudianteView(ctk.CTkFrame):
         if filtro_estado == "Activos":
             activo = 1
             estado = ["ACTIVO", "REINGRESANTE"]
-        elif filtro_estado == "Retirados":
-            activo = 1
-            estado = "RETIRADO"
         elif filtro_estado == "Reingresantes":
             activo = 1
             estado = "REINGRESANTE"
@@ -862,12 +821,6 @@ class EstudianteView(ctk.CTkFrame):
 
         if filtro_estado == "Becados":
             todos = estudiante_controller.listar_becados()
-        elif filtro_estado == "Inactivos":
-            # Inactivos = retirados + desactivados (todos los que no vienen)
-            todos = [
-                e for e in estudiante_controller.listar_estudiantes(activo=None)
-                if not e.get("activo", 1) or e.get("estado") == "RETIRADO"
-            ]
         else:
             todos = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
 

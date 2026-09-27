@@ -1,10 +1,29 @@
-"""Ciclo de vida: Activos → Inactivos → Activar (solo ADMIN, sin borrado físico)."""
+"""Ciclo único: Activos → Retirar (archiva) → Reingreso (reactiva). Sin borrado físico."""
 import pytest
 
 pytestmark = pytest.mark.ui
 
 
-def test_filtro_inactivos_vacio_y_lleno(crear_vista, usuario_admin, crear_estudiante):
+def test_retiro_archiva_y_reingreso_reactiva(crear_estudiante):
+    from controllers import estudiante_controller
+    from repositories import estudiante_repository
+    id_est = crear_estudiante()
+    assert estudiante_controller.registrar_retiro(id_est)[0] is True
+    est = estudiante_repository.obtener_por_id(id_est)
+    assert est["estado"] == "RETIRADO" and est["activo"] == 0
+    assert estudiante_controller.registrar_retiro(id_est)[0] is False
+    assert estudiante_controller.registrar_reingreso(id_est)[0] is True
+    est = estudiante_repository.obtener_por_id(id_est)
+    assert est["estado"] == "REINGRESANTE" and est["activo"] == 1
+
+
+def test_reingreso_sin_retiro_rechazado(crear_estudiante):
+    from controllers import estudiante_controller
+    id_est = crear_estudiante()
+    assert estudiante_controller.registrar_reingreso(id_est)[0] is False
+
+
+def test_filtro_inactivos(crear_vista, usuario_admin, crear_estudiante):
     from views.estudiantes.estudiante_view import EstudianteView
     from controllers import estudiante_controller
     id_est = crear_estudiante()
@@ -12,53 +31,18 @@ def test_filtro_inactivos_vacio_y_lleno(crear_vista, usuario_admin, crear_estudi
     vista.filtro_estado.set("Inactivos")
     vista._on_busqueda_cambiar()
     assert "Total: 0" in vista.label_status.cget("text")
-    ok, _ = estudiante_controller.desactivar_estudiante(id_est)
-    assert ok
-    vista._on_busqueda_cambiar()
-    vista.update_idletasks()
-    assert "Total: 1" in vista.label_status.cget("text")
-
-
-def test_inactivos_incluye_retirados(crear_vista, usuario_admin, crear_estudiante):
-    from views.estudiantes.estudiante_view import EstudianteView
-    from controllers import estudiante_controller
-    id_est = crear_estudiante()
     assert estudiante_controller.registrar_retiro(id_est)[0] is True
-    vista = crear_vista(EstudianteView)
-    vista.filtro_estado.set("Inactivos")
     vista._on_busqueda_cambiar()
     vista.update_idletasks()
     assert "Total: 1" in vista.label_status.cget("text")
 
 
-def test_desactivar_requiere_admin(usuario_secretaria, crear_estudiante):
-    from controllers import estudiante_controller
-    id_est = crear_estudiante()
-    ok, msg = estudiante_controller.desactivar_estudiante(id_est)
-    assert ok is False and "administrador" in msg.lower()
-    ok, _ = estudiante_controller.reactivar_estudiante(id_est)
-    assert ok is False
-
-
-def test_reactivar_revierte(crear_estudiante, usuario_admin):
-    from controllers import estudiante_controller
-    id_est = crear_estudiante()
-    assert estudiante_controller.desactivar_estudiante(id_est)[0] is True
-    assert estudiante_controller.reactivar_estudiante(id_est)[0] is True
-    assert estudiante_controller.reactivar_estudiante(id_est)[0] is False
-    from repositories import estudiante_repository
-    assert estudiante_repository.obtener_por_id(id_est)["activo"] == 1
-
-
-def test_boton_activar_solo_inactivos(crear_vista, usuario_admin, crear_estudiante):
+def test_botones_ciclo(crear_vista, usuario_admin, crear_estudiante):
     from views.estudiantes.estudiante_view import EstudianteView
     from controllers import estudiante_controller
-    id_est = crear_estudiante(nombres="Ciclo", apellidos="Inactivo")
-    estudiante_controller.desactivar_estudiante(id_est)
+    id_est = crear_estudiante(nombres="Ciclo", apellidos="Unico")
     vista = crear_vista(EstudianteView)
-    vista.filtro_estado.set("Inactivos")
     vista._on_busqueda_cambiar()
-    vista._on_vista_cambiar("Cards")
     vista.update_idletasks()
 
     def _textos(w):
@@ -88,5 +72,14 @@ def test_boton_activar_solo_inactivos(crear_vista, usuario_admin, crear_estudian
         _rec(w)
         return " ".join(out)
 
+    vista._on_vista_cambiar("Cards")
+    vista.update_idletasks()
+    assert "Retirar" in _textos(vista.scroll_estudiantes)
+    assert "Desactivar" not in _textos(vista.scroll_estudiantes)
+    estudiante_controller.registrar_retiro(id_est)
+    vista.filtro_estado.set("Inactivos")
+    vista._on_busqueda_cambiar()
+    vista.update_idletasks()
     todo = _textos(vista.scroll_estudiantes)
-    assert "Activar" in todo and "INACTIVO" in todo
+    assert "Reingreso" in todo and "INACTIVO" in todo
+    assert "Desactivar" not in todo and "Activar" not in todo

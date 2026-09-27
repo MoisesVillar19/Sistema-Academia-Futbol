@@ -106,18 +106,19 @@ def test_reingreso_sin_retiro_previo_rechazado(crear_estudiante):
     assert "retirados" in msg.lower()
 
 
-def test_desactivar_estudiante_soft_delete_con_auditoria(usuario_admin, crear_matricula):
+def test_retiro_archiva_con_auditoria(usuario_admin, crear_matricula):
     from services import auditoria_service
     ids = crear_matricula()
 
-    exito, msg = estudiante_service.desactivar_estudiante(ids["id_estudiante"], id_usuario=1)
+    exito, msg = estudiante_service.registrar_retiro(ids["id_estudiante"], id_usuario=1)
     assert exito is True, msg
 
     est = estudiante_repository.obtener_por_id(ids["id_estudiante"])
     assert est["activo"] == 0
+    assert est["estado"] == "RETIRADO"
 
     logs = auditoria_service.obtener_logs_por_tabla("estudiante")
-    assert any(l["accion"] == "DESACTIVACION" for l in logs)
+    assert any("activo=0" in (l.get("valor_nuevo") or "") for l in logs)
 
-    exito, msg = estudiante_service.desactivar_estudiante(ids["id_estudiante"])
+    exito, msg = estudiante_service.registrar_retiro(ids["id_estudiante"])
     assert exito is False
