@@ -108,6 +108,21 @@ def obtener_por_fecha(fecha_inicio: str, fecha_fin: str) -> list[dict]:
     )
 
 
+def compras_por_producto(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    """Compras (ENTRADA con método) agregadas por producto para el balance."""
+    fin = fecha_fin + " 23:59:59" if len(fecha_fin) == 10 else fecha_fin
+    return fetch_all(
+        """SELECT m.id_producto AS id_producto,
+                  COALESCE(SUM(m.cantidad), 0) AS cantidad,
+                  COALESCE(SUM(m.monto_total), 0) AS costo_total
+           FROM movimiento_inventario m
+           WHERE m.tipo_movimiento = 'ENTRADA' AND m.metodo_pago IN ('YAPE', 'EFECTIVO')
+             AND m.fecha_movimiento BETWEEN ? AND ?
+           GROUP BY m.id_producto""",
+        (fecha_inicio, fin),
+    )
+
+
 def obtener_por_tipo(tipo_movimiento: str) -> list[dict]:
     return fetch_all(
         """SELECT m.*, u.username, p.nombre as producto_nombre, p.codigo

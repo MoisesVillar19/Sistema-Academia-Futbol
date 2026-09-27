@@ -120,6 +120,27 @@ def ganancia_por_metodo(fecha_inicio: str, fecha_fin: str) -> list[dict]:
     )
 
 
+def detalle_ventas_por_producto(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    """Balance estilo Excel: por producto, con split YAPE/EFECTIVO por montos.
+    Ganancia con costo vigente (misma aproximación que ganancia_por_metodo)."""
+    return fetch_all(
+        """SELECT p.id_producto AS id_producto, p.nombre AS nombre, p.codigo AS codigo,
+                  COALESCE(SUM(d.cantidad), 0) AS vendidas,
+                  COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos,
+                  COALESCE(SUM(d.cantidad * (d.precio_unitario - COALESCE(p.precio_compra, 0))), 0) AS ganancia,
+                  COALESCE(SUM(CASE WHEN v.metodo_pago = 'YAPE' THEN d.cantidad * d.precio_unitario ELSE 0 END), 0) AS monto_yape,
+                  COALESCE(SUM(CASE WHEN v.metodo_pago = 'EFECTIVO' THEN d.cantidad * d.precio_unitario ELSE 0 END), 0) AS monto_efectivo
+           FROM detalle_venta d
+           JOIN venta v ON v.id_venta = d.id_venta
+           JOIN producto p ON p.id_producto = d.id_producto
+           WHERE v.fecha_venta BETWEEN ? AND ? AND v.activo = 1
+             AND v.metodo_pago IN ('YAPE', 'EFECTIVO')
+           GROUP BY p.id_producto
+           ORDER BY p.nombre""",
+        (fecha_inicio, fecha_fin),
+    )
+
+
 def soft_delete(id_venta: int) -> None:
     conn = get_connection()
     conn.execute("UPDATE venta SET activo = 0 WHERE id_venta = ?", (id_venta,))

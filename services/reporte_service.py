@@ -159,6 +159,47 @@ def reporte_alumnos_por_categoria(ruta_archivo: str) -> tuple[bool, str]:
     return exportar_a_excel(datos, columnas, "Alumnos por Categoría", ruta_archivo)
 
 
+def balance_tienda(fecha_inicio: str, fecha_fin: str) -> tuple[list[dict], dict]:
+    """Balance estilo Excel BALANCE DE TIENDA por producto del canal TIENDITA.
+
+    Ganancia con costo vigente (igual que el dashboard). Retorna (filas, totales).
+    """
+    from repositories import (venta_repository, movimiento_inventario_repository,
+                              producto_repository)
+    ventas = {v["id_producto"]: v for v in venta_repository.detalle_ventas_por_producto(
+        fecha_inicio, fecha_fin)}
+    compras = {c["id_producto"]: c for c in movimiento_inventario_repository.compras_por_producto(
+        fecha_inicio, fecha_fin)}
+    ids = set(ventas) | set(compras)
+    prods = {p["id_producto"]: p for p in producto_repository.obtener_todos(activo=1)
+             if p.get("canal") == "TIENDITA" and p["id_producto"] in ids}
+    filas = []
+    for pid in sorted(ids, key=lambda i: prods.get(i, {}).get("nombre", "")):
+        p = prods.get(pid, {})
+        v = ventas.get(pid, {})
+        c = compras.get(pid, {})
+        cantidad = int(c.get("cantidad", 0) or 0)
+        vendidas = int(v.get("vendidas", 0) or 0)
+        fila = {
+            "id_producto": pid,
+            "nombre": p.get("nombre", f"#{pid}"),
+            "cantidad": cantidad,
+            "costo_total": round(float(c.get("costo_total", 0) or 0), 2),
+            "costo_unitario": round(float(p.get("precio_compra", 0) or 0), 2),
+            "costo_venta": round(float(p.get("precio_venta", 0) or 0), 2),
+            "yape": round(float(v.get("monto_yape", 0) or 0), 2),
+            "efectivo": round(float(v.get("monto_efectivo", 0) or 0), 2),
+            "vendidas": vendidas,
+            "quedan": int(p.get("stock_actual", 0) or 0),
+            "ganancia": round(float(v.get("ganancia", 0) or 0), 2),
+        }
+        filas.append(fila)
+    totales = {k: round(sum(f[k] for f in filas), 2)
+               for k in ("cantidad", "costo_total", "yape", "efectivo",
+                         "vendidas", "quedan", "ganancia")}
+    return filas, totales
+
+
 def reporte_inventario(ruta_archivo: str, filtro: str = "todos", id_almacen: int | None = None) -> tuple[bool, str]:
     """Reporte valorizado (stock * precio_venta) con filtro opcional."""
     productos = producto_repository.obtener_todos(activo=1)
