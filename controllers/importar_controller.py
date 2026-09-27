@@ -80,6 +80,15 @@ def obtener_campos_apoderado() -> list[str]:
     return importar_service.obtener_campos_apoderado()
 
 
+def detectar_tipo(archivo: str, hoja: str | None = None) -> tuple[str | None, str]:
+    """Autodetección E1: por hojas (xlsx) y columnas. No requiere login."""
+    ok_h, _, hojas = obtener_hojas(archivo)
+    hojas = hojas if ok_h else []
+    ok_c, _, columnas = obtener_columnas(archivo, hoja)
+    columnas = columnas if ok_c else []
+    return importar_service.detectar_tipo(columnas, hojas)
+
+
 def importar_historial_excel(ruta: str) -> tuple[bool, str, dict]:
     """Historial Roncalli (RELACIÓN+INGRESOS+VENTA). Solo ADMIN, atómico por fila."""
     if not puede_acceder():

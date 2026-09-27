@@ -488,3 +488,74 @@ def obtener_campos_obligatorios() -> list[str]:
 
 def obtener_campos_apoderado() -> list[str]:
     return CAMPOS_APODERADO.copy()
+
+
+# ── E1: registro unificado de tipos (autodetección; futuros tipos se
+# registran aquí sin tocar la UI) ──────────────────────────────────
+def _norm_cab(cab) -> str:
+    return str(cab or "").upper().replace(" ", "_")
+
+
+def _detectar_estudiantes(columnas: list[str], hojas: list[str]) -> tuple[bool, str]:
+    cols = {_norm_cab(c) for c in columnas}
+    if "DNI" in cols and ("NOMBRES" in cols or "APELLIDOS" in cols):
+        return True, "columnas DNI+Nombres"
+    return False, ""
+
+
+def _detectar_tienda(columnas: list[str], hojas: list[str]) -> tuple[bool, str]:
+    cols = {_norm_cab(c) for c in columnas}
+    claves = {"PRODUCTOS", "CANTIDAD", "COSTO_TOTAL", "COSTO_VENTA"}
+    hits = claves & cols
+    if hits:
+        return True, f"columnas tienda ({', '.join(sorted(hits))})"
+    return False, ""
+
+
+HOJAS_HISTORIAL = ("RELACIÓN DE ALUMNOS", "INGRESOS", "VENTA UNIFORME")
+
+
+def _detectar_historial(columnas: list[str], hojas: list[str]) -> tuple[bool, str]:
+    if hojas and all(h in hojas for h in HOJAS_HISTORIAL):
+        return True, "hojas RELACIÓN/INGRESOS/VENTA"
+    return False, ""
+
+
+TIPOS_IMPORTACION = {
+    "Estudiantes": {
+        "descripcion": "DNI, Nombres, Apellidos (+ apoderado opcional).",
+        "detectar": _detectar_estudiantes,
+        "campos": lambda: list(MAPEO_CAMPOS.keys()),
+        "obligatorios": lambda: CAMPOS_OBLIGATORIOS_ESTUDIANTE.copy(),
+        "validar": lambda filas, mapeo=None: validar_filas(filas, mapeo),
+        "ejecutar": lambda filas, uid, mapeo=None: importar_estudiantes(filas, uid, mapeo),
+    },
+    "Tienda": {
+        "descripcion": "PRODUCTOS, CANTIDAD, COSTO TOTAL/VENTA, YAPE, EFECTIVO, VENDIDO, QUEDAN.",
+        "detectar": _detectar_tienda,
+        "campos": lambda: list(MAPEO_TIENDA.keys()),
+        "obligatorios": lambda: CAMPOS_OBLIGATORIOS_TIENDA.copy(),
+        "validar": lambda filas, mapeo=None: validar_filas_tienda(filas, mapeo),
+        "ejecutar": lambda filas, uid, mapeo=None: importar_tienda(filas, uid, mapeo),
+    },
+    "Historial": {
+        "descripcion": "XLSX con hojas RELACIÓN/INGRESOS/VENTA (posicional, sin mapeo).",
+        "detectar": _detectar_historial,
+        "campos": lambda: [],
+        "obligatorios": lambda: [],
+        "validar": lambda filas, mapeo=None: (True, "OK", []),
+        "ejecutar": None,  # va por importar_historial_excel (ruta directa)
+    },
+}
+
+
+def detectar_tipo(columnas: list[str], hojas: list[str]) -> tuple[str | None, str]:
+    """Retorna (tipo, motivo). None si ambiguo o irreconocible."""
+    hits = []
+    for nombre, spec in TIPOS_IMPORTACION.items():
+        ok, motivo = spec["detectar"](columnas or [], hojas or [])
+        if ok:
+            hits.append((nombre, motivo))
+    if len(hits) == 1:
+        return hits[0]
+    return None, "ambiguo o irreconocible" if hits else "sin coincidencias"

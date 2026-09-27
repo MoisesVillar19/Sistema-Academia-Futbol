@@ -1,10 +1,60 @@
 # Plan — Ganancias en Tiendita + Importación del Excel + Filtro Becados
 
-> Estado: PLANIFICADO (documentado 2026-09-22, aún no ejecutado).
+> Estado: EJECUTADO 2026-09-22/26 (A+B+C+D). Ver §Ejecutado y §Nuevo plan abajo.
 > Fuente: `INFORMACION ACADEMIA RONCALLI.xlsx` (NO versionado, ver `.gitignore`).
 > CSVs fieles generados en `importacion/` (tampoco versionados) vía `tools/excel_a_csv.py`.
 > Sin el importador, la única vía de carga masiva es manual por UI
 > (los scripts SQL directos se desaconsejan: saltan validaciones y auditoría).
+
+## Ejecutado (commits)
+
+- A. Tab Ganancias en Tiendita (`87e7236`): balance estilo Excel + fila TOTAL,
+  filtros período/método, `tests/test_balance_tienda.py`.
+- B. Importar BALANCE (`21945f1`): `MAPEO_TIENDA`, flujo producto→compra→ventas,
+  `tests/test_importar_tienda.py`.
+- C. Filtro Becados (`48dce68`): `listar_becados`, segmento, badge, columna,
+  marca en grilla, `tests/test_becados.py`.
+- D. Historial (`8d33242` + `01cf656`): `services/importar_historial.py`
+  (RELACIÓN/INGRESOS/VENTA, DNI `9000000N`, C.M→enero, 100/120 temporal,
+  120–150 pre-SET = NUEVO, vacío = no viene), UI Historial + Revisión visible,
+  `anular_cuota`, bypass RN-042 documentado para importados.
+- Hover raíz (`8649690`): `aplicar_hover_borde` sin reflow en todas las cards.
+
+## Nuevo plan — importación unificada + revisión con opciones + avisos navegables
+
+> Decisiones: un solo Importar con autodetección (adiós 3 opciones fijas);
+> revisión PREVIA con acciones por hallazgo (nada se adivina en silencio);
+> avisos con botón Ir-al-origen + omitir/posponer (legado archivable).
+
+### E1. Importación unificada (adiós segmentado fijo)
+- Registro `TIPOS_IMPORTACION`: cada tipo = {nombre, detectar(headers|hojas),
+  campos, validar, ejecutar}. Tipos: Estudiantes, Tienda, Historial (+Pagos,
+  Productos, Compras a futuro sin tocar UI).
+- Vista: subes archivo → cartel "Detecté: X" (o pregunta si ambiguo) →
+  preview/mapeo/revisión según tipo. Historial exige XLSX con 3 hojas.
+- Tests: detección por headers/hojas + registro extensible.
+
+### E2. Revisión previa con opciones
+- Botón Validar (en seco) → pantalla Revisión con hallazgos accionables:
+  falta DNI → [generar provisional | omitir]; nombre ambiguo → (radio
+  candidato | omitir); QUEDAN ≠ CANT−VEND → [corregir | omitir];
+  fecha inválida → [usar hoy | omitir]. Resoluciones en `resoluciones={}`
+  que el ejecutor respeta. Ejecutar bloqueado hasta resolver todo.
+- Checkbox "DNI provisional" (Estudiantes): vacíos → `9000000N` + aviso.
+- Tests por hallazgo y resolución.
+
+### E3. Avisos navegables (legado)
+- Cada aviso lleva `origen` (tabla+id) y botón **Ir**: publica navegación
+  (patrón `abrir_tarifas` en `main.py`) y abre el módulo filtrado en el registro
+  (Pagos/Estudiantes/Tienda).
+- Foto/comprobante pendiente: Ir abre edición con selector listo; al guardar
+  el aviso se resuelve solo.
+- **Omitir/Posponer** con motivo: archiva el aviso (no borra) para que lo
+  revisado deje de molestar. Tabla `aviso_omitido` + tests.
+
+### E4. Visuales pendientes (impacto)
+Reportes a morado, Apoderados (tabla+badges+vacios), Morosos (tabla+pag),
+Tarifas/Becas (tabla), Auditoría (tabla densa), preview Importar paginado.
 
 ## Decisiones tomadas
 

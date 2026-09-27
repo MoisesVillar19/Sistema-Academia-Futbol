@@ -104,6 +104,12 @@ class ImportarView(ctk.CTkFrame):
         )
         self.combo_hoja.pack(side="left")
 
+        self.label_deteccion = ctk.CTkLabel(
+            self.tab_seleccion, text="",
+            font=ctk.CTkFont(size=12, weight="bold"), text_color="#7C3AED",
+        )
+        self.label_deteccion.pack(pady=4)
+
         self.label_estado = ctk.CTkLabel(
             self.tab_seleccion, text="",
             font=ctk.CTkFont(size=11),
@@ -258,10 +264,32 @@ class ImportarView(ctk.CTkFrame):
             text=f"Archivo cargado: {len(datos)} registros",
             text_color="#22C55E",
         )
+        self._autodetectar_tipo()
 
         self._mostrar_vista_previa()
         self._configurar_mapeo()
         self.btn_importar.configure(state="normal")
+
+    def _autodetectar_tipo(self):
+        # E1: autodetección por hojas+columnas; el usuario puede corregirla
+        try:
+            hoja = None
+            extension = self._archivo_actual.rsplit(".", 1)[-1].lower()
+            if extension in ("xlsx", "xls"):
+                hoja = self.combo_hoja.get()
+            tipo, motivo = importar_controller.detectar_tipo(self._archivo_actual, hoja)
+        except Exception:
+            tipo, motivo = None, ""
+        if tipo:
+            self._tipo_importacion = tipo
+            try:
+                self.seg_tipo.set(tipo)
+            except Exception:
+                pass
+            self.label_deteccion.configure(text=f"Detecté: {tipo} ({motivo})")
+        else:
+            self.label_deteccion.configure(
+                text="No reconocí el formato: elige el tipo manualmente.")
 
     def _mostrar_vista_previa(self):
         for widget in self.scroll_preview.winfo_children():
