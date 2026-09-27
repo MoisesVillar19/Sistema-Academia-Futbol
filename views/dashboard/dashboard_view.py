@@ -257,6 +257,11 @@ class DashboardView(ctk.CTkFrame):
             corner_radius=12,
         )
         card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
+        try:
+            from utils.ui_helpers import aplicar_hover_borde
+            aplicar_hover_borde(card)
+        except Exception:
+            pass
 
         frame_interno = ctk.CTkFrame(card, fg_color="transparent")
         frame_interno.pack(expand=True, fill="both", padx=8, pady=8)
@@ -294,6 +299,11 @@ class DashboardView(ctk.CTkFrame):
             corner_radius=12,
         )
         card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
+        try:
+            from utils.ui_helpers import aplicar_hover_borde
+            aplicar_hover_borde(card)
+        except Exception:
+            pass
 
         frame_interno = ctk.CTkFrame(card, fg_color="transparent")
         frame_interno.pack(expand=True, fill="both", padx=8, pady=8)

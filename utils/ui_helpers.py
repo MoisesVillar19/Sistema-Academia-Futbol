@@ -46,21 +46,56 @@ def crear_boton_interactivo(parent, text, command, fg_color="#7C3AED", width=120
     return btn
 
 
-def crear_card_interactiva(parent, hover_bg="#F3E8FF", border_hover="#DDD6E5"):
-    """Card blanca estilo Configuración.
-
-    NOTA: sin cambio de color en hover a propósito — reconfigurar fg_color
-    en cada <Enter>/<Leave> (y propagado a hijos) causa parpadeo/tintineo
-    constante al mover el mouse sobre listas largas. Solo cursor mano.
-    Se mantiene la firma por compatibilidad.
-    """
-    frame = ctk.CTkFrame(parent, fg_color="white", border_width=1, border_color="#E5E7EB",
-                         corner_radius=8)
+def aplicar_hover_borde(widget, color_hover="#7C3AED", color_normal="#E5E7EB"):
+    """Hover visual sin parpadeo: solo cambia border_color (mismo ancho, sin
+    reflow). La guarda winfo_containing evita el tintineo al pasar entre hijos."""
     try:
-        frame.bind("<Enter>", lambda e: frame.configure(cursor="hand2"))
-        frame.bind("<Leave>", lambda e: frame.configure(cursor=""))
+        widget.configure(cursor="hand2")
     except Exception:
         pass
+
+    def _enter(_e=None):
+        try:
+            widget.configure(cursor="hand2", border_color=color_hover)
+        except Exception:
+            pass
+
+    def _leave(_e=None):
+        try:
+            # solo restaura si el puntero salió del widget de verdad
+            dentro = widget.winfo_containing(widget.winfo_pointerx(),
+                                             widget.winfo_pointery())
+            w = dentro
+            salio = True
+            while w is not None and str(w) != ".":
+                if w == widget:
+                    salio = False
+                    break
+                try:
+                    w = w.master
+                except Exception:
+                    break
+            if salio:
+                widget.configure(cursor="", border_color=color_normal)
+        except Exception:
+            pass
+
+    try:
+        widget.bind("<Enter>", _enter, add="+")
+        widget.bind("<Leave>", _leave, add="+")
+        # ganchos testeables (misma función que el binding)
+        widget._hover_enter = _enter
+        widget._hover_leave = _leave
+    except Exception:
+        pass
+    return widget
+
+
+def crear_card_interactiva(parent, hover_bg="#F3E8FF", border_hover="#DDD6E5"):
+    """Card blanca estilo Configuración con hover de borde (sin parpadeo)."""
+    frame = ctk.CTkFrame(parent, fg_color="white", border_width=1, border_color="#E5E7EB",
+                         corner_radius=8)
+    aplicar_hover_borde(frame, color_hover=border_hover)
     return frame
 
 
