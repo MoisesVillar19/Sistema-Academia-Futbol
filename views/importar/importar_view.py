@@ -37,41 +37,29 @@ class ImportarView(ctk.CTkFrame):
         self._vars_resolucion = {}
 
     def _crear_tab_seleccion(self):
-        header = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
-        header.pack(fill="x", padx=10, pady=10)
-
-        ctk.CTkLabel(
-            header, text="Importar Datos desde Archivo",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")
-
-        info_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="#f0f0f0", corner_radius=8)
-        info_frame.pack(fill="x", padx=10, pady=10)
-
-        ctk.CTkLabel(
-            info_frame, text="Formatos soportados: CSV, XLSX",
-            font=ctk.CTkFont(size=12),
-        ).pack(anchor="w", padx=10, pady=5)
-
-        ctk.CTkLabel(
-            info_frame,
-            text="Estudiantes: DNI, Nombres, Apellidos (+ apoderado opcional).\n"
-                 "Tienda: PRODUCTOS, CANTIDAD, COSTO TOTAL, COSTO VENTA, YAPE, "
-                 "EFECTIVO, CANTIDAD VENDIDO, QUEDAN.",
-            font=ctk.CTkFont(size=11),
-            text_color="#666666",
-        ).pack(anchor="w", padx=10, pady=(0, 10))
+        from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
+        sec = crear_seccion(
+            self.tab_seleccion, titulo="Importar Datos desde Archivo", icono="📤",
+            descripcion="El sistema detecta el tipo solo. Un clic en Cargar y revisar "
+                        "te lleva directo a Revisión.",
+            nro=1)
+        crear_nota(sec, "Estudiantes: DNI, Nombres, Apellidos. Tienda: PRODUCTOS, "
+                        "CANTIDAD, COSTO TOTAL/VENTA, YAPE, EFECTIVO, VENDIDO, QUEDAN. "
+                        "Historial: XLSX con 3 hojas.")
 
         self._tipo_importacion = "Estudiantes"
-        self.seg_tipo = ctk.CTkSegmentedButton(
-            info_frame, values=["Estudiantes", "Tienda", "Historial"],
-            command=self._on_tipo_cambiar,
+        # Override manual, oculto salvo que la detección falle
+        self.override_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
+        ctk.CTkLabel(self.override_frame, text="Tipo:").pack(side="left", padx=(10, 5))
+        self.seg_tipo = ctk.CTkComboBox(
+            self.override_frame, values=["Estudiantes", "Tienda", "Historial"],
+            width=160, command=self._on_tipo_cambiar,
         )
         try:
             self.seg_tipo.set("Estudiantes")
         except Exception:
             pass
-        self.seg_tipo.pack(anchor="w", padx=10, pady=(0, 10))
+        self.seg_tipo.pack(side="left")
 
         file_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
         file_frame.pack(fill="x", padx=10, pady=10)
@@ -82,15 +70,15 @@ class ImportarView(ctk.CTkFrame):
         )
         self.entry_ruta.pack(side="left", padx=(0, 10))
 
-        ctk.CTkButton(
+        crear_boton_interactivo(
             file_frame, text="Examinar...", width=120,
             command=self._seleccionar_archivo,
         ).pack(side="left")
 
-        self.btn_cargar = ctk.CTkButton(
-            file_frame, text="Cargar Archivo", width=140,
-            command=self._cargar_archivo, state="disabled",
-        )
+        self.btn_cargar = crear_boton_interactivo(
+            file_frame, text="Cargar y revisar", width=160,
+            command=self._cargar_archivo,
+            fg_color="#7C3AED")
         self.btn_cargar.pack(side="left", padx=10)
 
         self.hoja_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
@@ -187,13 +175,20 @@ class ImportarView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header, text="Revisión Previa",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ctk.CTkFont(size=18, weight="bold"), text_color="#1F0A33",
         ).pack(side="left")
 
-        ctk.CTkButton(
-            header, text="Validar", width=120,
-            command=self._validar,
-        ).pack(side="right")
+        from utils.ui_helpers import crear_boton_interactivo as _btn_v
+        _btn_v(header, text="Validar", width=120,
+               command=self._validar, fg_color="#7C3AED").pack(side="right")
+        bulk = ctk.CTkFrame(self.tab_revision, fg_color="transparent")
+        bulk.pack(fill="x", padx=10, pady=3)
+        ctk.CTkLabel(bulk, text="Para todos:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(0, 5))
+        for texto, op in (("Omitir todos", "omitir"), ("Generar DNI para todos", "provisional"),
+                          ("Corregir todos", "corregir")):
+            ctk.CTkButton(bulk, text=texto, width=150, height=28,
+                          fg_color="#E5E7EB", text_color="#1F0A33", hover_color="#DDD6E5",
+                          command=lambda o=op: self._aplicar_bulk(o)).pack(side="left", padx=3)
 
         ctk.CTkLabel(
             self.tab_revision,
@@ -211,9 +206,11 @@ class ImportarView(ctk.CTkFrame):
         )
         self.label_revision.pack(anchor="w", padx=10, pady=5)
 
-        self.btn_ejecutar_rev = ctk.CTkButton(
+        from utils.ui_helpers import crear_boton_interactivo as _btn_e
+        self.btn_ejecutar_rev = _btn_e(
             self.tab_revision, text="Ejecutar Importación", width=180,
-            command=self._ejecutar_importacion, state="disabled",
+            command=self._ejecutar_importacion, fg_color="#22C55E",
+            hover_color="#16A34A", state="disabled",
         )
         self.btn_ejecutar_rev.pack(anchor="e", padx=10, pady=5)
 
@@ -287,6 +284,23 @@ class ImportarView(ctk.CTkFrame):
         self.label_revision.configure(
             text=f"{len(hallazgos)} hallazgo(s). Elige opción por cada uno y ejecuta.")
         self.btn_ejecutar_rev.configure(state="normal")
+
+    def _aplicar_bulk(self, opcion):
+        # Como el explorador: aplica a todos los hallazgos que la soporten
+        cambiados = 0
+        for hid, (var, seg, opciones) in self._vars_resolucion.items():
+            ids = [o["id"] for o in opciones]
+            if opcion in ids:
+                try:
+                    var.set(opcion)
+                    etiqueta = next(o["label"] for o in opciones if o["id"] == opcion)
+                    seg.set(etiqueta)
+                    cambiados += 1
+                except Exception:
+                    pass
+        self.label_revision.configure(
+            text=f"{len(self._hallazgos_actuales)} hallazgo(s). "
+                 f"Aplicado '{opcion}' a {cambiados}.")
 
     def _fijar_resolucion(self, hid, etiqueta):
         var, _seg, opciones = self._vars_resolucion.get(hid, (None, None, []))
@@ -410,9 +424,19 @@ class ImportarView(ctk.CTkFrame):
         self._mostrar_vista_previa()
         self._configurar_mapeo()
         self.btn_importar.configure(state="normal")
+        # Flujo directo: sin clickear pestañas, cae en Revisión ya validada
+        try:
+            self._validar()
+            self.tabview.set("Revisión")
+        except Exception:
+            pass
 
     def _autodetectar_tipo(self):
-        # E1: autodetección por hojas+columnas; el usuario puede corregirla
+        # Autodetección por hojas+columnas; override manual solo si falla
+        try:
+            self.override_frame.pack_forget()
+        except Exception:
+            pass
         try:
             hoja = None
             extension = self._archivo_actual.rsplit(".", 1)[-1].lower()
@@ -429,8 +453,16 @@ class ImportarView(ctk.CTkFrame):
                 pass
             self.label_deteccion.configure(text=f"Detecté: {tipo} ({motivo})")
         else:
+            try:
+                self.seg_tipo.set(self._tipo_importacion)
+            except Exception:
+                pass
             self.label_deteccion.configure(
-                text="No reconocí el formato: elige el tipo manualmente.")
+                text="No reconocí el formato: elige el tipo y vuelve a cargar.")
+            try:
+                self.override_frame.pack(fill="x", padx=10, pady=5)
+            except Exception:
+                pass
 
     def _preview_paginar(self, delta):
         total = max(1, (len(self._datos_cargados) + self._preview_por_pagina - 1) // self._preview_por_pagina)
