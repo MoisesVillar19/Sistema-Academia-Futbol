@@ -209,6 +209,29 @@ def desactivar_estudiante(id_estudiante: int, id_usuario: int = 1) -> tuple[bool
     return True, "Estudiante desactivado correctamente"
 
 
+def reactivar_estudiante(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str]:
+    """Reversión del soft delete (activo=0 → 1) con auditoría. Solo ADMIN (gate en controller)."""
+    estudiante = estudiante_repository.obtener_por_id(id_estudiante)
+    if not estudiante:
+        return False, "Estudiante no encontrado"
+
+    if estudiante["activo"] == 1:
+        return False, "El estudiante ya está activo"
+
+    estudiante_repository.activar(id_estudiante)
+
+    auditoria_service.registrar_update(
+        id_usuario=id_usuario,
+        tabla="estudiante",
+        id_registro=id_estudiante,
+        valores_anteriores="activo=0",
+        valores_nuevos="activo=1",
+    )
+
+    logger.info(f"Estudiante reactivado: ID={id_estudiante}")
+    return True, "Estudiante reactivado correctamente"
+
+
 def asociar_apoderado(id_estudiante: int, id_apoderado: int,
                       es_principal: bool = False, id_usuario: int = 1) -> tuple[bool, str]:
     return apoderado_service.asociar_a_estudiante(

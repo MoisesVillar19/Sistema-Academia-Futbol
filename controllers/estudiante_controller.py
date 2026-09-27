@@ -57,8 +57,24 @@ def registrar_reingreso(id_estudiante: int) -> tuple[bool, str]:
     return estudiante_service.registrar_reingreso(id_estudiante, id_usuario=_get_id_usuario())
 
 
+def _requerir_admin() -> tuple[bool, str]:
+    if not auth_service.es_admin():
+        return False, "Acceso denegado: solo un administrador puede eliminar/reactivar estudiantes"
+    return True, ""
+
+
 def desactivar_estudiante(id_estudiante: int) -> tuple[bool, str]:
+    permitido, msg = _requerir_admin()
+    if not permitido:
+        return False, msg
     return estudiante_service.desactivar_estudiante(id_estudiante, id_usuario=_get_id_usuario())
+
+
+def reactivar_estudiante(id_estudiante: int) -> tuple[bool, str]:
+    permitido, msg = _requerir_admin()
+    if not permitido:
+        return False, msg
+    return estudiante_service.reactivar_estudiante(id_estudiante, id_usuario=_get_id_usuario())
 
 
 def asociar_apoderado(id_estudiante: int, id_apoderado: int,

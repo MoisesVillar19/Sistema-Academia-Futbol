@@ -171,6 +171,15 @@ def soft_delete(id_estudiante: int) -> None:
     conn.commit()
 
 
+def activar(id_estudiante: int) -> None:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE estudiante SET activo = 1 WHERE id_estudiante = ?",
+        (id_estudiante,),
+    )
+    conn.commit()
+
+
 def buscar_paginado(q: str = "", activo: int | None = 1, estado=None, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
     where = []
     params = []
