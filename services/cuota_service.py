@@ -14,6 +14,23 @@ from utils.dates import get_today
 from utils.logger import logger
 
 
+# Escala de mensualidad por periodo (única fuente de verdad para importes).
+# Septiembre 2026 en adelante = 120. Futuros incrementos: agregar una
+# entrada ("AAAA-MM", monto). Las cuotas guardan su propio monto, así que
+# lo histórico no cambia.
+ESCALA_MENSUALIDAD = (("2026-01", 100.0), ("2026-09", 120.0))
+
+
+def monto_mensualidad(periodo: str) -> float:
+    """Monto de mensualidad vigente en un periodo AAAA-MM."""
+    per = str(periodo or "").strip()[:7]
+    monto = ESCALA_MENSUALIDAD[0][1]
+    for desde, m in ESCALA_MENSUALIDAD:
+        if per >= desde:
+            monto = m
+    return monto
+
+
 def _fecha_vencimiento_valida(periodo: str, dia: int) -> str:
     """Construye la fecha de vencimiento ajustando el dia al ultimo del mes.
 
@@ -26,6 +43,8 @@ def _fecha_vencimiento_valida(periodo: str, dia: int) -> str:
 
 def crear_cuota(id_matricula: int, monto_total: float, fecha_vencimiento: str,
                periodo: str) -> int:
+    # Monto 0 (beca completa): nace PAGADA para no ensuciar Vencidas/grilla.
+    estado_inicial = CUOTA_PAGADO if round(float(monto_total or 0), 2) <= 0 else CUOTA_PENDIENTE
     cuota = Cuota(
         id_matricula=id_matricula,
         periodo=periodo,
@@ -33,7 +52,7 @@ def crear_cuota(id_matricula: int, monto_total: float, fecha_vencimiento: str,
         monto_total=monto_total,
         monto_pagado=0,
         saldo=monto_total,
-        estado=CUOTA_PENDIENTE,
+        estado=estado_inicial,
     )
     return cuota_repository.insertar(cuota)
 
@@ -274,5 +293,10 @@ def grilla_anual(year: int) -> list[dict]:
             saldo = 0.0
         actual = filas[eid]["meses"].get(mes)
         if actual is None or _PRIORIDAD_ESTADO.get(estado, 9) < _PRIORIDAD_ESTADO.get(actual.get("estado"), 9):
-            filas[eid]["meses"][mes] = {"estado": estado, "saldo": saldo}
+            filas[eid]["meses"][mes] = {"estado": estado, "saldo": saldo,
+                                        "id_cuota": c.get("id_cuota"),
+                                        "periodo": c.get("periodo", ""),
+                                        "monto_total": c.get("monto_total", 0),
+                                        "monto_pagado": c.get("monto_pagado", 0),
+                                        "fecha_vencimiento": c.get("fecha_vencimiento", "")}
     return sorted(filas.values(), key=lambda f: f["nombre"])

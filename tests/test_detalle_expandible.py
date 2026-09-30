@@ -59,21 +59,24 @@ def test_toggle_pago(crear_vista, usuario_admin, ctk_root):
     _verificar_toggle(ctk_root, vista.scroll_pagos)
 
 
-def test_toggle_egreso(crear_vista, usuario_admin, ctk_root, monkeypatch):
-    import controllers.egreso_controller as ec
-    monkeypatch.setattr(ec, "listar_egresos", lambda *a, **k: [
-        {"id_egreso": 1, "concepto": "PROFESOR", "monto": 200.0,
-         "fecha": "2026-01-01", "responsable": "Juan", "observacion": "Enero"}])
+def test_toggle_egreso(crear_vista, usuario_admin, ctk_root):
+    from views.egresos.egreso_view import EgresoView
     vista = crear_vista(EgresoView)
+    # Constructor directo (el render auto va en modo Tabla densa con ▾;
+    # igual que los tests hermanos de estudiante/pagos).
+    vista._crear_card_egreso(
+        {"id_egreso": 1, "concepto": "PROFESOR", "monto": 200.0,
+         "fecha": "2026-01-01", "responsable": "Juan", "observacion": "Enero"})
     _verificar_toggle(ctk_root, vista.scroll)
 
 
-def test_toggle_venta(crear_vista, usuario_admin, ctk_root, monkeypatch):
-    import controllers.venta_controller as vc
-    monkeypatch.setattr(vc, "listar_ventas", lambda *a, **k: [
-        {"id_venta": 1, "tipo_venta": "UNIFORME", "numero_recibo": "V-001",
-         "monto_total": 60.0, "metodo_pago": "EFECTIVO", "fecha_venta": "2026-01-01"}])
+def test_toggle_venta(crear_vista, usuario_admin, ctk_root):
+    from views.ventas.venta_view import VentaView
     vista = crear_vista(VentaView)
+    vista._crear_card_venta(
+        vista.scroll,
+        {"id_venta": 1, "tipo_venta": "UNIFORME", "numero_recibo": "V-001",
+         "monto_total": 60.0, "metodo_pago": "EFECTIVO", "fecha_venta": "2026-01-01"})
     _verificar_toggle(ctk_root, vista.scroll)
 
 

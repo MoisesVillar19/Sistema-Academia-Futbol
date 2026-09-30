@@ -14,6 +14,9 @@ class InventarioView(ctk.CTkFrame):
     def __init__(self, parent, canal=None):
         super().__init__(parent, fg_color="transparent")
         self._canal = canal
+        # Códigos ocultos en esta vista (Tiendita excluye uniformes COM/ENT,
+        # que viven en su sección propia).
+        self._excluir_codigos: tuple = ()
         self._categorias_map = {}
         self._productos_map = {}
         self._pagina = 1
@@ -448,11 +451,18 @@ class InventarioView(ctk.CTkFrame):
                 self._cargar_combo_productos()
             self._cargar_productos_compra()
 
+    def _sin_excluidos(self, prods):
+        excl = getattr(self, "_excluir_codigos", ())
+        if not excl:
+            return prods
+        return [p for p in prods if p.get("codigo", "") not in excl]
+
     def _cargar_productos_compra(self):
         try:
             prods = inventario_controller.listar_productos(activo=1)
             if self._canal is not None:
                 prods = [p for p in prods if p.get("canal") == self._canal]
+            prods = self._sin_excluidos(prods)
         except Exception:
             prods = []
         nombres = [f"{p.get('codigo','')} - {p.get('nombre','')}" for p in prods]
@@ -603,7 +613,8 @@ class InventarioView(ctk.CTkFrame):
             offset = (self._pagina - 1) * self._per_page
             rows, total = producto_repository.buscar_paginado(
                 q=self._q_actual, limit=self._per_page, offset=offset,
-                id_categoria_producto=cat_id, canal=self._canal)
+                id_categoria_producto=cat_id, canal=self._canal,
+                excluir_codigos=getattr(self, "_excluir_codigos", ()))
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
@@ -612,6 +623,8 @@ class InventarioView(ctk.CTkFrame):
             todos = inventario_controller.listar_productos()
             if self._canal is not None:
                 todos = [p for p in todos if p.get("canal") == self._canal]
+            todos = [p for p in todos
+                     if p.get("codigo", "") not in getattr(self, "_excluir_codigos", ())]
             if cat_id is not None:
                 todos = [p for p in todos if p.get("id_categoria_producto") == cat_id]
             if self._q_actual:
@@ -1022,6 +1035,7 @@ class InventarioView(ctk.CTkFrame):
         productos = inventario_controller.listar_productos(activo=1)
         if self._canal is not None:
             productos = [p for p in productos if p.get("canal") == self._canal]
+        productos = self._sin_excluidos(productos)
         nombres = [f"{p.get('codigo', '')} - {p.get('nombre', '')}" for p in productos]
         self.combo_producto.configure(values=nombres if nombres else ["Sin productos"])
         self._productos_map = {n: p for n, p in zip(nombres, productos)}

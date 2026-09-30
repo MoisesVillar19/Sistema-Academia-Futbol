@@ -260,6 +260,8 @@ class App(ctk.CTk):
         # Fase 6b: split estanco (secretaria solo Tiendita, Almacén solo ADMIN)
         if _can("tiendita"):
             _btn("🏪  Tiendita", self._mostrar_tiendita, indent=True)
+        if _can("uniformes"):
+            _btn("🎽  Uniformes", self._mostrar_uniformes, indent=True)
         if _can("almacen"):
             _btn("📦  Almacén", self._mostrar_almacen, indent=True)
         _header("ANÁLISIS")
@@ -431,6 +433,11 @@ class App(ctk.CTk):
         from views.tiendita.tiendita_view import TienditaView
         TienditaView(self.contenido).pack(fill="both", expand=True)
 
+    def _mostrar_uniformes(self):
+        self._limpiar_contenido()
+        from views.uniformes.uniforme_view import UniformesView
+        UniformesView(self.contenido).pack(fill="both", expand=True)
+
     def _mostrar_almacen(self):
         self._limpiar_contenido()
         from views.almacen.almacen_view import AlmacenView
@@ -494,6 +501,7 @@ class App(ctk.CTk):
             "estudiantes": (self._mostrar_estudiantes, "Estudiantes"),
             "matriculas": (self._mostrar_matriculas, "Matrículas"),
             "tiendita": (self._mostrar_tiendita, "Tiendita"),
+            "uniformes": (self._mostrar_uniformes, "Uniformes"),
             "almacen": (self._mostrar_almacen, "Almacén"),
         }
         destino = rutas.get(modulo or "")

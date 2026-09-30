@@ -47,55 +47,39 @@ def crear_boton_interactivo(parent, text, command, fg_color="#7C3AED", width=120
 
 
 def aplicar_hover_borde(widget, color_hover="#7C3AED", color_normal="#E5E7EB"):
-    """Hover visual sin parpadeo: solo cambia border_color (mismo ancho, sin
-    reflow) + debounce de 80ms en la salida (los cruces padre↔hijo generan
-    ráfagas Enter/Leave con el mouse rápido; el estado final queda correcto)."""
+    """Cards estáticas: SIN cambio visual en hover.
+
+    Por qué: cambiar border_color en CTkFrame fuerza un redibujado completo
+    del canvas. Dentro de un CTkScrollableFrame (dashboard y listas) ese
+    redibujado en Windows produce parpadeo, desdibujado y hasta frames en
+    blanco al mover el mouse rápido o al usar la barra de desplazamiento.
+    Además los eventos Enter/Leave se disparan al cruzar padre↔hijos
+    (labels internos), generando ráfagas de toggle.
+
+    Se mantiene la firma por compatibilidad y solo se fija el cursor de
+    mano (no causa redraw). Los ganchos _hover_enter/_hover_leave quedan
+    como no-ops testeables que NO alteran la apariencia.
+    """
     try:
         widget.configure(cursor="hand2")
     except Exception:
         pass
 
-    def _cancelar():
-        try:
-            pending = getattr(widget, "_hover_after_id", None)
-            if pending is not None:
-                widget.after_cancel(pending)
-        except Exception:
-            pass
-        try:
-            widget._hover_after_id = None
-        except Exception:
-            pass
-
     def _enter(_e=None):
-        _cancelar()
         try:
-            widget.configure(cursor="hand2", border_color=color_hover)
+            widget.configure(cursor="hand2")
         except Exception:
             pass
 
     def _leave(_e=None):
-        _cancelar()
-
-        def _restaurar():
-            try:
-                widget._hover_after_id = None
-            except Exception:
-                pass
-            try:
-                widget.configure(cursor="", border_color=color_normal)
-            except Exception:
-                pass
-
         try:
-            widget._hover_after_id = widget.after(80, _restaurar)
+            widget.configure(cursor="hand2")
         except Exception:
             pass
 
     try:
-        widget.bind("<Enter>", _enter, add="+")
-        widget.bind("<Leave>", _leave, add="+")
-        # ganchos testeables (misma función que el binding)
+        # Sin bindings Enter/Leave: la card no cambia nunca (estática).
+        # Se exponen los ganchos para compatibilidad con tests.
         widget._hover_enter = _enter
         widget._hover_leave = _leave
     except Exception:
@@ -151,10 +135,14 @@ def bind_click_unico(widget, comando):
 
 
 def crear_card_interactiva(parent, hover_bg="#F3E8FF", border_hover="#DDD6E5"):
-    """Card blanca estilo Configuración con hover de borde (sin parpadeo)."""
+    """Card blanca estática (sin hover ni cursor mano).
+
+    Las filas de tabla/listas no son clickeables: no llevan ningún binding
+    para evitar redibujados dentro del scroll. Los params hover_* se ignoran
+    (compatibilidad). Para cards clickeables usar bind_click_unico aparte.
+    """
     frame = ctk.CTkFrame(parent, fg_color="white", border_width=1, border_color="#E5E7EB",
                          corner_radius=8)
-    aplicar_hover_borde(frame, color_hover=border_hover)
     return frame
 
 
@@ -334,21 +322,17 @@ def linea_detalle(parent, etiqueta, valor):
     return row
 
 
-def crear_tabla_cards(parent, columnas, filas, cap=50, nota_mas=""):
+def crear_tabla_cards(parent, columnas, filas, cap=50, nota_mas="",
+                      paginar=False, por_pagina=30):
     """Tabla con filas como tarjetas blancas (estilo listas unificadas).
 
     columnas: [(titulo, ancho)]; filas: [[celda, ...]] donde celda es
     str o (str, {"text_color":..., "weight":...}).
+    paginar=True: rebana en páginas con PaginationBar (dashboard).
     """
-    header = ctk.CTkFrame(parent, fg_color="#DDD6E5", corner_radius=6)
-    header.pack(fill="x", padx=5, pady=2)
-    for col, (texto, ancho) in enumerate(columnas):
-        ctk.CTkLabel(header, text=texto, width=ancho,
-                     font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color=TITULO_COLOR).grid(row=0, column=col, padx=5, pady=5)
-    mostrar = filas[:cap] if cap else list(filas)
-    for fila in mostrar:
-        row = crear_card_interactiva(parent)
+
+    def _agregar_fila(contenedor, fila):
+        row = crear_card_interactiva(contenedor)
         row.pack(fill="x", padx=5, pady=2)
         for col, celda in enumerate(fila):
             if isinstance(celda, tuple):
@@ -359,6 +343,45 @@ def crear_tabla_cards(parent, columnas, filas, cap=50, nota_mas=""):
             ctk.CTkLabel(row, text=str(texto), width=ancho,
                          font=ctk.CTkFont(size=11, weight=opts.get("weight", "normal")),
                          text_color=opts.get("text_color", "#1F0A33")).grid(row=0, column=col, padx=5, pady=6)
+
+    header = ctk.CTkFrame(parent, fg_color="#DDD6E5", corner_radius=6)
+    header.pack(fill="x", padx=5, pady=2)
+    for col, (texto, ancho) in enumerate(columnas):
+        ctk.CTkLabel(header, text=texto, width=ancho,
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=TITULO_COLOR).grid(row=0, column=col, padx=5, pady=5)
+    if paginar and len(filas) > por_pagina:
+        from widgets.pagination import PaginationBar
+        cont = ctk.CTkFrame(parent, fg_color="transparent")
+        cont.pack(fill="x")
+        estado = {"pag": 1}
+
+        def _render():
+            for w in cont.winfo_children():
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+            ini = (estado["pag"] - 1) * por_pagina
+            for fila in filas[ini:ini + por_pagina]:
+                _agregar_fila(cont, fila)
+            try:
+                parent.update_idletasks()
+            except Exception:
+                pass
+
+        def _cambiar(pag, _pp):
+            estado["pag"] = pag
+            _render()
+
+        bar = PaginationBar(parent, _cambiar, per_page=por_pagina)
+        bar.pack(fill="x", padx=5, pady=4)
+        bar.set_total(len(filas))
+        _render()
+        return
+    mostrar = filas[:cap] if cap else list(filas)
+    for fila in mostrar:
+        _agregar_fila(parent, fila)
     if cap and len(filas) > cap:
         ctk.CTkLabel(parent, text=nota_mas or f"Mostrando {cap} de {len(filas)}",
                      text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)

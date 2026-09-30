@@ -195,7 +195,8 @@ def _recalcular_cuotas_pendientes(id_matricula: int):
         if abs(c["monto_total"] - monto_base) < 0.01:
             continue
         nuevo_saldo = round(monto_base - c["monto_pagado"], 2)
-        cuota_obj = Cuota(id_cuota=c["id_cuota"], id_matricula=c["id_matricula"], periodo=c["periodo"], fecha_vencimiento=c["fecha_vencimiento"], monto_total=monto_base, monto_pagado=c["monto_pagado"], saldo=nuevo_saldo, estado="PENDIENTE", monto_mora=c.get("monto_mora", 0), activo=c["activo"])
+        estado_nuevo = "PAGADO" if nuevo_saldo <= 0 else "PENDIENTE"
+        cuota_obj = Cuota(id_cuota=c["id_cuota"], id_matricula=c["id_matricula"], periodo=c["periodo"], fecha_vencimiento=c["fecha_vencimiento"], monto_total=monto_base, monto_pagado=c["monto_pagado"], saldo=nuevo_saldo, estado=estado_nuevo, monto_mora=c.get("monto_mora", 0), activo=c["activo"])
         cuota_repository.actualizar(cuota_obj)
         auditoria_service.registrar_update(id_usuario=auditoria_service.id_usuario_sesion(), tabla="cuota", id_registro=c["id_cuota"], valores_anteriores=f"monto_total={c['monto_total']}, saldo={c['saldo']}", valores_nuevos=f"monto_total={monto_base}, saldo={nuevo_saldo}")
 
@@ -228,6 +229,46 @@ def desasignar_beca(id_matricula: int, id_beca: int) -> tuple[bool, str]:
 
 def obtener_becas_por_matricula(id_matricula: int) -> list[dict]:
     return matricula_beca_repository.obtener_por_matricula(id_matricula)
+
+
+def monto_mensual(mat: dict) -> float:
+    """Mensualidad neta de la matrícula: pactado o tarifa menos becas
+    activas (0/50/70...). Solo lectura (no toca datos). Acepta fila con
+    'becas_info' (nombre|tipo|valor;...) o lista 'becas' [(tipo, valor)]."""
+    try:
+        pactado = mat.get("monto_pactado")
+        base = float(pactado) if pactado is not None else float(mat.get("tarifa_monto", 0) or 0)
+    except (TypeError, ValueError):
+        base = 0.0
+    becas: list = []
+    info = mat.get("becas_info")
+    if info:
+        for chunk in str(info).split(";"):
+            partes = chunk.split("|")
+            if len(partes) == 3:
+                try:
+                    becas.append((partes[1].strip().upper(), float(partes[2])))
+                except (ValueError, TypeError):
+                    pass
+    elif isinstance(mat.get("becas"), list):
+        for b in mat["becas"]:
+            if isinstance(b, (list, tuple)) and len(b) == 2:
+                becas.append((str(b[0]).upper(), float(b[1])))
+            elif isinstance(b, dict):
+                try:
+                    becas.append((str(b.get("tipo", "")).upper(),
+                                  float(b.get("valor", 0))))
+                except (ValueError, TypeError):
+                    pass
+    for tipo, valor in becas:
+        try:
+            if tipo == "PORCENTAJE":
+                base -= base * (float(valor) / 100)
+            else:
+                base -= float(valor)
+        except (ValueError, TypeError):
+            pass
+    return round(max(base, 0), 2)
 
 
 MONTO_EXPRESS_NUEVO_DEFAULT = 120.0

@@ -9,8 +9,17 @@ def test_detecta_estudiantes():
 
 def test_detecta_tienda():
     tipo, _ = importar_service.detectar_tipo(
-        ["PRODUCTOS", "CANTIDAD", "COSTO TOTAL", "COSTO VENTA"], [])
+        ["PRODUCTOS", "CANTIDAD", "COSTO TOTAL", "COSTO VENTA",
+         "YAPE", "EFECTIVO", "CANTIDAD VENDIDO", "QUEDAN"], [])
     assert tipo == "Tienda"
+
+
+def test_sin_senal_venta_es_compras():
+    # Regla columnas distintivas: sin YAPE/EFECTIVO/VENDIDO/QUEDAN no hay
+    # venta → es Compras (mismo resultado: producto + compra, 0 ventas).
+    tipo, _ = importar_service.detectar_tipo(
+        ["PRODUCTOS", "CANTIDAD", "COSTO TOTAL", "COSTO VENTA"], [])
+    assert tipo == "Compras"
 
 
 def test_detecta_historial():
@@ -22,13 +31,20 @@ def test_detecta_historial():
 def test_no_reconocible_y_ambiguo():
     tipo, _ = importar_service.detectar_tipo(["ZZZ"], [])
     assert tipo is None
-    # DNI + PRODUCTOS a la vez = ambiguo
-    tipo, motivo = importar_service.detectar_tipo(["DNI", "Nombres", "PRODUCTOS"], [])
+    # DNI+Nombres sin precio/venta: solo Estudiantes (PRODUCTOS suelto
+    # sin sello de tipo no genera hit) → ya no es ambiguo
+    tipo, _ = importar_service.detectar_tipo(["DNI", "Nombres", "PRODUCTOS"], [])
+    assert tipo == "Estudiantes"
+    # DNI+Nombres + set completo de venta → Estudiantes+Tienda = ambiguo
+    tipo, motivo = importar_service.detectar_tipo(
+        ["DNI", "Nombres", "PRODUCTOS", "CANTIDAD", "COSTO TOTAL",
+         "YAPE", "CANTIDAD VENDIDO"], [])
     assert tipo is None and "ambiguo" in motivo
 
 
 def test_registro_extensible_sin_tocar_ui():
-    assert set(importar_service.TIPOS_IMPORTACION) >= {"Estudiantes", "Tienda", "Historial"}
+    assert set(importar_service.TIPOS_IMPORTACION) >= {"Estudiantes", "Tienda", "Historial",
+                                                       "Productos", "Compras", "Pagos"}
     for nombre, spec in importar_service.TIPOS_IMPORTACION.items():
         for clave in ("descripcion", "detectar", "campos", "obligatorios", "validar", "ejecutar"):
             assert clave in spec, (nombre, clave)

@@ -126,7 +126,7 @@ ROLES_LEGACY = (ROLE_CAJA, ROLE_INVENTARIO)
 # Matriz permisos por rol (para sidebar y gates) — v2.1 secretaria con más libertad
 # Es el DEFAULT inicial: el ADMIN puede editarla (tabla rol_permiso) sin tocar código.
 MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
-                   "inventario", "tiendita", "almacen", "reportes", "egresos", "importar", "usuarios",
+                   "inventario", "tiendita", "almacen", "uniformes", "reportes", "egresos", "importar", "usuarios",
                    "tarifas", "auditoria", "configuracion", "catalogos", "respaldo")
 # Bloque D: `catalogos` = secciones 7-10 de Configuración (categorías edad,
 # tipos uniforme, conceptos, apariencia). SECRETARIA lo tiene por defecto;
@@ -136,7 +136,7 @@ MODULOS_SISTEMA = ("dashboard", "estudiantes", "matriculas", "pagos", "ventas",
 # La migración es el seed idempotente de create_db (INSERT OR IGNORE).
 PERMISOS_ROL = {
     ROLE_ADMIN: set(MODULOS_SISTEMA),
-    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "tiendita", "reportes", "egresos", "respaldo", "tarifas", "catalogos"},
+    ROLE_SECRETARIA: {"dashboard", "estudiantes", "matriculas", "pagos", "ventas", "tiendita", "uniformes", "reportes", "egresos", "respaldo", "tarifas", "catalogos"},
 }
 
 STATUS_ACTIVO = "ACTIVO"

@@ -153,6 +153,16 @@ def actualizar(estudiante: Estudiante) -> None:
     conn.commit()
 
 
+def actualizar_es_nuevo(id_estudiante: int, es_nuevo: int) -> None:
+    """Flag es_nuevo editable (checkbox del form de matrícula)."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE estudiante SET es_nuevo = ? WHERE id_estudiante = ?",
+        (1 if es_nuevo else 0, id_estudiante),
+    )
+    conn.commit()
+
+
 def cambiar_estado(id_estudiante: int, estado: str, fecha_retiro: str | None = None) -> None:
     conn = get_connection()
     conn.execute(

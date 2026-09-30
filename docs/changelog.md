@@ -1,5 +1,27 @@
 # Changelog — AcademiaFutbol
 
+## v1.1.0 - 2026-09-30
+
+### Importacion masiva (Estudiantes/Tienda/Productos/Compras/Pagos/Uniformes/Historial)
+- Autodeteccion por columnas distintivas + plantillas descargables por tipo.
+- Wizard por pasos (Siguiente/Anterior sin saltos), mapeo auto con resumen, revision previa con opciones (omitir/provisional/corregir/actualizar/sin-beca/crear-beca) y bulk.
+- Re-importe idempotente (actualiza por nombre/DNI, nunca duplica) + matricula para todos + beca automatica + tarifas 100/120 por era + INICIO (C.M=enero, vacio=15-may, manda primer pago).
+- Historial XLSX: cuotas mensuales por monto, split 150 (120+uniforme), beca completa autopagada, retiros/reingresos, idempotencia.
+- BECA/INICIO en Estudiantes; retiros con fecha (auto por 2 vacios + manual editable).
+- CSV con autodeteccion de delimitador (, ; tab |).
+
+### Ventas, matricula e inventario
+- Vista Uniformes separada (COM/ENT) + tipo de importacion Uniformes; Tiendita oculta uniformes.
+- Matricula sin productos (-1/+1 fuera): checkbox es-nuevo editable + selector uniforme con pre-compra de stock.
+- Cuota S/0 nace PAGADA; mensualidad neta (tarifa menos becas) visible; detalle de pagos por cuota; historial por alumno; grilla con ! pendiente y dialogo por celda.
+- Tablas del dashboard paginadas.
+
+### Correcciones
+- Crash TclError al re-ejecutar importacion; resumen de mapeo con falsos faltantes.
+- Cards estaticas (sin parpadeo) + clic reparado en dashboard; filtros estudiantes en 2 filas.
+- Migracion: columnas antes que indices (BD legacy abren); tipo_uso legacy compat.
+- Suite 629/629 en verde.
+
 ## v1.0.8 - 2026-09-22
 
 ### Refactorización v2 (plan `docs/desarrollo/plan_refactorizacion_v2.md` ejecutado fases 0–8)

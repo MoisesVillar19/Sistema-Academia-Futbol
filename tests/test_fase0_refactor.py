@@ -45,6 +45,8 @@ def test_migracion_canal_backfill_legacy():
     from database import create_db
     conn = get_connection()
     conn.execute("ALTER TABLE producto ADD COLUMN tipo_uso TEXT DEFAULT 'CONSUMO_INTERNO'")
+    # Legacy fiel: sin columna ni su índice (el DROP fallaba por idx_producto_canal)
+    conn.execute("DROP INDEX IF EXISTS idx_producto_canal")
     conn.execute("ALTER TABLE producto DROP COLUMN canal")
     conn.execute("INSERT INTO categoria_producto (nombre) VALUES ('MigCat')")
     cat = fetch_one("SELECT id_categoria_producto FROM categoria_producto WHERE nombre='MigCat'")
@@ -59,6 +61,21 @@ def test_migracion_canal_backfill_legacy():
     conn.commit()
     assert fetch_one("SELECT canal FROM producto WHERE codigo='MIG-001'")["canal"] == "TIENDITA"
     assert fetch_one("SELECT canal FROM producto WHERE codigo='MIG-002'")["canal"] == "ALMACEN"
+
+
+def test_arranque_sobre_bd_legacy_sin_canal():
+    """Producción: create_tables() completo no debe reventar por
+    idx_producto_canal cuando la BD vieja no tiene la columna."""
+    from database import create_db
+    conn = get_connection()
+    conn.execute("DROP INDEX IF EXISTS idx_producto_canal")
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(producto)").fetchall()]
+    if "canal" in cols:
+        conn.execute("ALTER TABLE producto DROP COLUMN canal")
+    conn.commit()
+    create_db.create_tables()  # antes: OperationalError por el índice
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(producto)").fetchall()]
+    assert "canal" in cols
 
 
 def test_pago_guarda_comprobante(crear_matricula, usuario_admin):

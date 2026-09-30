@@ -3,6 +3,26 @@ import os
 from utils.logger import logger
 
 
+def _detectar_delimitador(ruta_archivo: str) -> str:
+    """Excel en español guarda con ';'. Sniffer con fallback a coma."""
+    try:
+        with open(ruta_archivo, "r", encoding="utf-8-sig") as f:
+            muestra = f.read(4096)
+        if not muestra.strip():
+            return ","
+        try:
+            dialecto = csv.Sniffer().sniff(muestra, delimiters=[",", ";", "\t", "|"])
+            if dialecto.delimiter in (",", ";", "\t", "|"):
+                return dialecto.delimiter
+        except Exception:
+            pass
+        conteos = {d: muestra.count(d) for d in (",", ";", "\t", "|")}
+        mejor = max(conteos, key=conteos.get)
+        return mejor if conteos[mejor] > 0 else ","
+    except Exception:
+        return ","
+
+
 def parse_csv(ruta_archivo: str) -> tuple[bool, str, list[dict]]:
     if not os.path.exists(ruta_archivo):
         return False, "El archivo no existe", []
@@ -15,7 +35,7 @@ def parse_csv(ruta_archivo: str) -> tuple[bool, str, list[dict]]:
         encabezados = None
 
         with open(ruta_archivo, "r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=_detectar_delimitador(ruta_archivo))
             filas_malas = []
             for idx, row in enumerate(reader):
                 if not row or all(c.strip() == "" for c in row):
@@ -58,7 +78,7 @@ def obtener_columnas_csv(ruta_archivo: str) -> tuple[bool, str, list[str]]:
 
     try:
         with open(ruta_archivo, "r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=_detectar_delimitador(ruta_archivo))
             for row in reader:
                 if row and any(c.strip() != "" for c in row):
                     return True, "OK", [c.strip() for c in row]

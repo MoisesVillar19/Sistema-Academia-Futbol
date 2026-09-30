@@ -8,6 +8,19 @@ from utils.dates import get_today
 from utils.logger import logger
 
 
+def _fecha_ingreso_valida(valor) -> str:
+    """INICIO del importador (o formularios): AAAA-MM-DD válido o hoy."""
+    txt = (str(valor or "").strip())[:10]
+    if txt:
+        try:
+            from utils.dates import parse_date
+            if parse_date(txt) is not None:
+                return txt
+        except Exception:
+            pass
+    return get_today()
+
+
 def crear_estudiante(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | None]:
     # RN-041 foto_path flexible, RN-051 es_nuevo
     foto_path = data.get("foto_path")
@@ -32,7 +45,7 @@ def crear_estudiante(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | 
     estudiante = Estudiante(
         id_persona=0,
         estado=STATUS_ACTIVO,
-        fecha_ingreso=get_today(),
+        fecha_ingreso=_fecha_ingreso_valida(data.get("fecha_ingreso")),
         foto_path=foto_path,
         fecha_matricula=data.get("fecha_matricula", get_today()),
         es_nuevo=es_nuevo,
@@ -122,6 +135,22 @@ def editar_estudiante(id_estudiante: int, data: dict) -> tuple[bool, str]:
             )
         except Exception as e:
             logger.warning(f"No se pudo actualizar foto: {e}")
+
+    # es_nuevo editable (checkbox del form de matrícula)
+    if "es_nuevo" in data:
+        try:
+            nuevo_flag = 1 if data.get("es_nuevo") in (1, "1", True, "true", "True") else 0
+            if int(estudiante.get("es_nuevo", 0) or 0) != nuevo_flag:
+                estudiante_repository.actualizar_es_nuevo(id_estudiante, nuevo_flag)
+                auditoria_service.registrar_update(
+                    id_usuario=auditoria_service.id_usuario_sesion(),
+                    tabla="estudiante",
+                    id_registro=id_estudiante,
+                    valores_anteriores=f"es_nuevo={estudiante.get('es_nuevo', 0)}",
+                    valores_nuevos=f"es_nuevo={nuevo_flag}",
+                )
+        except Exception as e:
+            logger.warning(f"No se pudo actualizar es_nuevo: {e}")
 
     return True, "Estudiante actualizado correctamente"
 

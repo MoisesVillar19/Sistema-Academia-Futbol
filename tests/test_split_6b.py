@@ -27,7 +27,8 @@ def test_tiendita_tabs_y_filtro(crear_vista, usuario_admin):
     id_t = _prod("T6b", "TIENDITA")
     id_a = _prod("A6b", "ALMACEN")
     vista = crear_vista(TienditaView)
-    assert _tabs(vista) == ["Productos", "Registrar Producto", "Registrar Compra", "Ventas"]
+    assert _tabs(vista) == ["Productos", "Registrar Producto", "Registrar Compra",
+                            "Ventas", "Ganancias"]
     assert vista.tab_movimiento is None and vista.tab_historial is None
     vista.update_idletasks()
     ids = {p["id_producto"] for p in

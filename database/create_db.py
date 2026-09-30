@@ -422,8 +422,10 @@ def create_tables() -> None:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.executescript(TABLES_SQL)
-    cursor.executescript(INDEXES_SQL)
+    # Las migraciones de columnas van ANTES que los índices: en BD legacy
+    # sin columna `canal`, crear idx_producto_canal reventaba el arranque.
     _migrar_columnas_faltantes(cursor)
+    cursor.executescript(INDEXES_SQL)
     conn.commit()
 
 

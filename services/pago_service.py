@@ -113,6 +113,11 @@ def obtener_detalles_por_pago(id_pago: int) -> list[dict]:
     return detalle_pago_repository.obtener_por_pago(id_pago)
 
 
+def obtener_detalles_por_cuota(id_cuota: int) -> list[dict]:
+    """Pagos aplicados a una cuota (recibo/fecha/método/monto)."""
+    return detalle_pago_repository.obtener_por_cuota(id_cuota)
+
+
 def listar_pagos(limit: int = 100, offset: int = 0) -> list[dict]:
     return pago_repository.obtener_todos(limit=limit, offset=offset)
 

@@ -68,6 +68,9 @@ def test_ejecutar_historial_notifica(crear_vista, usuario_admin, tmp_path, monke
     monkeypatch.setattr(mb, "askyesno", lambda *a, **k: True)
     monkeypatch.setattr(mb, "showwarning", lambda *a, **k: None)
     monkeypatch.setattr(mb, "showerror", lambda *a, **k: None)
+    # _avisar_resultado usa showinfo/showwarning según el resultado; sin
+    # mockear el modal real cuelga la suite (cuelgue histórico de este archivo).
+    monkeypatch.setattr(mb, "showinfo", lambda *a, **k: None)
     vista._ejecutar_historial()
     vista.update_idletasks()
     todo = _textos(vista.scroll_resultados)

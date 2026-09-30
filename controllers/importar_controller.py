@@ -41,15 +41,21 @@ def obtener_columnas(ruta_archivo: str, hoja: str | None = None) -> tuple[bool, 
     return False, "Formato no soportado", []
 
 
-TIPOS_IMPORTACION = ("Estudiantes", "Tienda")
+TIPOS_IMPORTACION = ("Estudiantes", "Tienda", "Productos", "Compras", "Pagos",
+                     "Uniformes")
+
+
+def _spec(tipo: str) -> dict:
+    return importar_service.TIPOS_IMPORTACION.get(tipo, {})
 
 
 def validar_datos(filas: list[dict], mapeo: dict | None = None,
                   tipo: str = "Estudiantes") -> tuple[bool, str, list[str]]:
     if not filas:
         return False, "No hay datos para validar", []
-    if tipo == "Tienda":
-        return importar_service.validar_filas_tienda(filas, mapeo)
+    spec = _spec(tipo)
+    if spec.get("validar"):
+        return spec["validar"](filas, mapeo)
     return importar_service.validar_filas(filas, mapeo)
 
 
@@ -67,7 +73,12 @@ def ejecutar_importacion(filas: list[dict], mapeo: dict | None = None,
             tipo, filas, mapeo, resoluciones)
         if not filas:
             return False, "Todas las filas fueron omitidas", {"errores": []}
-    if tipo == "Tienda":
+    if tipo == "Historial":
+        return False, "El Historial se ejecuta desde su flujo propio", {}
+    spec = _spec(tipo)
+    if spec.get("ejecutar"):
+        ok, msg, res = spec["ejecutar"](filas, id_usuario, mapeo)
+    elif tipo == "Tienda":
         ok, msg, res = importar_service.importar_tienda(filas, id_usuario, mapeo)
     else:
         ok, msg, res = importar_service.importar_estudiantes(filas, id_usuario, mapeo)
@@ -87,12 +98,18 @@ def revisar_importacion(filas: list[dict], mapeo: dict | None = None,
 
 
 def obtener_campos_sistema(tipo: str = "Estudiantes") -> list[str]:
+    spec = _spec(tipo)
+    if spec.get("campos"):
+        return spec["campos"]()
     if tipo == "Tienda":
         return list(importar_service.MAPEO_TIENDA.keys())
     return importar_service.obtener_campos_disponibles()
 
 
 def obtener_campos_obligatorios(tipo: str = "Estudiantes") -> list[str]:
+    spec = _spec(tipo)
+    if spec.get("obligatorios"):
+        return spec["obligatorios"]()
     if tipo == "Tienda":
         return importar_service.CAMPOS_OBLIGATORIOS_TIENDA.copy()
     return importar_service.obtener_campos_obligatorios()

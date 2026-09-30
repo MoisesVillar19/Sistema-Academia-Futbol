@@ -1,4 +1,4 @@
-from services import matricula_service, tarifa_service, beca_service, cuota_service, categoria_service, auth_service
+from services import matricula_service, tarifa_service, beca_service, cuota_service, categoria_service, auth_service, pago_service
 from utils.validators import validate_not_empty
 from utils.dates import calculate_age
 
@@ -84,6 +84,11 @@ def obtener_becas_por_matricula(id_matricula: int) -> list[dict]:
     return matricula_service.obtener_becas_por_matricula(id_matricula)
 
 
+def monto_mensual(mat: dict) -> float:
+    """Mensualidad neta (pactado o tarifa menos becas). Solo lectura."""
+    return matricula_service.monto_mensual(mat)
+
+
 def listar_tarifas_activas(tipo: str | None = None) -> list[dict]:
     return tarifa_service.listar_tarifas_activas(tipo=tipo)
 
@@ -94,6 +99,11 @@ def listar_becas() -> list[dict]:
 
 def obtener_cuotas_por_matricula(id_matricula: int) -> list[dict]:
     return cuota_service.obtener_cuotas_por_matricula(id_matricula)
+
+
+def obtener_pagos_por_cuota(id_cuota: int) -> list[dict]:
+    """Detalle de pagos aplicados a una cuota (recibo/fecha/método/monto)."""
+    return pago_service.obtener_detalles_por_cuota(id_cuota)
 
 
 def obtener_tarifa_sugerida_por_edad(fecha_nacimiento: str) -> int | None:

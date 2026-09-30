@@ -44,6 +44,15 @@ def fill_beca(celda) -> str:
             return "1/2 BECA"
         if theme == "7":
             return "BECA COMPLETA"
+        if c.type == "rgb":
+            # Rellenos directos (verdes/celestes del XLSX real): misma
+            # heurística que services/importar_historial._fill_verde_celeste.
+            h = str(getattr(c, "rgb", "") or "")[-6:]
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            if g >= 0x70 and g > r + 0x28 and g > b + 0x28:
+                return "1/2 BECA"
+            if b >= 0x70 and b > r + 0x28 and b > g:
+                return "BECA COMPLETA"
     except Exception:
         pass
     return ""

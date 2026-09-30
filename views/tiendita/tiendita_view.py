@@ -5,8 +5,13 @@ from views.inventario.inventario_view import InventarioView
 
 
 class TienditaView(InventarioView):
+    # Uniformes COM/ENT viven en su sección propia (no en Tiendita).
+    CODIGOS_EXCLUIDOS = ("UNIFORME-COM", "CAMISETA-ENT")
+
     def __init__(self, parent):
         super().__init__(parent, canal="TIENDITA")
+        self._excluir_codigos = self.CODIGOS_EXCLUIDOS
+        self._cargar_paginado()
         try:
             from services import auth_service
             if auth_service.tiene_permiso("ventas"):

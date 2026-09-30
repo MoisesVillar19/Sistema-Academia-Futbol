@@ -48,16 +48,13 @@ def test_venta_combo_se_refresca(crear_vista, usuario_admin):
     assert "Refresco QA 6e" in " ".join(vista._productos_map.keys())
 
 
-def test_matricula_extras_se_refrescan(crear_vista, usuario_admin):
+def test_matricula_sin_extras_usa_uniforme(crear_vista, usuario_admin):
+    # B4: el form ya no ofrece extras −1/+1; solo uniforme (selector).
     from views.matriculas.matricula_view import MatriculaView
     vista = crear_vista(MatriculaView)
-    cats = inventario_controller.listar_categorias()
-    inventario_controller.crear_producto({
-        "id_categoria_producto": cats[0]["id_categoria_producto"],
-        "nombre": "Extra Refresco 6e", "canal": "TIENDITA",
-    })
-    vista._recargar_productos()
-    assert any(p["nombre"] == "Extra Refresco 6e" for p in vista._productos_disponibles)
+    assert not hasattr(vista, "frame_productos")
+    assert not hasattr(vista, "_recargar_productos")
+    assert vista.combo_uniforme.get() == "Entrenamiento"
 
 
 def test_ventas_filtro_categoria(crear_vista, usuario_admin):

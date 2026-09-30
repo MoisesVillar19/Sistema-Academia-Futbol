@@ -1,4 +1,4 @@
-"""Hover en cards: feedback de borde sin parpadeo (sin reflow)."""
+"""Cards estáticas: sin cambio visual en hover (evita parpadeo/blancos en scroll)."""
 import pytest
 
 pytestmark = pytest.mark.ui
@@ -13,11 +13,11 @@ def test_card_hover_cambia_borde(ctk_root):
         c = crear_card_interactiva(card)
         c.update_idletasks()
         normal = c.cget("border_color")
-        c._hover_enter()
+        c._hover_enter() if hasattr(c, "_hover_enter") else None
         c.update_idletasks()
-        assert c.cget("border_color") != normal
-        assert c.cget("border_width") == 1  # mismo ancho: sin reflow
-        c.configure(border_color=normal)
+        # Estática: el hover NO debe alterar borde ni ancho
+        assert c.cget("border_color") == normal
+        assert c.cget("border_width") == 1
     finally:
         card.destroy()
 
@@ -29,9 +29,16 @@ def test_aplicar_hover_no_revienta(ctk_root):
     card.pack()
     try:
         aplicar_hover_borde(card)
+        normal = card.cget("border_color")
         card.event_generate("<Enter>")
         card.event_generate("<Leave>")
         card.update_idletasks()
+        # Estática: ni los eventos ni los ganchos alteran el borde
+        assert card.cget("border_color") == normal
+        card._hover_enter()
+        card._hover_leave()
+        card.update_idletasks()
+        assert card.cget("border_color") == normal
     finally:
         card.destroy()
 

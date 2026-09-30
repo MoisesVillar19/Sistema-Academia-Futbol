@@ -1,6 +1,15 @@
 import customtkinter as ctk
 from controllers import dashboard_controller
-from utils.ui_helpers import crear_tabla_cards, crear_bloque_grafico_tabla
+from utils.ui_helpers import crear_tabla_cards as _crear_tabla_cards_base
+from utils.ui_helpers import crear_bloque_grafico_tabla
+
+
+def crear_tabla_cards(parent, columnas, filas, cap=50, nota_mas=""):
+    """Wrapper del dashboard: tablas con paginación (las listas superan
+    el cap y antes se cortaban en 'Mostrando 30 de N')."""
+    return _crear_tabla_cards_base(parent, columnas, filas, cap=cap,
+                                   nota_mas=nota_mas, paginar=True,
+                                   por_pagina=30)
 
 try:
     import matplotlib
@@ -133,6 +142,26 @@ class DashboardView(ctk.CTkFrame):
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", pady=5)
         return row
+
+    @staticmethod
+    def _ubicar_card_fila(row, card):
+        """Grid uniforme: columnas iguales que NO se recorren con el scroll.
+
+        pack(side=left, expand=True) redistribuía anchos cada vez que la
+        barra del scroll aparecía/desaparecía o un hover forzaba redraw
+        ("las cards corren"). Con grid + uniform el ancho es estable.
+        """
+        try:
+            idx = len(row.winfo_children()) - 1  # card ya creada como hija
+            if idx < 0:
+                idx = 0
+            row.grid_columnconfigure(idx, weight=1, uniform="dashcard")
+            card.grid(row=0, column=idx, padx=6, pady=6, sticky="nsew")
+        except Exception:
+            try:
+                card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
+            except Exception:
+                pass
 
     def _cargar_indicadores_impl(self):
         self._reset_contenedores()
@@ -313,20 +342,15 @@ class DashboardView(ctk.CTkFrame):
         except Exception:
             pass
     def _crear_card(self, parent, titulo, valor, color, comando):
-        # Card clickeable: hover con debounce + clic único por serial
-        # (ver utils/ui_helpers). Sin doble disparo ni parpadeo.
+        # Card clickeable ESTÁTICA: sin hover visual (el cambio de borde
+        # redibuja el canvas del scroll y causa parpadeo/blancos). Solo
+        # cursor mano + clic único por serial (ver utils/ui_helpers).
         card = ctk.CTkFrame(
             parent, fg_color="white",
             border_width=1, border_color="#E5E7EB",
             corner_radius=12,
         )
-        card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
-        try:
-            from utils.ui_helpers import aplicar_hover_borde, bind_click_unico
-            aplicar_hover_borde(card)
-            bind_click_unico(card, comando)
-        except Exception:
-            pass
+        self._ubicar_card_fila(parent, card)
 
         frame_interno = ctk.CTkFrame(card, fg_color="transparent")
         frame_interno.pack(expand=True, fill="both", padx=8, pady=8)
@@ -336,20 +360,22 @@ class DashboardView(ctk.CTkFrame):
         # sutil línea color
         ctk.CTkFrame(frame_interno, fg_color=color, height=3, corner_radius=2).pack(fill="x", padx=20, pady=(0,4))
 
+        # Bind DESPUÉS del contenido: bind_click_unico recorre los hijos
+        # existentes; si se llama antes, los labels internos quedan sin clic.
+        try:
+            from utils.ui_helpers import bind_click_unico
+            bind_click_unico(card, comando)
+        except Exception:
+            pass
+
     def _crear_card_dinero(self, parent, titulo, valor_yape, valor_efectivo, color, comando):
-        # Card doble línea Yape/Efectivo con clic en todo el interior
+        # Card doble línea Yape/Efectivo, estática + clic en todo el interior
         card = ctk.CTkFrame(
             parent, fg_color="white",
             border_width=1, border_color="#E5E7EB",
             corner_radius=12,
         )
-        card.pack(side="left", padx=6, pady=6, fill="x", expand=True)
-        try:
-            from utils.ui_helpers import aplicar_hover_borde, bind_click_unico
-            aplicar_hover_borde(card)
-            bind_click_unico(card, comando)
-        except Exception:
-            pass
+        self._ubicar_card_fila(parent, card)
 
         frame_interno = ctk.CTkFrame(card, fg_color="transparent")
         frame_interno.pack(expand=True, fill="both", padx=8, pady=8)
@@ -361,6 +387,13 @@ class DashboardView(ctk.CTkFrame):
             ctk.CTkLabel(frame_interno, text=f"Yape S/{valor_yape:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 0))
             ctk.CTkLabel(frame_interno, text=f"Efectivo S/{valor_efectivo:.2f}", font=ctk.CTkFont(size=15, weight="bold"), text_color=color).pack(pady=(0, 2))
         ctk.CTkFrame(frame_interno, fg_color=color, height=3, corner_radius=2).pack(fill="x", padx=20, pady=(0, 4))
+
+        # Bind DESPUÉS del contenido (ver _crear_card).
+        try:
+            from utils.ui_helpers import bind_click_unico
+            bind_click_unico(card, comando)
+        except Exception:
+            pass
 
     def _mostrar_detalle(self, tipo):
         from utils.ui_helpers import mostrar_cargando as _mc

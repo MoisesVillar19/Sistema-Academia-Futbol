@@ -65,7 +65,7 @@ class EstudianteView(ctk.CTkFrame):
             nro=2,
         )
         filtros = ctk.CTkFrame(sec_filtros, fg_color="transparent")
-        filtros.pack(fill="x", padx=10, pady=(0, 8))
+        filtros.pack(fill="x", padx=10, pady=(0, 2))
 
         self.filtro_estado = ctk.CTkSegmentedButton(
             filtros, values=["Todos", "Activos", "Reingresantes", "Becados", "Inactivos"],
@@ -81,11 +81,16 @@ class EstudianteView(ctk.CTkFrame):
         self.entry_busqueda.pack(side="left", padx=5)
         self._debouncer = Debouncer(self, 300)
         self.entry_busqueda.bind("<KeyRelease>", lambda e: self._debouncer.call(self._on_busqueda_cambiar))
+
+        # Segunda fila: fechas + vista (antes todo en una sola fila y el
+        # toggle Cards/Tabla quedaba fuera de pantalla en ventanas angostas).
+        filtros2 = ctk.CTkFrame(sec_filtros, fg_color="transparent")
+        filtros2.pack(fill="x", padx=10, pady=(0, 8))
         # Filtro por mes de ingreso (fecha_ingreso)
         from widgets.date_picker import DatePicker
-        self.date_ing_ini = DatePicker(filtros, label_text="Ing. desde:", default="")
+        self.date_ing_ini = DatePicker(filtros2, label_text="Ing. desde:", default="")
         self.date_ing_ini.pack(side="left", padx=5)
-        self.date_ing_fin = DatePicker(filtros, label_text="hasta:", default="")
+        self.date_ing_fin = DatePicker(filtros2, label_text="hasta:", default="")
         self.date_ing_fin.pack(side="left", padx=5)
         for dp in (self.date_ing_ini, self.date_ing_fin):
             try:
@@ -93,10 +98,10 @@ class EstudianteView(ctk.CTkFrame):
                                     lambda e: self._debouncer.call(self._on_busqueda_cambiar))
             except Exception:
                 pass
-        # Fase 7b: toggle Cards/Tabla
+        # Fase 7b: toggle Cards/Tabla (en 2da fila para que siempre se vea)
         self._vista_modo = "Tabla"
         self.seg_vista = ctk.CTkSegmentedButton(
-            filtros, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
+            filtros2, values=["Cards", "Tabla"], command=self._on_vista_cambiar)
         try:
             self.seg_vista.set("Tabla")
         except Exception:
@@ -729,7 +734,8 @@ class EstudianteView(ctk.CTkFrame):
         self.label_form_status.configure(text="")
 
     def _retirar(self, est):
-        from tkinter import messagebox
+        from tkinter import messagebox, simpledialog
+        from utils.dates import get_today, parse_date
         nombre = f"{est.get('nombres', '')} {est.get('apellidos', '')}"
         respuesta = messagebox.askyesno(
             "Confirmar retiro",
@@ -739,7 +745,17 @@ class EstudianteView(ctk.CTkFrame):
         )
         if not respuesta:
             return
-        exito, msg = estudiante_controller.registrar_retiro(est["id_estudiante"])
+        fecha = simpledialog.askstring(
+            "Fecha de retiro", "Fecha de retiro (AAAA-MM-DD, vacío = hoy):",
+            initialvalue=get_today(), parent=self)
+        if fecha is None:
+            return
+        fecha = (fecha or "").strip() or get_today()
+        if parse_date(fecha) is None:
+            messagebox.showwarning("Retirar estudiante",
+                                   f"Fecha inválida ({fecha}); use AAAA-MM-DD.")
+            return
+        exito, msg = estudiante_controller.registrar_retiro(est["id_estudiante"], fecha)
         if not exito:
             messagebox.showwarning("Retirar estudiante", msg)
         self._cargar_estudiantes()

@@ -11,51 +11,38 @@ def _tiene_columna(conn, tabla: str, columna: str) -> bool:
 
 def insertar(producto: Producto) -> int:
     conn = get_connection()
+    columnas = ["id_categoria_producto", "canal", "codigo", "nombre",
+                "stock_actual", "stock_minimo", "precio", "precio_compra",
+                "precio_venta"]
+    valores = [
+        producto.id_categoria_producto,
+        producto.canal,
+        producto.codigo,
+        producto.nombre,
+        producto.stock_actual,
+        producto.stock_minimo,
+        producto.precio,
+        producto.precio_compra,
+        producto.precio_venta,
+    ]
     if _tiene_columna(conn, "producto", "tipo_empaque"):
-        cursor = conn.execute(
-            """INSERT INTO producto
-               (id_categoria_producto, canal, codigo, nombre,
-                stock_actual, stock_minimo, precio, precio_compra, precio_venta,
-                tipo_empaque, cantidad_por_caja, precio_compra_total,
-                id_tipo_uniforme, activo)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                producto.id_categoria_producto,
-                producto.canal,
-                producto.codigo,
-                producto.nombre,
-                producto.stock_actual,
-                producto.stock_minimo,
-                producto.precio,
-                producto.precio_compra,
-                producto.precio_venta,
-                producto.tipo_empaque or "Unidad",
-                producto.cantidad_por_caja or 1,
-                producto.precio_compra_total or 0,
-                producto.id_tipo_uniforme,
-                producto.activo,
-            ),
-        )
-    else:
-        cursor = conn.execute(
-            """INSERT INTO producto
-               (id_categoria_producto, canal, codigo, nombre,
-                stock_actual, stock_minimo, precio, precio_compra, precio_venta, id_tipo_uniforme, activo)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                producto.id_categoria_producto,
-                producto.canal,
-                producto.codigo,
-                producto.nombre,
-                producto.stock_actual,
-                producto.stock_minimo,
-                producto.precio,
-                producto.precio_compra,
-                producto.precio_venta,
-                producto.id_tipo_uniforme,
-                producto.activo,
-            ),
-        )
+        columnas += ["tipo_empaque", "cantidad_por_caja", "precio_compra_total"]
+        valores += [producto.tipo_empaque or "Unidad",
+                    producto.cantidad_por_caja or 1,
+                    producto.precio_compra_total or 0]
+    columnas += ["id_tipo_uniforme", "activo"]
+    valores += [producto.id_tipo_uniforme, producto.activo]
+    if _tiene_columna(conn, "producto", "tipo_uso"):
+        # Compat BD legacy con tipo_uso NOT NULL: VENTA = vendible
+        # (tienda + uniformes, ambos se venden), resto CONSUMO_INTERNO.
+        columnas.append("tipo_uso")
+        valores.append("VENTA" if (producto.canal or "") == "TIENDITA"
+                       else "CONSUMO_INTERNO")
+    cursor = conn.execute(
+        f"""INSERT INTO producto ({", ".join(columnas)})
+            VALUES ({", ".join("?" * len(valores))})""",
+        tuple(valores),
+    )
     conn.commit()
     return cursor.lastrowid
 
@@ -176,11 +163,13 @@ def actualizar(producto: Producto) -> None:
 
 def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
                     id_categoria_producto: int | None = None,
-                    canal: str | None = None) -> tuple[list[dict], int]:
+                    canal: str | None = None,
+                    excluir_codigos: tuple = ()) -> tuple[list[dict], int]:
     """Búsqueda SQL real por nombre/código con paginación (Bloque A3).
 
     Devuelve (rows, total). Solo productos activos.
     ``id_categoria_producto`` filtra por categoría (Bloque B2, opcional).
+    ``excluir_codigos`` oculta códigos (uniformes fuera de Tiendita).
     """
     base = """
         FROM producto p
@@ -198,6 +187,9 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
     if canal is not None:
         base += " AND p.canal = ?"
         params.append(canal)
+    if excluir_codigos:
+        base += f" AND p.codigo NOT IN ({','.join('?' * len(excluir_codigos))})"
+        params.extend(excluir_codigos)
     cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
     rows = fetch_all(

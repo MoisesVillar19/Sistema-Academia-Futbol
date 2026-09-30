@@ -18,6 +18,38 @@ class ImportarView(ctk.CTkFrame):
             return
         self._crear_widgets()
 
+    ORDEN_TABS = ["Seleccionar Archivo", "Vista Previa", "Mapeo de Columnas",
+                  "Revisión", "Resultados"]
+
+    def _ir_tab(self, nombre):
+        """Navegación por pasos (Siguiente/Anterior). Sin saltos mágicos."""
+        try:
+            if nombre in self.ORDEN_TABS:
+                self.tabview.set(nombre)
+        except Exception:
+            pass
+
+    def _barra_nav(self, parent, anterior=None, siguiente=None,
+                   al_siguiente=None):
+        """Fila ← Anterior / Siguiente → al pie del tab."""
+        from utils.ui_helpers import crear_boton_interactivo
+        barra = ctk.CTkFrame(parent, fg_color="transparent")
+        barra.pack(fill="x", padx=10, pady=8)
+        if anterior is not None:
+            crear_boton_interactivo(
+                barra, text="← Anterior", width=130,
+                command=lambda: self._ir_tab(anterior),
+                fg_color="#E5E7EB", hover_color="#DDD6E5",
+                text_color="#1F0A33").pack(side="left")
+        if siguiente is not None:
+            btn = crear_boton_interactivo(
+                barra, text="Siguiente →", width=130,
+                command=(al_siguiente or (lambda: self._ir_tab(siguiente))),
+                fg_color="#7C3AED")
+            btn.pack(side="right")
+            return btn
+        return None
+
     def _crear_widgets(self):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
@@ -40,11 +72,15 @@ class ImportarView(ctk.CTkFrame):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
         sec = crear_seccion(
             self.tab_seleccion, titulo="Importar Datos desde Archivo", icono="📤",
-            descripcion="El sistema detecta el tipo solo. Un clic en Cargar y revisar "
-                        "te lleva directo a Revisión.",
+            descripcion="Paso 1: elige el archivo y pulsa Cargar. Luego avanza "
+                        "con Siguiente: Vista Previa → Mapeo → Revisión → Resultados.",
             nro=1)
         crear_nota(sec, "Estudiantes: DNI, Nombres, Apellidos. Tienda: PRODUCTOS, "
                         "CANTIDAD, COSTO TOTAL/VENTA, YAPE, EFECTIVO, VENDIDO, QUEDAN. "
+                        "Productos: PRODUCTO, COSTO, PRECIO_VENTA (catálogo). "
+                        "Compras: PRODUCTO, CANTIDAD, COSTO TOTAL. "
+                        "Pagos: DNI, PERIODO (AAAA-MM), MONTO. "
+                        "Uniformes: DNI, TIPO (COM/ENT), MONTO, FECHA. "
                         "Historial: XLSX con 3 hojas.")
 
         self._tipo_importacion = "Estudiantes"
@@ -52,7 +88,9 @@ class ImportarView(ctk.CTkFrame):
         self.override_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
         ctk.CTkLabel(self.override_frame, text="Tipo:").pack(side="left", padx=(10, 5))
         self.seg_tipo = ctk.CTkComboBox(
-            self.override_frame, values=["Estudiantes", "Tienda", "Historial"],
+            self.override_frame, values=["Estudiantes", "Tienda", "Productos",
+                                         "Compras", "Pagos", "Uniformes",
+                                         "Historial"],
             width=160, command=self._on_tipo_cambiar,
         )
         try:
@@ -76,7 +114,7 @@ class ImportarView(ctk.CTkFrame):
         ).pack(side="left")
 
         self.btn_cargar = crear_boton_interactivo(
-            file_frame, text="Cargar y revisar", width=160,
+            file_frame, text="Cargar", width=120,
             command=self._cargar_archivo,
             fg_color="#7C3AED")
         self.btn_cargar.pack(side="left", padx=10)
@@ -86,26 +124,10 @@ class ImportarView(ctk.CTkFrame):
             fg_color="#E5E7EB", hover_color="#DDD6E5",
             text_color="#1F0A33").pack(side="left", padx=10)
 
-    def _descargar_plantilla(self):
-        from tkinter import filedialog, messagebox
-        from services import importar_plantillas
-        tipos = importar_plantillas.listar_plantillas()
-        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
-        if tipo not in tipos:
-            tipo = "Estudiantes"
-        ruta = filedialog.asksaveasfilename(
-            title=f"Plantilla {tipo}",
-            defaultextension=".csv",
-            filetypes=[("CSV", "*.csv")],
-            initialfile=f"plantilla_{tipo.lower()}.csv")
-        if not ruta:
-            return
-        ok, msg = importar_plantillas.generar_csv(tipo, ruta)
-        if ok:
-            messagebox.showinfo("Plantilla", msg)
-        else:
-            messagebox.showerror("Plantilla", msg)
-
+        # P0: estos widgets los usan _seleccionar_archivo/_cargar_archivo/
+        # _autodetectar_tipo; deben existir desde la creación del tab
+        # (antes vivían dentro de _descargar_plantilla y el módulo crasheaba
+        # con AttributeError si no se descargaba plantilla primero).
         self.hoja_frame = ctk.CTkFrame(self.tab_seleccion, fg_color="transparent")
         self.hoja_frame.pack(fill="x", padx=10, pady=5)
         self.hoja_frame.pack_forget()
@@ -132,6 +154,34 @@ class ImportarView(ctk.CTkFrame):
             font=ctk.CTkFont(size=11),
         )
         self.label_estado.pack(pady=10)
+
+        # Paso 1 → 2: habilitado solo cuando hay datos cargados
+        self.btn_siguiente_sel = self._barra_nav(
+            self.tab_seleccion, siguiente="Vista Previa")
+        try:
+            self.btn_siguiente_sel.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _descargar_plantilla(self):
+        from tkinter import filedialog, messagebox
+        from services import importar_plantillas
+        tipos = importar_plantillas.listar_plantillas()
+        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
+        if tipo not in tipos:
+            tipo = "Estudiantes"
+        ruta = filedialog.asksaveasfilename(
+            title=f"Plantilla {tipo}",
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv")],
+            initialfile=f"plantilla_{tipo.lower()}.csv")
+        if not ruta:
+            return
+        ok, msg = importar_plantillas.generar_csv(tipo, ruta)
+        if ok:
+            messagebox.showinfo("Plantilla", msg)
+        else:
+            messagebox.showerror("Plantilla", msg)
 
     def _crear_tab_vista_previa(self):
         header = ctk.CTkFrame(self.tab_vista_previa, fg_color="transparent")
@@ -168,6 +218,10 @@ class ImportarView(ctk.CTkFrame):
         )
         self.label_preview.pack(anchor="w", padx=5, pady=5)
 
+        self._barra_nav(self.tab_vista_previa,
+                        anterior="Seleccionar Archivo",
+                        siguiente="Mapeo de Columnas")
+
     def _crear_tab_mapeo(self):
         header = ctk.CTkFrame(self.tab_mapeo, fg_color="transparent")
         header.pack(fill="x", padx=10, pady=10)
@@ -194,6 +248,13 @@ class ImportarView(ctk.CTkFrame):
         )
         self.label_mapeo.pack(anchor="w", padx=5, pady=5)
 
+        # Al avanzar se re-valida con el mapeo visible (por si se editó)
+        self._barra_nav(self.tab_mapeo,
+                        anterior="Vista Previa",
+                        siguiente="Revisión",
+                        al_siguiente=lambda: (self._validar(),
+                                              self._ir_tab("Revisión")))
+
     def _crear_tab_revision(self):
         header = ctk.CTkFrame(self.tab_revision, fg_color="transparent")
         header.pack(fill="x", padx=10, pady=10)
@@ -210,7 +271,8 @@ class ImportarView(ctk.CTkFrame):
         bulk.pack(fill="x", padx=10, pady=3)
         ctk.CTkLabel(bulk, text="Para todos:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(0, 5))
         for texto, op in (("Omitir todos", "omitir"), ("Generar DNI para todos", "provisional"),
-                          ("Corregir todos", "corregir")):
+                          ("Corregir todos", "corregir"), ("Actualizar todos", "actualizar"),
+                          ("Crear becas", "crear_beca")):
             ctk.CTkButton(bulk, text=texto, width=150, height=28,
                           fg_color="#E5E7EB", text_color="#1F0A33", hover_color="#DDD6E5",
                           command=lambda o=op: self._aplicar_bulk(o)).pack(side="left", padx=3)
@@ -238,6 +300,8 @@ class ImportarView(ctk.CTkFrame):
             hover_color="#16A34A", state="disabled",
         )
         self.btn_ejecutar_rev.pack(anchor="e", padx=10, pady=5)
+
+        self._barra_nav(self.tab_revision, anterior="Mapeo de Columnas")
 
     def _mapeo_dict(self):
         mapeo = {}
@@ -311,8 +375,10 @@ class ImportarView(ctk.CTkFrame):
         self.btn_ejecutar_rev.configure(state="normal")
 
     def _aplicar_bulk(self, opcion):
-        # Como el explorador: aplica a todos los hallazgos que la soporten
+        # Como el explorador: aplica a todos los hallazgos que la soporten;
+        # informa cuántos no la soportan (antes parecía no hacer nada).
         cambiados = 0
+        sin_opcion = 0
         for hid, (var, seg, opciones) in self._vars_resolucion.items():
             ids = [o["id"] for o in opciones]
             if opcion in ids:
@@ -323,9 +389,13 @@ class ImportarView(ctk.CTkFrame):
                     cambiados += 1
                 except Exception:
                     pass
-        self.label_revision.configure(
-            text=f"{len(self._hallazgos_actuales)} hallazgo(s). "
-                 f"Aplicado '{opcion}' a {cambiados}.")
+            else:
+                sin_opcion += 1
+        txt = (f"{len(self._hallazgos_actuales)} hallazgo(s). "
+               f"Aplicado '{opcion}' a {cambiados}.")
+        if sin_opcion:
+            txt += f" {sin_opcion} sin esa opción (revísalos uno por uno)."
+        self.label_revision.configure(text=txt)
 
     def _fijar_resolucion(self, hid, etiqueta):
         var, _seg, opciones = self._vars_resolucion.get(hid, (None, None, []))
@@ -363,40 +433,61 @@ class ImportarView(ctk.CTkFrame):
         self.scroll_resultados = ctk.CTkScrollableFrame(self.tab_resultados)
         self.scroll_resultados.pack(fill="both", expand=True, padx=10, pady=5)
 
+        # Estado FUERA del scroll: _mostrar_resultados destruye los hijos
+        # del scroll y antes se llevaba este label (TclError al re-ejecutar).
         self.label_resultados = ctk.CTkLabel(
-            self.scroll_resultados, text="",
+            self.tab_resultados, text="",
             font=ctk.CTkFont(size=12),
         )
-        self.label_resultados.pack(anchor="w", padx=5, pady=5)
+        self.label_resultados.pack(anchor="w", padx=10, pady=2)
+
+        self._barra_nav(self.tab_resultados, anterior="Revisión")
+
+    def _set_estado_resultados(self, texto, color="#333333"):
+        """Setter a prueba de widgets destruidos (doble ejecución)."""
+        try:
+            if self.label_resultados.winfo_exists():
+                self.label_resultados.configure(text=texto, text_color=color)
+        except Exception:
+            pass
 
     def _seleccionar_archivo(self):
-        ruta = filedialog.askopenfilename(
-            title="Seleccionar archivo para importar",
-            filetypes=[
-                ("Archivos soportados", "*.csv *.xlsx *.xls"),
-                ("CSV", "*.csv"),
-                ("Excel", "*.xlsx *.xls"),
-                ("Todos los archivos", "*.*"),
-            ],
-        )
+        try:
+            ruta = filedialog.askopenfilename(
+                title="Seleccionar archivo para importar",
+                filetypes=[
+                    ("Archivos soportados", "*.csv *.xlsx *.xls"),
+                    ("CSV", "*.csv"),
+                    ("Excel", "*.xlsx *.xls"),
+                    ("Todos los archivos", "*.*"),
+                ],
+            )
+        except Exception as e:
+            messagebox.showerror("Seleccionar archivo", f"No se pudo abrir el diálogo: {e}")
+            return
 
         if not ruta:
             return
 
-        self._archivo_actual = ruta
-        self.entry_ruta.configure(state="normal")
-        self.entry_ruta.delete(0, "end")
-        self.entry_ruta.insert(0, ruta)
-        self.entry_ruta.configure(state="disabled")
+        try:
+            self._archivo_actual = ruta
+            self.entry_ruta.configure(state="normal")
+            self.entry_ruta.delete(0, "end")
+            self.entry_ruta.insert(0, ruta)
+            self.entry_ruta.configure(state="disabled")
 
-        self.btn_cargar.configure(state="normal")
-        self.label_estado.configure(text="Archivo seleccionado. Presione 'Cargar Archivo'.", text_color="#333333")
+            self.btn_cargar.configure(state="normal")
+            self.label_estado.configure(text="Archivo seleccionado. Presione 'Cargar y revisar'.", text_color="#333333")
 
-        extension = ruta.rsplit(".", 1)[-1].lower() if "." in ruta else ""
-        if extension in ("xlsx", "xls"):
-            self._cargar_hojas(ruta)
-        else:
-            self.hoja_frame.pack_forget()
+            extension = ruta.rsplit(".", 1)[-1].lower() if "." in ruta else ""
+            if extension in ("xlsx", "xls"):
+                self._cargar_hojas(ruta)
+            else:
+                self.hoja_frame.pack_forget()
+        except Exception as e:
+            from utils.logger import logger
+            logger.error(f"Importar _seleccionar_archivo fallo: {e}", exc_info=True)
+            messagebox.showerror("Seleccionar archivo", f"No se pudo seleccionar el archivo:\n{e}")
 
     def _cargar_hojas(self, ruta: str):
         exito, msg, hojas = importar_controller.obtener_hojas(ruta)
@@ -421,40 +512,54 @@ class ImportarView(ctk.CTkFrame):
 
     def _cargar_archivo(self):
         if not self._archivo_actual:
+            messagebox.showwarning("Cargar archivo", "Primero seleccione un archivo con Examinar...")
             return
 
-        self.label_estado.configure(text="Cargando archivo...", text_color="#333333")
-        self.update_idletasks()
-
-        hoja = None
-        extension = self._archivo_actual.rsplit(".", 1)[-1].lower() if "." in self._archivo_actual else ""
-        if extension in ("xlsx", "xls"):
-            hoja = self.combo_hoja.get()
-
-        exito, msg, datos = importar_controller.cargar_archivo(self._archivo_actual, hoja)
-
-        if not exito:
-            self.label_estado.configure(text=f"Error: {msg}", text_color="#DC2626")
-            messagebox.showerror("Error", msg)
-            return
-
-        self._datos_cargados = datos
-        self._preview_pagina = 1
-        self.label_estado.configure(
-            text=f"Archivo cargado: {len(datos)} registros",
-            text_color="#22C55E",
-        )
-        self._autodetectar_tipo()
-
-        self._mostrar_vista_previa()
-        self._configurar_mapeo()
-        self.btn_importar.configure(state="normal")
-        # Flujo directo: sin clickear pestañas, cae en Revisión ya validada
         try:
-            self._validar()
-            self.tabview.set("Revisión")
-        except Exception:
-            pass
+            self.label_estado.configure(text="Cargando archivo...", text_color="#333333")
+            self.update_idletasks()
+
+            hoja = None
+            extension = self._archivo_actual.rsplit(".", 1)[-1].lower() if "." in self._archivo_actual else ""
+            if extension in ("xlsx", "xls"):
+                hoja = self.combo_hoja.get()
+
+            exito, msg, datos = importar_controller.cargar_archivo(self._archivo_actual, hoja)
+
+            if not exito:
+                self.label_estado.configure(text=f"Error: {msg}", text_color="#DC2626")
+                messagebox.showerror("Error", msg)
+                return
+
+            self._datos_cargados = datos
+            self._preview_pagina = 1
+            self.label_estado.configure(
+                text=f"Archivo cargado: {len(datos)} registros",
+                text_color="#22C55E",
+            )
+            self._autodetectar_tipo()
+
+            self._mostrar_vista_previa()
+            self._configurar_mapeo()
+            self.btn_importar.configure(state="normal")
+            # La Revisión se pre-valida al cargar, pero el usuario avanza
+            # con Siguiente (sin saltos automáticos de pestaña).
+            try:
+                self._validar()
+            except Exception:
+                pass
+            try:
+                self.btn_siguiente_sel.configure(state="normal")
+            except Exception:
+                pass
+        except Exception as e:
+            from utils.logger import logger
+            logger.error(f"Importar _cargar_archivo fallo: {e}", exc_info=True)
+            try:
+                self.label_estado.configure(text=f"Error: {e}", text_color="#DC2626")
+            except Exception:
+                pass
+            messagebox.showerror("Cargar archivo", f"No se pudo cargar el archivo:\n{e}")
 
     def _autodetectar_tipo(self):
         # Autodetección por hojas+columnas; override manual solo si falla
@@ -614,9 +719,14 @@ class ImportarView(ctk.CTkFrame):
         # Resumen de mapeadas + faltantes (visibilidad del mapeo automático)
         auto = [(c, self._mapeo_actual[c].get()) for c in self._columnas_archivo]
         auto = [(c, v) for c, v in auto if v and v != "(No importar)"]
-        sys_ok = {v for _, v in auto}
-        faltan = [o for o in campos_obligatorios
-                  if o not in sys_ok and o.upper() not in sys_ok]
+
+        def _norm(cab):
+            return str(cab or "").upper().replace(" ", "_")
+        # Un obligatorio cuenta si aparece como cabecera mapeada O como valor
+        # (los combos mezclan estilos: "dni" sys vs "DNI" cabecera; antes
+        # marcaba faltantes falsos y peor: el mapeo no resolvía en services).
+        cubiertos = {_norm(c) for c, _ in auto} | {_norm(v) for _, v in auto}
+        faltan = [o for o in campos_obligatorios if _norm(o) not in cubiertos]
         txt = "Mapeadas: " + (", ".join(f"{c}→{v}" for c, v in auto) if auto else "ninguna")
         color = "#22C55E" if not faltan else "#DC2626"
         if faltan:
@@ -627,7 +737,21 @@ class ImportarView(ctk.CTkFrame):
         self.label_mapeo_resumen.pack(anchor="w", padx=5, pady=8)
 
     def _sugerir_mapeo(self, col_archivo: str, campos_sistema: list[str]) -> str:
+        """Sugiere el valor del combo. Retorna SIEMPRE nombre sys (el que los
+        services resuelven: 'nombre', 'dni'...), nunca la cabecera. Devolver
+        la cabecera rompía la validación (Tienda fallaba entero)."""
+        from services import importar_service
         col_upper = col_archivo.upper().replace(" ", "_")
+        tipo = getattr(self, "_tipo_importacion", "Estudiantes")
+        mapas = {
+            "Estudiantes": importar_service.MAPEO_CAMPOS,
+            "Tienda": importar_service.MAPEO_TIENDA,
+            "Productos": importar_service.MAPEO_PRODUCTOS,
+            "Compras": importar_service.MAPEO_COMPRAS,
+            "Pagos": importar_service.MAPEO_PAGOS,
+            "Uniformes": importar_service.MAPEO_UNIFORMES,
+        }
+        mapping = mapas.get(tipo, {})
 
         equivalencias = {
             "DNI": "dni",
@@ -647,10 +771,21 @@ class ImportarView(ctk.CTkFrame):
             "TELEFONO_APODERADO": "telefono_apoderado",
             "DIRECCION_APODERADO": "direccion_apoderado",
             "TIPO_DOCUMENTO_APODERADO": "tipo_documento_apoderado",
+            "BECA": "beca",
+            "INICIO": "fecha_ingreso",
         }
-
-        if col_upper in equivalencias:
+        if col_upper in equivalencias and equivalencias[col_upper] in mapping.values():
             return equivalencias[col_upper]
+
+        # Match contra claves del MAPEO → retorna el nombre sys (valor)
+        rev = {str(k).upper().replace(" ", "_"): v for k, v in mapping.items()}
+        if col_upper in rev:
+            return rev[col_upper]
+
+        # Match contra valores sys directos
+        for v in mapping.values():
+            if col_upper == str(v).upper().replace(" ", "_"):
+                return v
 
         for campo_sistema in campos_sistema:
             if col_upper == campo_sistema.upper():
@@ -680,7 +815,7 @@ class ImportarView(ctk.CTkFrame):
         if not respuesta:
             return
 
-        self.label_resultados.configure(text="Procesando importación...", text_color="#333333")
+        self._set_estado_resultados("Procesando importación...")
         self.update_idletasks()
 
         exito, msg, resultados = importar_controller.ejecutar_importacion(
@@ -725,7 +860,7 @@ class ImportarView(ctk.CTkFrame):
         )
         if not respuesta:
             return
-        self.label_resultados.configure(text="Procesando historial...", text_color="#333333")
+        self._set_estado_resultados("Procesando historial...")
         self.update_idletasks()
         exito, msg, resultados = importar_controller.importar_historial_excel(ruta)
         self._mostrar_resultados(exito, msg, resultados)

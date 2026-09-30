@@ -113,10 +113,20 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0) -> tuple[list
         params.extend([like, like, like])
     cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
+    # Los LEFT JOIN de becas van antes del WHERE (sintaxis SQL).
+    from_part, sep, where_part = base.partition("WHERE")
+    joins_beca = """
+        LEFT JOIN matricula_beca mb ON mb.id_matricula = m.id_matricula AND mb.activo = 1
+        LEFT JOIN beca b ON b.id_beca = mb.id_beca AND b.activo = 1
+    """
+    base_rows = from_part + joins_beca + ("WHERE" + where_part if sep else "")
     rows = fetch_all(
         f"""SELECT m.*, t.nombre as tarifa_nombre, t.monto as tarifa_monto,
                    c.nombre as categoria_nombre,
-                   p.nombres, p.apellidos, p.dni {base}
+                   p.nombres, p.apellidos, p.dni,
+                   GROUP_CONCAT(b.nombre || '|' || b.tipo || '|' || b.valor, ';')
+                     as becas_info {base_rows}
+            GROUP BY m.id_matricula
             ORDER BY p.apellidos, p.nombres LIMIT ? OFFSET ?""",
         tuple(params + [limit, offset]),
     )
