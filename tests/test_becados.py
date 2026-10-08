@@ -82,9 +82,10 @@ def test_badge_y_columna(crear_vista, usuario_admin, crear_estudiante, obtener_t
 
 
 def test_grilla_marca_becados(crear_vista, usuario_admin, crear_matricula):
-    from views.matriculas.matricula_view import MatriculaView
+    from views.mensualidades.mensualidad_view import MensualidadView
     crear_matricula()
-    vista = crear_vista(MatriculaView)
-    vista.tabview.set("Año")
+    vista = crear_vista(MensualidadView)
+    vista.tabview.set("General")
+    vista._on_tab_cambiada()
     vista.update_idletasks()
     assert vista.tab_grilla.winfo_exists()

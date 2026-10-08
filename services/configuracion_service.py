@@ -38,7 +38,12 @@ def actualizar_configuracion(data: dict) -> tuple[bool, str]:
         tasa_campeonato=data.get("tasa_campeonato", config.get("tasa_campeonato", 15)),
         arbitraje_por_equipo=data.get("arbitraje_por_equipo", config.get("arbitraje_por_equipo", 15)),
         pago_profesor=data.get("pago_profesor", config.get("pago_profesor", 200)),
+        frecuencia_profesores=data.get("frecuencia_profesores", config.get("frecuencia_profesores", "MENSUAL")),
+        frecuencia_profesores_dias=data.get("frecuencia_profesores_dias", config.get("frecuencia_profesores_dias", 30)),
     )
+
+    if config_obj.frecuencia_profesores not in FRECUENCIAS_PROFESORES:
+        return False, "Frecuencia de pago a profesores no válida (MENSUAL/QUINCENAL/PERSONALIZADA)"
 
     configuracion_repository.actualizar(config_obj)
 
@@ -88,3 +93,23 @@ def obtener_tipo_mora() -> str:
 def obtener_monto_fijo_mora() -> float:
     config = obtener_configuracion()
     return float(config.get("monto_mora", 0) or 0) if config else 0.0
+
+
+FRECUENCIAS_PROFESORES = ("MENSUAL", "QUINCENAL", "PERSONALIZADA")
+
+
+def obtener_frecuencia_profesores() -> tuple[str, int]:
+    """(frecuencia, dias): MENSUAL=30, QUINCENAL=15, PERSONALIZADA=dias config."""
+    config = obtener_configuracion() or {}
+    frec = str(config.get("frecuencia_profesores", "MENSUAL") or "MENSUAL").upper()
+    if frec not in FRECUENCIAS_PROFESORES:
+        frec = "MENSUAL"
+    if frec == "QUINCENAL":
+        return frec, 15
+    if frec == "PERSONALIZADA":
+        try:
+            dias = max(int(config.get("frecuencia_profesores_dias", 30) or 30), 1)
+        except (TypeError, ValueError):
+            dias = 30
+        return frec, dias
+    return frec, 30

@@ -41,11 +41,20 @@ def registrar_egreso(data: dict) -> tuple[bool, str, int | None]:
     id_egreso = egreso_repository.insertar(egreso)
     auditoria_service.registrar_insert(id_usuario, "egreso", id_egreso, f"concepto={concepto}, monto={monto_f}, comprobante={bool(comprobante)}")
     logger.info(f"Egreso registrado: {concepto} {monto_f} comprobante={bool(comprobante)}")
+    try:
+        from services import avisos_service as _av
+        _av.invalidar_cache_avisos()
+    except Exception:
+        pass
     return True, "Egreso registrado correctamente", id_egreso
 
 
-def listar_egresos(fecha_inicio: str | None = None, fecha_fin: str | None = None) -> list[dict]:
-    return egreso_repository.obtener_todos(fecha_inicio, fecha_fin)
+def listar_egresos(fecha_inicio: str | None = None, fecha_fin: str | None = None,
+                   anio: int | None = None, meses: list[int] | None = None,
+                   orden: str | None = None, conceptos: list[str] | None = None,
+                   limit: int | None = None) -> list[dict]:
+    return egreso_repository.obtener_todos(
+        fecha_inicio, fecha_fin, anio, meses, orden, conceptos, limit)
 
 
 def eliminar_egreso(id_egreso: int) -> tuple[bool, str]:
@@ -98,3 +107,9 @@ def reporte_ingresos_vs_egresos(fecha_inicio: str, fecha_fin: str) -> dict:
     total_ingresos = round(ingresos_ventas + ingresos_pagos, 2)
     neto = round(total_ingresos - egresos, 2)
     return {"ingresos_ventas": ingresos_ventas, "ingresos_pagos": ingresos_pagos, "total_ingresos": total_ingresos, "egresos": egresos, "neto": neto}
+
+
+def reporte_ingresos_por_metodo(fecha_inicio: str, fecha_fin: str) -> dict:
+    """Ingresos desglosados por método de pago (EFECTIVO, YAPE, PLIN, TRANSFERENCIA)."""
+    from repositories import pago_repository
+    return pago_repository.sumar_por_metodo(fecha_inicio, fecha_fin)

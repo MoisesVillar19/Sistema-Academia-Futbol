@@ -226,6 +226,13 @@ def rotar_backups(dias: int = 30) -> int:
             pass
     if borrados:
         logger.info(f"Rotación backups: {borrados} borrados >{dias}d")
+        try:
+            auditoria_service.registrar_log(
+                id_usuario=auditoria_service.id_usuario_sesion(),
+                tabla_afectada="sistema", id_registro=0, accion="ROTAR_BACKUPS",
+                valor_nuevo=f"{borrados} respaldo(s) >{dias}d eliminados de {destino}")
+        except Exception:
+            pass
     return borrados
 
 def verificar_backup_automatico() -> tuple[bool, str]:

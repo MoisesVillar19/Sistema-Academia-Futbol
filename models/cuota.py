@@ -12,4 +12,5 @@ class Cuota:
     monto_mora: float = 0.0
     saldo: float = 0.0
     estado: str = "PENDIENTE"
+    origen: str = "MANUAL"
     activo: int = 1

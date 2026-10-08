@@ -143,8 +143,13 @@ def crear_matricula(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | N
 
             auditoria_service.registrar_insert(id_usuario=id_usuario, tabla="matricula", id_registro=id_matricula, valores_nuevos=f"id_estudiante={id_estudiante}, id_tarifa={id_tarifa}, monto={monto_base}")
 
-        logger.info(f"Matrícula creada: ID={id_matricula}, estudiante={id_estudiante}")
-        return True, "Matrícula registrada correctamente", id_matricula
+            logger.info(f"Matrícula creada: ID={id_matricula}, estudiante={id_estudiante}")
+            try:
+                from services import avisos_service as _av
+                _av.invalidar_cache_avisos()
+            except Exception:
+                pass
+            return True, "Matrícula registrada correctamente", id_matricula
     except ValueError as e:
         # Stock insuficiente o producto no encontrado → mensaje amigable, rollback ya hecho
         logger.warning(f"Matrícula fallida: {e}")

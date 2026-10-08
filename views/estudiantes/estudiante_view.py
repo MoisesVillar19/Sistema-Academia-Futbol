@@ -98,6 +98,10 @@ class EstudianteView(ctk.CTkFrame):
                                     lambda e: self._debouncer.call(self._on_busqueda_cambiar))
             except Exception:
                 pass
+        from widgets.periodo_filter import PeriodoFilter
+        self.periodo_est = PeriodoFilter(
+            sec_filtros, on_change=self._on_periodo_est, show_orden=False)
+        self.periodo_est.pack(fill="x", padx=10, pady=(0, 8))
         # Fase 7b: toggle Cards/Tabla (en 2da fila para que siempre se vea)
         self._vista_modo = "Tabla"
         self.seg_vista = ctk.CTkSegmentedButton(
@@ -112,8 +116,20 @@ class EstudianteView(ctk.CTkFrame):
         self.scroll_estudiantes = ctk.CTkScrollableFrame(self.tab_lista)
         self.scroll_estudiantes.pack(fill="both", expand=True, padx=5, pady=5)
 
+        from widgets.pagination import PaginationBar
+        self._est_lista: list = []
+        self._est_pagina = 1
+        self._est_per_page = 50
+        self.pagination_est = PaginationBar(
+            self.tab_lista, on_page_change=self._on_page_est, per_page=50)
+        self.pagination_est.pack(fill="x", padx=5, pady=4)
+
         self.label_status = ctk.CTkLabel(self.tab_lista, text="", font=ctk.CTkFont(size=13, weight="bold"), text_color="#6B5B7B")
         self.label_status.pack(pady=3)
+
+    def _on_page_est(self, page, per_page):
+        self._est_pagina = page
+        self._renderizar_pagina_est()
 
     def _crear_tab_formulario(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -324,18 +340,15 @@ class EstudianteView(ctk.CTkFrame):
 
         estudiantes = estudiante_controller.listar_estudiantes(activo=activo, estado=estado)
 
-        if not estudiantes:
-            ctk.CTkLabel(
-                self.scroll_estudiantes, text="No hay estudiantes registrados",
-                text_color="gray",
-            ).pack(pady=20)
-            self.label_status.configure(text="Total: 0")
-            return
-
-        for est in estudiantes:
-            self._crear_card_estudiante(est)
-
-        self.label_status.configure(text=f"Total: {len(estudiantes)} estudiante(s)")
+        self._est_lista = estudiantes or []
+        self._est_pagina = 1
+        try:
+            if hasattr(self, "pagination_est"):
+                self.pagination_est.reset()
+                self.pagination_est.set_total(len(self._est_lista))
+        except Exception:
+            pass
+        self._renderizar_pagina_est()
 
     def _crear_card_estudiante(self, est):
         from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible, linea_detalle
@@ -838,6 +851,19 @@ class EstudianteView(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _on_periodo_est(self, filtro):
+        """PeriodoFilter → rango de fecha de ingreso en los DatePickers."""
+        import calendar
+        try:
+            meses = filtro.get("meses", []) or list(range(1, 13))
+            anio = filtro.get("anio")
+            self.date_ing_ini.set(f"{anio}-{min(meses):02d}-01")
+            self.date_ing_fin.set(
+                f"{anio}-{max(meses):02d}-{calendar.monthrange(anio, max(meses))[1]:02d}")
+        except Exception:
+            pass
+        self._on_busqueda_cambiar()
+
     def _filtrar(self, valor):
         self._on_busqueda_cambiar()
 
@@ -889,9 +915,28 @@ class EstudianteView(ctk.CTkFrame):
                             f"{e.get('nombres', '')} {e.get('apellidos', '')}",
                             e.get("dni", ""), e.get("beca_nombre", ""))
             ]
-            self._renderizar_estudiantes(filtrados)
+            self._est_lista = filtrados
         else:
-            self._renderizar_estudiantes(todos)
+            self._est_lista = todos
+        self._est_pagina = 1
+        try:
+            if hasattr(self, "pagination_est"):
+                self.pagination_est.reset()
+                self.pagination_est.set_total(len(self._est_lista))
+        except Exception:
+            pass
+        self._renderizar_pagina_est()
+
+    def _renderizar_pagina_est(self):
+        # Render acotado: solo la página actual (anti instancias infinitas).
+        total = len(getattr(self, "_est_lista", []) or [])
+        ini = (self._est_pagina - 1) * self._est_per_page
+        self._renderizar_estudiantes(self._est_lista[ini:ini + self._est_per_page])
+        try:
+            self.label_status.configure(
+                text=f"Total: {total} estudiante(s) • Página {self._est_pagina}")
+        except Exception:
+            pass
 
     def _renderizar_estudiantes(self, estudiantes):
         for widget in self.scroll_estudiantes.winfo_children():

@@ -25,8 +25,9 @@ class ActualizarDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.info = info_actualizacion
         self.title("Actualizar AcademiaFutbol")
-        self.geometry("460x420")
-        self.resizable(False, False)
+        self.geometry("480x620")
+        self.minsize(440, 480)
+        self.resizable(True, True)
         self.protocol("WM_DELETE_WINDOW", self._on_cerrar)
         self.grab_set()
         self._centrar()
@@ -37,14 +38,16 @@ class ActualizarDialog(ctk.CTkToplevel):
 
     def _centrar(self):
         self.update_idletasks()
-        ancho = 460
-        alto = 420
+        ancho = 480
+        alto = 620
         x = (self.winfo_screenwidth() // 2) - (ancho // 2)
         y = (self.winfo_screenheight() // 2) - (alto // 2)
         self.geometry(f"{ancho}x{alto}+{x}+{y}")
 
     def _construir_ui(self):
-        frame = ctk.CTkFrame(self, fg_color="#FFFFFF")
+        # Scrollable: con notas largas o letra grande los botones
+        # quedaban fuera de la ventana fija (460x420 antes).
+        frame = ctk.CTkScrollableFrame(self, fg_color="#FFFFFF")
         frame.pack(fill="both", expand=True, padx=18, pady=18)
 
         ctk.CTkLabel(
@@ -131,7 +134,7 @@ class ActualizarDialog(ctk.CTkToplevel):
 
         self._label_estado = ctk.CTkLabel(
             frame,
-            text="Presione Actualizar para comenzar",
+            text="Presione «Actualizar y reiniciar» para comenzar",
             font=ctk.CTkFont(size=11),
             text_color="#6B5B7B",
             wraplength=410,
@@ -167,8 +170,8 @@ class ActualizarDialog(ctk.CTkToplevel):
 
         self._btn_actualizar = ctk.CTkButton(
             btn_frame,
-            text="Actualizar",
-            width=150,
+            text="Actualizar y reiniciar",
+            width=180,
             height=36,
             fg_color="#7C3AED",
             hover_color="#6D28D9",
@@ -210,7 +213,7 @@ class ActualizarDialog(ctk.CTkToplevel):
         if tipo == "setup":
             self._label_estado.configure(text="Descargando instalador (pedirá UAC al finalizar)...")
         else:
-            self._label_estado.configure(text="Conectando a GitHub...")
+            self._label_estado.configure(text="Conectando a GitHub (al terminar, la app se reiniciará sola)...")
         self._label_detalle.configure(text=self.info.get("url_descarga", "")[:70])
         self._barra_progreso.set(0)
         self._barra_progreso.configure(progress_color="#7C3AED")
@@ -241,7 +244,24 @@ class ActualizarDialog(ctk.CTkToplevel):
                     self.after(0, lambda: self._update_progreso_indeterminado(bytes_read, detalle))
 
             try:
-                exito = update_service.descargar_y_actualizar(
+                if self.info.get("tipo", "zip") == "setup":
+                    exito = update_service.descargar_y_actualizar(
+                        self.info["url_descarga"],
+                        callback_progreso=callback_progreso,
+                        debe_cancelar=lambda: self._cancelado,
+                    )
+                    if self._cancelado:
+                        self.after(0, lambda: self._on_cancelado_ui())
+                        return
+                    if exito:
+                        self.after(0, self._on_descarga_completada)
+                    else:
+                        error_msg = getattr(update_service, "ultimo_error", "") or "Error desconocido al descargar"
+                        self.after(0, lambda: self._on_descarga_fallo(error_msg))
+                    return
+                # ZIP: descarga temporal + actualizador externo al salir
+                # (el EXE en uso no se puede sobrescribir con la app abierta).
+                ruta_zip = update_service.descargar_zip_temporal(
                     self.info["url_descarga"],
                     callback_progreso=callback_progreso,
                     debe_cancelar=lambda: self._cancelado,
@@ -249,10 +269,14 @@ class ActualizarDialog(ctk.CTkToplevel):
                 if self._cancelado:
                     self.after(0, lambda: self._on_cancelado_ui())
                     return
-                if exito:
-                    self.after(0, self._on_descarga_completada)
-                else:
+                if not ruta_zip:
                     error_msg = getattr(update_service, "ultimo_error", "") or "Error desconocido al descargar"
+                    self.after(0, lambda: self._on_descarga_fallo(error_msg))
+                    return
+                if update_service.aplicar_zip_al_salir(ruta_zip, str(self.info.get("version", ""))):
+                    self.after(0, self._on_listo_para_salir)
+                else:
+                    error_msg = getattr(update_service, "ultimo_error", "") or "Error al programar la actualización"
                     self.after(0, lambda: self._on_descarga_fallo(error_msg))
             except Exception as e:
                 error_msg = str(e) or getattr(update_service, "ultimo_error", "Error inesperado")
@@ -297,6 +321,27 @@ class ActualizarDialog(ctk.CTkToplevel):
             self._reinicio_after_id = self.after(900, update_service.reiniciar_app)
         except Exception:
             self._reinicio_after_id = None
+
+    def _on_listo_para_salir(self):
+        self._label_porcentaje.configure(text="100%")
+        self._label_estado.configure(text="Actualización lista. Cerrando para aplicar...")
+        self._label_detalle.configure(
+            text="La app se cerrará, se aplicará la actualización y se reabrirá sola.")
+        self._barra_progreso.set(1)
+        self._barra_progreso.configure(progress_color="#22C55E")
+        try:
+            self._btn_cancelar.pack_forget()
+        except Exception:
+            pass
+        try:
+            self._btn_actualizar.configure(state="disabled")
+            self._btn_no.configure(state="disabled")
+        except Exception:
+            pass
+        try:
+            self.after(1200, update_service.salir_app)
+        except Exception:
+            pass
 
     def _on_descarga_fallo(self, msg: str):
         self._descargando = False
@@ -358,7 +403,7 @@ def verificar_y_mostrar(parent, forzar: bool = False) -> None:
         if forzar:
             info = update_service.verificar_actualizacion()
             # si no hay update y fue manual, avisar
-            if not info:
+            if not info or not update_service.es_actualizacion_valida(info):
                 err = getattr(update_service, "ultimo_error", "")
                 if err:
                     parent.after(0, lambda: _mostrar_sin_update(parent, err))
@@ -368,7 +413,7 @@ def verificar_y_mostrar(parent, forzar: bool = False) -> None:
             parent.after(0, lambda: ActualizarDialog(parent, info))
             return
         info = update_service.verificar_actualizacion()
-        if info:
+        if info and update_service.es_actualizacion_valida(info):
             parent.after(0, lambda: ActualizarDialog(parent, info))
         else:
             update_service.registrar_verificacion()

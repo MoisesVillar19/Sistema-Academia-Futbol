@@ -68,6 +68,10 @@ def editar_categoria(id_categoria: int, data: dict) -> tuple[bool, str]:
         return False, "Ya existe otra categoría con ese nombre"
 
     categoria_repository.actualizar(id_categoria, nombre, edad_min, edad_max, tipo)
+    auditoria_service.registrar_update(
+        auditoria_service.id_usuario_sesion(), "categoria", id_categoria,
+        f"nombre={cat['nombre']}",
+        f"nombre={nombre}, edad={edad_min}-{edad_max}, tipo={tipo}")
     return True, "Categoría actualizada correctamente"
 
 

@@ -45,9 +45,13 @@ def test_grilla_parcial_muestra_saldo(crear_matricula, usuario_admin):
 
 
 def test_tab_grilla_en_vista(crear_vista, usuario_admin, crear_matricula):
-    from views.matriculas.matricula_view import MatriculaView
+    from views.mensualidades.mensualidad_view import MensualidadView
     crear_matricula()
-    vista = crear_vista(MatriculaView)
+    vista = crear_vista(MensualidadView)
     vista.update_idletasks()
     assert vista.tab_grilla.winfo_exists()
+    # Grilla perezosa: se calcula al entrar a la pestaña General
+    vista.tabview.set("General")
+    vista._on_tab_cambiada()
+    vista.update_idletasks()
     assert "X=cancelado" in vista.label_grilla_status.cget("text")

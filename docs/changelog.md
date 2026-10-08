@@ -1,5 +1,24 @@
 # Changelog — AcademiaFutbol
 
+## v1.2.0 - 2026-10-08
+
+### Nuevos módulos y nombres
+- **Mensualidades**: historial por estudiante + grilla general del año, edición de mensualidad (monto/vencimiento/período/estado/anular) con auditoría. Matrículas queda con 3 pestañas.
+- **Cobros** (antes Pagos): pestañas Historial, Registrar cobro, Mensualidades (botón Cobrar que precarga) y Campeonatos (división → monto); comprobante opcional.
+- **Egresos** por grupos (Profesores/Operativos/Campeonatos) con subtotal + recordatorio de pago a profesores según frecuencia configurable (mensual/quincenal/personalizada).
+- **Uniformes**: pestaña Productos (precios, tallas/stock, +talla) y tallas con stock en formularios de Uniformes y Matrícula (checkbox + venta inmediata en talla).
+
+### Importación y datos
+- Bundle 150 = cuota 120 + uniforme 30 (mensualidad siempre 120); 70 solo = venta sin cuota; resto inusual → revisión; `es_nuevo` persistido sin regalo doble.
+- Origen de cuota (manual/generada/importada) visible en grilla y tarjetas.
+- Tarifas con vigencia desde/hasta; aviso de recordatorio de profesores por responsable.
+
+### Rendimiento y actualización
+- Carga perezosa (Año, Ventas/Ganancias de Tienda, tabs de Cobros), paginación en Estudiantes, N+1 eliminados (Uniformes, becas), mora 1 vez/hora, avisos con caché, topes anti-instancias.
+- Actualizador automático: descarga → aplica al cerrar → relanza; anti-downgrade; diálogo redimensionable.
+- Auditoría completa: cuotas, tarifas, categorías, tallas, importaciones directas, rotación de backups y avisos omitidos.
+- Suite 642/642 en verde.
+
 ## v1.1.0 - 2026-09-30
 
 ### Importacion masiva (Estudiantes/Tienda/Productos/Compras/Pagos/Uniformes/Historial)

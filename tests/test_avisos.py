@@ -81,6 +81,23 @@ def test_avisos_por_modulo_filtra(crear_matricula):
 pytestmark = pytest.mark.ui
 
 
+def test_aviso_pago_profesores_segun_frecuencia(usuario_admin):
+    from services import avisos_service, configuracion_service, egreso_service
+    from utils.dates import get_today
+    from datetime import date, timedelta
+    hoy = date.fromisoformat(get_today())
+    vieja = (hoy - timedelta(days=40)).isoformat()
+    ok, _, _ = egreso_service.registrar_egreso({
+        "concepto": "PROFESOR", "monto": 200.0, "fecha": vieja,
+        "responsable": "Profe QA", "id_usuario": usuario_admin["id_usuario"]})
+    assert ok
+    avis = [a for a in avisos_service.obtener_avisos()
+            if a["codigo"] == "pago_profesores"]
+    assert any("Profe QA" in a["texto"] for a in avis), [a["texto"] for a in avis]
+    for a in avis:
+        assert a["ir"]["modulo"] == "egresos"
+
+
 def test_dashboard_muestra_pendientes(crear_vista, usuario_admin, crear_matricula):
     from views.dashboard.dashboard_view import DashboardView
     crear_matricula()  # sin apoderado → aviso

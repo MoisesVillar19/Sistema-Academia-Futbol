@@ -9,4 +9,6 @@ class Tarifa:
     monto: float = 0.0
     descripcion: str = ""
     observaciones: str = ""
+    fecha_vigencia_desde: str = ""
+    fecha_vigencia_hasta: str = ""
     activo: int = 1

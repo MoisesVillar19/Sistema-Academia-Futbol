@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 from repositories import venta_repository, detalle_venta_repository, producto_repository, movimiento_inventario_repository
 from models.venta import Venta
@@ -23,7 +24,8 @@ def _obtener_almacen_default() -> int | None:
         return None
 
 def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
-    """Venta flexible escalable: uniformes (variante/talla), tienda, campeonato. Descuenta stock atómicamente (global + stock_almacen)."""
+    """Venta de productos TIENDITA (uniformes y tienda). Campeonatos se cobran
+    por tarifa sin items. Descuenta stock atómicamente (global + stock_almacen)."""
     id_usuario = data.get("id_usuario") or auditoria_service.id_usuario_sesion()
     id_estudiante = data.get("id_estudiante")
     metodo = data.get("metodo_pago", METODO_EFECTIVO)
@@ -184,6 +186,11 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
             auditoria_service.registrar_insert(id_usuario, "venta", id_venta, f"recibo={venta.numero_recibo}, total={total}, tipo={tipo_venta}")
 
         logger.info(f"Venta registrada: {venta.numero_recibo} total={total}")
+        try:
+            from services import avisos_service as _av
+            _av.invalidar_cache_avisos()
+        except Exception:
+            pass
         return True, f"Venta registrada. Recibo: {venta.numero_recibo}", id_venta
     except ValueError as e:
         return False, str(e), None
@@ -194,9 +201,42 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
         return False, "Error al registrar venta", None
 
 
-def listar_ventas(fecha_inicio: str | None = None, fecha_fin: str | None = None, tipo_venta: str | None = None) -> list[dict]:
-    return venta_repository.obtener_todos(fecha_inicio, fecha_fin, tipo_venta)
+def listar_ventas(fecha_inicio: str | None = None, fecha_fin: str | None = None, tipo_venta: str | None = None,
+                  anio: int | None = None, meses: list[int] | None = None,
+                  orden: str | None = None) -> list[dict]:
+    return venta_repository.obtener_todos(fecha_inicio, fecha_fin, tipo_venta, anio, meses, orden)
 
 
 def obtener_venta(id_venta: int) -> dict | None:
     return venta_repository.obtener_por_id(id_venta)
+
+
+def listar_uniformes(limit: int = 200, anio: int | None = None,
+                      meses: list[int] | None = None,
+                      orden: str | None = None) -> list[dict]:
+    """Ventas de uniforme en 1 query (sin N+1 de detalle/estudiante)."""
+    return venta_repository.obtener_uniformes(limit, anio, meses, orden)
+
+
+def editar_venta(id_venta: int, data: dict) -> tuple[bool, str]:
+    """Edición acotada de venta (corrección de datos): fecha, método,
+    comprobante. No toca ítems ni stock. Con auditoría."""
+    venta = venta_repository.obtener_por_id(id_venta)
+    if not venta:
+        return False, "Venta no encontrada"
+    fecha = str(data.get("fecha_venta", "") or "").strip() or venta["fecha_venta"]
+    try:
+        datetime.strptime(fecha, "%Y-%m-%d")
+    except ValueError:
+        return False, "Fecha no válida (AAAA-MM-DD)"
+    metodo = str(data.get("metodo_pago", "") or "").strip().upper() or venta["metodo_pago"]
+    if metodo not in METODOS_VALIDOS:
+        return False, "Método de pago no válido"
+    comp = data.get("comprobante_path", venta.get("comprobante_path"))
+    comp = (str(comp).strip() if comp else None) or None
+    antes = f"fecha={venta['fecha_venta']}, metodo={venta['metodo_pago']}"
+    venta_repository.actualizar_campos(id_venta, fecha, metodo, comp)
+    auditoria_service.registrar_update(
+        auditoria_service.id_usuario_sesion(), "venta", id_venta, antes,
+        f"fecha={fecha}, metodo={metodo} (edición manual)")
+    return True, "Venta actualizada correctamente"

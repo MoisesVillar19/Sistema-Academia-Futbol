@@ -91,6 +91,26 @@ class ConfiguracionView(ctk.CTkFrame):
         self._crear_campo(sec3, "porcentaje_mora", "Porcentaje de mora (%)", str(config.get("porcentaje_mora", 0)), help="Ej 5 = +5% sobre saldo al vencer")
         self._nota(sec3, "Si está deshabilitada, la cuota solo cambia a VENCIDO sin recargo.")
 
+        # 3b — Pago a profesores (recordatorio según frecuencia)
+        sec3b = self._seccion("Pago a Profesores", "👨‍🏫", "Cada cuánto avisa el recordatorio de pago (monto siempre libre al registrar).", 4)
+        fila_prof = ctk.CTkFrame(sec3b, fg_color="transparent")
+        fila_prof.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(fila_prof, text="Frecuencia del recordatorio:", width=200, anchor="w").pack(side="left")
+        self.combo_frecuencia_prof = ctk.CTkComboBox(
+            fila_prof, width=160, values=["MENSUAL", "QUINCENAL", "PERSONALIZADA"])
+        try:
+            self.combo_frecuencia_prof.set(
+                str(config.get("frecuencia_profesores", "MENSUAL") or "MENSUAL"))
+        except Exception:
+            pass
+        self.combo_frecuencia_prof.pack(side="left", padx=5)
+        ctk.CTkLabel(fila_prof, text="Cada (días, solo personalizada):").pack(side="left", padx=(10, 0))
+        self.entry_frecuencia_dias = ctk.CTkEntry(fila_prof, width=70)
+        self.entry_frecuencia_dias.insert(
+            0, str(config.get("frecuencia_profesores_dias", 30) or 30))
+        self.entry_frecuencia_dias.pack(side="left", padx=5)
+        self._nota(sec3b, "MENSUAL = cada 30 días, QUINCENAL = cada 15. El aviso sale por responsable sin pago en ese plazo.")
+
         # 4 — Cuotas y becas
         sec4 = self._seccion("Cuotas y Becas", "📅", "Reglas de generación de cuotas y descuentos.", 4)
         self._crear_campo(sec4, "dias_por_vencer", "Días por vencer (alerta)", str(config.get("dias_por_vencer", 3)), help="Dashboard avisa cuotas que vencen en ≤ N días")
@@ -336,6 +356,13 @@ class ConfiguracionView(ctk.CTkFrame):
         data["mora_habilitada"] = 1 if self.mora_switch.get() else 0
         data["permitir_multiples_becas"] = 1 if self.becas_switch.get() else 0
         data["backup_automatico"] = 1 if self.backup_switch.get() else 0
+        try:
+            data["frecuencia_profesores"] = self.combo_frecuencia_prof.get()
+            data["frecuencia_profesores_dias"] = int(
+                self.entry_frecuencia_dias.get().strip() or "30")
+        except (ValueError, TypeError, AttributeError):
+            messagebox.showerror("Error", "Días de frecuencia debe ser un número entero")
+            return
 
         exito, msg = configuracion_controller.actualizar_configuracion(data)
         if exito:

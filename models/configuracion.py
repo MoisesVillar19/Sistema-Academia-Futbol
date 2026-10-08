@@ -26,4 +26,6 @@ class Configuracion:
     tasa_campeonato: float = 15.0
     arbitraje_por_equipo: float = 15.0
     pago_profesor: float = 200.0
+    frecuencia_profesores: str = "MENSUAL"
+    frecuencia_profesores_dias: int = 30
     fecha_actualizacion: str = ""

@@ -8,8 +8,8 @@ def insertar(cuota: Cuota) -> int:
     cursor = conn.execute(
         """INSERT INTO cuota
            (id_matricula, periodo, fecha_vencimiento, monto_total,
-            monto_pagado, monto_mora, saldo, estado, activo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            monto_pagado, monto_mora, saldo, estado, origen, activo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cuota.id_matricula,
             cuota.periodo,
@@ -19,6 +19,7 @@ def insertar(cuota: Cuota) -> int:
             cuota.monto_mora,
             cuota.saldo,
             cuota.estado,
+            cuota.origen,
             cuota.activo,
         ),
     )
@@ -64,13 +65,28 @@ def obtener_todas_pendientes() -> list[dict]:
     )
 
 
+def obtener_por_cobrar(limit: int = 200) -> list[dict]:
+    """Cuotas con saldo para la pestaña Mensualidades de Cobros."""
+    return fetch_all(
+        """SELECT cu.*, p.nombres, p.apellidos, p.dni
+           FROM cuota cu
+           JOIN matricula m ON cu.id_matricula = m.id_matricula
+           JOIN estudiante e ON m.id_estudiante = e.id_estudiante
+           JOIN persona p ON e.id_persona = p.id_persona
+           WHERE cu.estado IN ('PENDIENTE', 'PARCIAL', 'VENCIDO')
+           AND cu.activo = 1 AND cu.saldo > 0
+           ORDER BY cu.fecha_vencimiento LIMIT ?""",
+        (limit,),
+    )
+
+
 def actualizar(cuota: Cuota) -> None:
     conn = get_connection()
     conn.execute(
         """UPDATE cuota SET
            id_matricula = ?, periodo = ?, fecha_vencimiento = ?,
            monto_total = ?, monto_pagado = ?, monto_mora = ?,
-           saldo = ?, estado = ?, activo = ?
+           saldo = ?, estado = ?, origen = ?, activo = ?
            WHERE id_cuota = ?""",
         (
             cuota.id_matricula,
@@ -81,6 +97,7 @@ def actualizar(cuota: Cuota) -> None:
             cuota.monto_mora,
             cuota.saldo,
             cuota.estado,
+            cuota.origen,
             cuota.activo,
             cuota.id_cuota,
         ),

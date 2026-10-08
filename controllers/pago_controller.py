@@ -61,6 +61,11 @@ def obtener_cuotas_pendientes(id_matricula: int) -> list[dict]:
     return cuota_service.obtener_cuotas_pendientes(id_matricula)
 
 
+def listar_cuotas_por_cobrar(limit: int = 200) -> list[dict]:
+    """Cuotas con saldo para la pestaña Mensualidades de Cobros."""
+    return cuota_service.obtener_por_cobrar(limit)
+
+
 def obtener_cuotas_por_vencer(dias: int = 3) -> list[dict]:
     return cuota_service.obtener_por_vencer(dias)
 

@@ -5,7 +5,7 @@ pytestmark = pytest.mark.ui
 
 
 def test_detalle_cuota_muestra_pagos(crear_vista, usuario_admin, crear_matricula):
-    from views.matriculas.matricula_view import MatriculaView
+    from views.mensualidades.mensualidad_view import MensualidadView
     from services import pago_service
     from repositories import cuota_repository
     m = crear_matricula()
@@ -15,7 +15,7 @@ def test_detalle_cuota_muestra_pagos(crear_vista, usuario_admin, crear_matricula
         "id_usuario": usuario_admin["id_usuario"], "id_cuota": cuotas[0]["id_cuota"],
         "monto_pagado": 50.0, "metodo_pago": "EFECTIVO"})
     assert ok
-    vista = crear_vista(MatriculaView)
+    vista = crear_vista(MensualidadView)
     vista._ver_cuotas({"id_matricula": m["id_matricula"]})
     vista.update_idletasks()
 
@@ -62,7 +62,7 @@ def _textos_de(w):
 
 
 def test_historial_agrupa_matriculas(crear_vista, usuario_admin, crear_matricula):
-    from views.matriculas.matricula_view import MatriculaView
+    from views.mensualidades.mensualidad_view import MensualidadView
     from services import estudiante_service
     m = crear_matricula()
     # retiro + reingreso + 2da matrícula: el reingreso se consume (ACTIVO)
@@ -71,7 +71,7 @@ def test_historial_agrupa_matriculas(crear_vista, usuario_admin, crear_matricula
     estudiante_service.registrar_reingreso(m["id_estudiante"], 1)
     m2 = crear_matricula(id_estudiante=m["id_estudiante"])
     assert m2["id_matricula"] != m["id_matricula"]
-    vista = crear_vista(MatriculaView)
+    vista = crear_vista(MensualidadView)
     vista._ver_cuotas({"id_matricula": m2["id_matricula"]})
     vista.update_idletasks()
     todo = _textos_de(vista.scroll_cuotas)
@@ -81,12 +81,12 @@ def test_historial_agrupa_matriculas(crear_vista, usuario_admin, crear_matricula
 
 def test_badge_reingresante_sin_matricula_nueva(crear_vista, usuario_admin,
                                                 crear_matricula):
-    from views.matriculas.matricula_view import MatriculaView
+    from views.mensualidades.mensualidad_view import MensualidadView
     from services import estudiante_service
     m = crear_matricula()
     estudiante_service.registrar_retiro(m["id_estudiante"], 1, "2026-06-30")
     estudiante_service.registrar_reingreso(m["id_estudiante"], 1)
-    vista = crear_vista(MatriculaView)
+    vista = crear_vista(MensualidadView)
     vista._ver_cuotas({"id_matricula": m["id_matricula"]})
     vista.update_idletasks()
     todo = _textos_de(vista.scroll_cuotas)

@@ -55,4 +55,43 @@ def test_tab_ganancias_en_tiendita(crear_vista, usuario_admin):
     vista.update_idletasks()
     assert "Ganancias" in list(vista._tabs.keys())
     assert vista.scroll_ganancias.winfo_exists()
+    # Carga perezosa: entra a la pestaña para calcular
+    vista.tabview.set("Ganancias")
+    vista._on_tab_tiendita()
+    vista.update_idletasks()
     assert "Ganancia" in vista.label_ganancias.cget("text")
+
+
+def test_ganancias_modo_por_venta(crear_vista, usuario_admin):
+    from views.tiendita.tiendita_view import TienditaView
+    vista = crear_vista(TienditaView)
+    vista.seg_gan_modo.set("Por venta")
+    vista._cargar_ganancias()
+    vista.update_idletasks()
+    assert "venta(s)" in vista.label_ganancias.cget("text")
+
+
+def test_editar_venta_fecha_y_metodo(usuario_admin):
+    from services import venta_service, inventario_service
+    cats = inventario_service.listar_categorias()
+    ok, _, pid = inventario_service.crear_producto({
+        "id_categoria_producto": cats[0]["id_categoria_producto"],
+        "nombre": "Edit QA", "canal": "TIENDITA", "precio_venta": 5.0})
+    assert ok
+    inventario_service.registrar_compra({
+        "id_producto": pid, "cantidad": 3, "monto_total": "6.00",
+        "metodo_pago": "EFECTIVO"})
+    ok, _, vid = venta_service.registrar_venta({
+        "tipo_venta": "TIENDA", "metodo_pago": "EFECTIVO",
+        "items": [{"id_producto": pid, "cantidad": 1}],
+        "fecha_venta": "2026-05-12", "id_usuario": usuario_admin["id_usuario"]})
+    assert ok
+    ok, msg = venta_service.editar_venta(
+        vid, {"fecha_venta": "2026-05-13", "metodo_pago": "YAPE"})
+    assert ok, msg
+    v = venta_service.obtener_venta(vid)
+    assert v["fecha_venta"] == "2026-05-13" and v["metodo_pago"] == "YAPE"
+    ok, _ = venta_service.editar_venta(vid, {"fecha_venta": "mala"})
+    assert not ok
+    ok, _ = venta_service.editar_venta(999999, {"fecha_venta": "2026-05-13"})
+    assert not ok

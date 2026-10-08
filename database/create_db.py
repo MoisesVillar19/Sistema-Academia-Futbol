@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS tarifa (
     monto REAL NOT NULL,
     descripcion TEXT,
     observaciones TEXT,
+    fecha_vigencia_desde TEXT,
+    fecha_vigencia_hasta TEXT,
     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_categoria) REFERENCES categoria(id_categoria)
 );
@@ -141,6 +143,7 @@ CREATE TABLE IF NOT EXISTS cuota (
     monto_mora REAL DEFAULT 0,
     saldo REAL NOT NULL,
     estado TEXT NOT NULL DEFAULT 'PENDIENTE' CHECK(estado IN ('PENDIENTE', 'PARCIAL', 'PAGADO', 'VENCIDO')),
+    origen TEXT DEFAULT 'MANUAL' CHECK(origen IN ('MANUAL', 'GENERADA', 'IMPORTADA')),
     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_matricula) REFERENCES matricula(id_matricula)
 );
@@ -190,6 +193,21 @@ CREATE TABLE IF NOT EXISTS producto (
     id_tipo_uniforme INTEGER REFERENCES tipo_uniforme(id_tipo_uniforme),
     activo INTEGER DEFAULT 1,
     FOREIGN KEY (id_categoria_producto) REFERENCES categoria_producto(id_categoria_producto)
+);
+
+CREATE TABLE IF NOT EXISTS compra (
+    id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto INTEGER NOT NULL,
+    id_usuario INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    precio_unitario REAL NOT NULL,
+    precio_total REAL NOT NULL,
+    proveedor TEXT,
+    fecha_compra TEXT NOT NULL,
+    comprobante_path TEXT,
+    observacion TEXT,
+    activo INTEGER DEFAULT 1,
+    FOREIGN KEY (id_producto) REFERENCES producto(id_producto)
 );
 
 CREATE TABLE IF NOT EXISTS movimiento_inventario (
@@ -346,6 +364,8 @@ CREATE TABLE IF NOT EXISTS configuracion (
     tasa_campeonato REAL DEFAULT 15,
     arbitraje_por_equipo REAL DEFAULT 15,
     pago_profesor REAL DEFAULT 200,
+    frecuencia_profesores TEXT DEFAULT 'MENSUAL',
+    frecuencia_profesores_dias INTEGER DEFAULT 30,
     fecha_actualizacion TEXT
 );
 
@@ -433,6 +453,14 @@ def _migrar_columnas_faltantes(cursor) -> None:
     columnas_cuota = _obtener_columnas(cursor, "cuota")
     if "monto_mora" not in columnas_cuota:
         cursor.execute("ALTER TABLE cuota ADD COLUMN monto_mora REAL DEFAULT 0")
+    if "origen" not in columnas_cuota:
+        cursor.execute("ALTER TABLE cuota ADD COLUMN origen TEXT DEFAULT 'MANUAL'")
+
+    columnas_tarifa = _obtener_columnas(cursor, "tarifa")
+    if "fecha_vigencia_desde" not in columnas_tarifa:
+        cursor.execute("ALTER TABLE tarifa ADD COLUMN fecha_vigencia_desde TEXT")
+    if "fecha_vigencia_hasta" not in columnas_tarifa:
+        cursor.execute("ALTER TABLE tarifa ADD COLUMN fecha_vigencia_hasta TEXT")
 
     columnas_config = _obtener_columnas(cursor, "configuracion")
     if "pin_emergencia" not in columnas_config:
@@ -445,6 +473,8 @@ def _migrar_columnas_faltantes(cursor) -> None:
         ("tasa_campeonato", "ALTER TABLE configuracion ADD COLUMN tasa_campeonato REAL DEFAULT 15"),
         ("arbitraje_por_equipo", "ALTER TABLE configuracion ADD COLUMN arbitraje_por_equipo REAL DEFAULT 15"),
         ("pago_profesor", "ALTER TABLE configuracion ADD COLUMN pago_profesor REAL DEFAULT 200"),
+        ("frecuencia_profesores", "ALTER TABLE configuracion ADD COLUMN frecuencia_profesores TEXT DEFAULT 'MENSUAL'"),
+        ("frecuencia_profesores_dias", "ALTER TABLE configuracion ADD COLUMN frecuencia_profesores_dias INTEGER DEFAULT 30"),
     ]:
         if col not in columnas_config:
             cursor.execute(sql)

@@ -85,6 +85,11 @@ def crear_estudiante(data: dict, id_usuario: int = 1) -> tuple[bool, str, int | 
         )
 
     logger.info(f"Estudiante creado: DNI={dni}")
+    try:
+        from services import avisos_service as _av
+        _av.invalidar_cache_avisos()
+    except Exception:
+        pass
     return True, "Estudiante registrado correctamente", id_estudiante
 
 
@@ -195,6 +200,11 @@ def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
     )
 
     logger.info(f"Estudiante retirado: ID={id_estudiante}")
+    try:
+        from services import avisos_service as _av
+        _av.invalidar_cache_avisos()
+    except Exception:
+        pass
     return True, "Retiro registrado correctamente"
 
 

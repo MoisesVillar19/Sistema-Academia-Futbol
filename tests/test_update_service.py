@@ -20,6 +20,15 @@ def test_comparar_versiones_mayor_menor_igual():
     assert update_service.comparar_versiones("1.0", "1.0.0") == -1
 
 
+def test_es_actualizacion_valida_nunca_downgrade(monkeypatch):
+    monkeypatch.setattr(update_service, "__version__", "1.2.0", raising=False)
+    assert update_service.es_actualizacion_valida({"version": "1.3.0"}) is True
+    assert update_service.es_actualizacion_valida({"version": "1.2.0"}) is False
+    assert update_service.es_actualizacion_valida({"version": "v1.1.0"}) is False
+    assert update_service.es_actualizacion_valida(None) is False
+    assert update_service.es_actualizacion_valida({}) is False
+
+
 @pytest.mark.parametrize("estado,esperado", [
     ({}, True),
     ({"ultima_verificacion": None}, True),

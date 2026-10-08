@@ -108,7 +108,9 @@ def test_vistas_tienen_datepickers(crear_vista, usuario_admin):
     from views.matriculas.matricula_view import MatriculaView
     assert crear_vista(PagoView).date_pago.winfo_exists()
     v = crear_vista(VentaView)
-    assert v.date_venta.winfo_exists() and v.date_camp.winfo_exists()
+    assert v.date_venta.winfo_exists()
+    from views.campeonatos.campeonato_view import CampeonatoView
+    assert crear_vista(CampeonatoView).winfo_exists()
     inv = crear_vista(InventarioView)
     assert inv.date_compra.winfo_exists() and inv.date_mov.winfo_exists()
     m = crear_vista(MatriculaView)

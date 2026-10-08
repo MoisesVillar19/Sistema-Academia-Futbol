@@ -11,7 +11,6 @@ class MatriculaView(ctk.CTkFrame):
         self._estudiantes_map = {}
         self._tarifas_map = {}
         self._becas_map = {}
-        self._matriculas_map = {}
         self._pagina = 1
         self._per_page = 50
         self._total = 0
@@ -66,14 +65,10 @@ class MatriculaView(ctk.CTkFrame):
         self.tab_lista = self.tabview.add("Matrículas")
         self.tab_form = self.tabview.add("Registrar")
         self.tab_rapida = self.tabview.add("Rápida")
-        self.tab_cuotas = self.tabview.add("Cuotas")
-        self.tab_grilla = self.tabview.add("Año")
 
         self._crear_tab_lista()
         self._crear_tab_formulario()
         self._crear_tab_rapida()
-        self._crear_tab_cuotas()
-        self._crear_tab_grilla()
 
     def _crear_tab_rapida(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -143,7 +138,7 @@ class MatriculaView(ctk.CTkFrame):
         from widgets.date_picker import DatePicker as _DP2
         self.date_express = _DP2(cuerpo, label_text="Fecha de inicio (INICIO):", default="today")
         self.date_express.pack(anchor="w", pady=3)
-        crear_nota(sec, "Yape exige comprobante (RN-042). Efectivo no.")
+        crear_nota(sec, "Yape: comprobante opcional.")
 
         footer = ctk.CTkFrame(scroll, fg_color="white", corner_radius=8)
         footer.pack(fill="x", padx=5, pady=5)
@@ -223,13 +218,12 @@ class MatriculaView(ctk.CTkFrame):
             except Exception:
                 pass
             self._cargar_matriculas()
-            self._cargar_combo_matriculas()
 
     def _crear_tab_lista(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
         sec_titulo = crear_seccion(
             self.tab_lista, titulo="Matrículas Activas", icono="🎓",
-            descripcion="Todas las matrículas con su tarifa y vencimiento. Clic en ▾ Ver detalle o Ver Cuotas para más info.",
+            descripcion="Todas las matrículas con su tarifa y vencimiento. Clic en detalle o Ver Mensualidades para más info.",
             nro=1,
         )
         crear_boton_interactivo(sec_titulo, text="+ Nueva", width=110, command=self._nueva_matricula,
@@ -349,12 +343,24 @@ class MatriculaView(ctk.CTkFrame):
 
         fila_uni = ctk.CTkFrame(cuerpo2, fg_color="transparent")
         fila_uni.pack(fill="x", anchor="w", pady=3)
-        ctk.CTkLabel(fila_uni, text="Uniforme:").pack(side="left")
-        self.combo_uniforme = ctk.CTkComboBox(
-            fila_uni, width=200,
-            values=["Entrenamiento", "Competencia", "Ninguno"])
-        self.combo_uniforme.set("Entrenamiento")
-        self.combo_uniforme.pack(side="left", padx=10)
+        self.var_incluye_uniforme = ctk.BooleanVar(value=False)
+        self.check_uniforme = ctk.CTkCheckBox(
+            fila_uni, text="Incluye uniforme",
+            variable=self.var_incluye_uniforme,
+            command=self._on_uniforme_toggle)
+        self.check_uniforme.pack(side="left")
+        self.seg_tipo_uniforme = ctk.CTkSegmentedButton(
+            fila_uni, values=["Entrenamiento", "Competencia"],
+            command=self._on_tipo_uniforme)
+        try:
+            self.seg_tipo_uniforme.set("Entrenamiento")
+        except Exception:
+            pass
+        self.combo_talla_uniforme = ctk.CTkComboBox(
+            fila_uni, width=140, values=["Sin stock"])
+        self.combo_talla_uniforme.pack(side="left", padx=10)
+        self._tallas_uni_map = {}
+        self._refrescar_tallas_uniforme()
         # actualizar total al cambiar monto/beca/tarifa
         self.entry_monto_pactado.bind("<KeyRelease>", lambda e: self._actualizar_total())
         self.combo_beca.configure(command=lambda v: self._actualizar_total())
@@ -387,28 +393,6 @@ class MatriculaView(ctk.CTkFrame):
             btn_frame, text="🧹 Limpiar", width=100, fg_color="#6B7280", hover_color="#4B5563",
             command=self._limpiar_form_matricula,
         ).pack(side="left", padx=5)
-
-    def _crear_tab_cuotas(self):
-        header = ctk.CTkFrame(self.tab_cuotas, fg_color="transparent")
-        header.pack(fill="x", padx=5, pady=5)
-
-        ctk.CTkLabel(
-            header, text="Historial de Cuotas por Alumno",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")
-
-        self.combo_matricula_cuotas = ctk.CTkComboBox(
-            self.tab_cuotas, width=400,
-            values=["Seleccionar alumno..."],
-            command=self._cargar_cuotas,
-        )
-        self.combo_matricula_cuotas.set("Seleccionar alumno...")
-        self.combo_matricula_cuotas.pack(anchor="w", padx=5, pady=5)
-
-        self.scroll_cuotas = ctk.CTkScrollableFrame(self.tab_cuotas)
-        self.scroll_cuotas.pack(fill="both", expand=True, padx=5, pady=5)
-
-        self._cargar_combo_matriculas()
 
     def _recargar_actual(self):
         try:
@@ -457,6 +441,24 @@ class MatriculaView(ctk.CTkFrame):
             total = len(rows)
             rows = rows[(self._pagina - 1) * self._per_page : self._pagina * self._per_page]
             self._total = total
+
+        if rows:
+            # Batch de becas en 1 query (evita N+1 en _monto_neto por fila).
+            try:
+                from repositories import matricula_beca_repository
+                ids = [m.get("id_matricula") for m in rows if m.get("id_matricula")]
+                mapa = matricula_beca_repository.obtener_por_matriculas(ids)
+                for m in rows:
+                    if "becas_info" not in m:
+                        becas = mapa.get(m.get("id_matricula"), [])
+                        m["becas"] = [(b.get("tipo", b.get("beca_tipo", "")),
+                                       b.get("valor", b.get("beca_valor", 0)))
+                                      for b in becas if b.get("activo", 1)]
+                        m["becas_info"] = ";".join(
+                            f"{b.get('beca_nombre', '')}|{b.get('beca_tipo', '')}|{b.get('beca_valor', 0)}"
+                            for b in becas)
+            except Exception:
+                pass
 
         if not rows:
             ctk.CTkLabel(
@@ -532,7 +534,7 @@ class MatriculaView(ctk.CTkFrame):
         botones.pack(side="right", padx=5, pady=5)
 
         ctk.CTkButton(
-            botones, text="Ver Cuotas", width=90, height=28,
+            botones, text="Ver Mensualidades", width=120, height=28,
             command=lambda m=mat: self._ver_cuotas(m),
         ).pack(side="left", padx=2)
 
@@ -594,7 +596,7 @@ class MatriculaView(ctk.CTkFrame):
         self._cargar_combo_becas()
         try:
             self.label_total.configure(text="Total matricula: S/0.00 | Importe total: S/0.00")
-            self.label_seleccionados.configure(text="Uniforme: Entrenamiento")
+            self.label_seleccionados.configure(text="Uniforme: no incluye")
         except Exception:
             pass
         self.tabview.set("Registrar")
@@ -674,8 +676,45 @@ class MatriculaView(ctk.CTkFrame):
         total = base
         try:
             self.label_total.configure(text=f"Total matricula: S/{base:.2f} | Importe total: S/{total:.2f}")
-            uni = self.combo_uniforme.get() if hasattr(self, "combo_uniforme") else "Ninguno"
-            self.label_seleccionados.configure(text=f"Uniforme: {uni}")
+            if getattr(self, "var_incluye_uniforme", None) is not None and self.var_incluye_uniforme.get():
+                try:
+                    tipo_u = self.seg_tipo_uniforme.get()
+                except Exception:
+                    tipo_u = "Entrenamiento"
+                talla_u = self.combo_talla_uniforme.get() if hasattr(self, "combo_talla_uniforme") else ""
+                self.label_seleccionados.configure(text=f"Uniforme: {tipo_u} talla {talla_u}")
+            else:
+                self.label_seleccionados.configure(text="Uniforme: no incluye")
+        except Exception:
+            pass
+
+    def _tipo_uniforme_sel(self) -> str:
+        try:
+            return "COM" if self.seg_tipo_uniforme.get() == "Competencia" else "ENT"
+        except Exception:
+            return "ENT"
+
+    def _on_uniforme_toggle(self):
+        self._refrescar_tallas_uniforme()
+        self._actualizar_total()
+
+    def _on_tipo_uniforme(self, _selection=None):
+        self._refrescar_tallas_uniforme()
+        self._actualizar_total()
+
+    def _refrescar_tallas_uniforme(self):
+        try:
+            from services import uniforme_service
+            tallas = uniforme_service.tallas_disponibles(self._tipo_uniforme_sel())
+        except Exception:
+            tallas = []
+        nombres = [f"{t['talla']} (stock {t['stock']})" for t in tallas]
+        self._tallas_uni_map = {n: t["id_variante"] for n, t in zip(nombres, tallas)}
+        try:
+            self.combo_talla_uniforme.configure(
+                values=nombres if nombres else ["Sin stock"])
+            self.combo_talla_uniforme.set(
+                nombres[0] if nombres else "Sin stock")
         except Exception:
             pass
 
@@ -690,9 +729,14 @@ class MatriculaView(ctk.CTkFrame):
         except Exception:
             pass
         try:
-            self.combo_uniforme.set("Entrenamiento")
+            self.var_incluye_uniforme.set(False)
         except Exception:
             pass
+        try:
+            self.seg_tipo_uniforme.set("Entrenamiento")
+        except Exception:
+            pass
+        self._refrescar_tallas_uniforme()
         self.label_form_status.configure(text="")
 
     def _registrar_matricula(self):
@@ -721,12 +765,18 @@ class MatriculaView(ctk.CTkFrame):
         if beca_selection != "Ninguna" and beca_selection in self._becas_map:
             data["becas"] = [{"id_beca": self._becas_map[beca_selection]}]
         es_nuevo = bool(self.var_es_nuevo.get()) if hasattr(self, "var_es_nuevo") else False
-        uniforme_sel = self.combo_uniforme.get() if hasattr(self, "combo_uniforme") else "Ninguno"
-        # MessageBox desglose
+        incluye_uni = bool(self.var_incluye_uniforme.get()) if hasattr(self, "var_incluye_uniforme") else False
+        id_variante_uni = None
+        if incluye_uni:
+            id_variante_uni = self._tallas_uni_map.get(self.combo_talla_uniforme.get())
+            if not id_variante_uni:
+                self.label_form_status.configure(
+                    text="Sin stock en la talla elegida: desmarca uniforme o elige otra talla",
+                    text_color="red")
+                return
         base_txt = self.label_total.cget("text") if hasattr(self.label_total, 'cget') else ""
-        sel_txt = self.label_seleccionados.cget("text") if hasattr(self.label_seleccionados,'cget') else ""
         detalle = (f"Estudiante: {est_selection}\nTarifa: {tarifa_selection}\n"
-                   f"Es nuevo: {'Sí' if es_nuevo else 'No'}\n{sel_txt}\n{base_txt}\n\n¿Confirmar matrícula?")
+                   f"Es nuevo: {'Sí' if es_nuevo else 'No'}\n{base_txt}\n\n¿Confirmar matrícula?")
         if not messagebox.askyesno("Confirmar matrícula", detalle):
             return
         if est and int(est.get("es_nuevo", 0) or 0) != (1 if es_nuevo else 0):
@@ -736,171 +786,34 @@ class MatriculaView(ctk.CTkFrame):
             except Exception as e:
                 self.label_form_status.configure(text=f"Aviso: no se pudo actualizar es_nuevo ({e})",
                                                  text_color="orange")
-        exito, msg, id_mat = matricula_controller.crear_matricula(data)
+        from widgets.loading_dialog import con_indicador_ocupado
+        exito, msg, id_mat = con_indicador_ocupado(
+            self, "Guardando matrícula...",
+            lambda: matricula_controller.crear_matricula(data))
         if exito:
-            aviso_uniforme = ""
-            if uniforme_sel != "Ninguno" and id_mat:
-                tipo_uni = "ENT" if uniforme_sel == "Entrenamiento" else "COM"
+            aviso_uni = ""
+            if incluye_uni and id_variante_uni:
                 try:
                     from controllers import venta_controller
                     ok_u, msg_u, _vid = venta_controller.registrar_venta_uniforme({
                         "id_estudiante": id_est,
-                        "tipo": tipo_uni,
+                        "tipo": self._tipo_uniforme_sel(),
+                        "id_variante": id_variante_uni,
                         "fecha_venta": self.date_matricula.get() or None,
                         "metodo_pago": "EFECTIVO",
                     })
-                    aviso_uniforme = (f" | Uniforme {uniforme_sel}: {msg_u}"
-                                      if ok_u else f" | Uniforme NO registrado: {msg_u}")
+                    aviso_uni = (f" | Uniforme: {msg_u}" if ok_u
+                                 else f" | Uniforme NO registrado: {msg_u} (ver Uniformes)")
                 except Exception as e:
-                    aviso_uniforme = f" | Uniforme NO registrado: {e}"
-            self.label_form_status.configure(text=msg + aviso_uniforme, text_color="green")
+                    aviso_uni = f" | Uniforme NO registrado: {e} (ver Uniformes)"
+            self.label_form_status.configure(text=msg + aviso_uni, text_color="green")
+            self._refrescar_tallas_uniforme()
             self._cargar_matriculas()
-            self._cargar_combo_matriculas()
             self._refrescar_banner()
             self.tabview.set("Matrículas")
         else:
             self.label_form_status.configure(text=msg, text_color="red")
 
-    def _crear_tab_grilla(self):
-        # Fase 7d: grilla anual estilo Excel RELACIÓN DE ALUMNOS
-        # (X=CANCELADO, S/=ADELANTO, vacío=pendiente/sin cuota).
-        from utils.ui_helpers import crear_seccion, crear_boton_interactivo
-        from utils.dates import get_today
-        sec = crear_seccion(
-            self.tab_grilla, titulo="Cuotas del Año", icono="🗓",
-            descripcion="X = cancelado • S/ monto = adelanto (saldo) • "
-                        "! gris = pendiente • ! rojo = vencido • clic en celda = detalle.",
-            nro=1)
-        barra = ctk.CTkFrame(sec, fg_color="transparent")
-        barra.pack(fill="x", padx=10, pady=(0, 8))
-        ctk.CTkLabel(barra, text="Año:").pack(side="left")
-        try:
-            anio_actual = int((get_today() or "2026")[:4])
-        except (ValueError, TypeError):
-            anio_actual = 2026
-        self.combo_grilla_anio = ctk.CTkComboBox(
-            barra, width=110,
-            values=[str(a) for a in range(anio_actual - 2, anio_actual + 3)],
-            command=lambda v: self._cargar_grilla())
-        self.combo_grilla_anio.set(str(anio_actual))
-        self.combo_grilla_anio.pack(side="left", padx=10)
-        crear_boton_interactivo(barra, text="Actualizar", width=110,
-                                command=self._cargar_grilla, fg_color="#7C3AED").pack(side="left")
-        self.scroll_grilla = ctk.CTkScrollableFrame(self.tab_grilla)
-        self.scroll_grilla.pack(fill="both", expand=True, padx=5, pady=5)
-        self.label_grilla_status = ctk.CTkLabel(self.tab_grilla, text="", font=ctk.CTkFont(size=12))
-        self.label_grilla_status.pack(pady=3)
-        self._cargar_grilla()
-
-    def _cargar_grilla(self):
-        from services import cuota_service
-        for w in self.scroll_grilla.winfo_children():
-            w.destroy()
-        # Becados marcados en el nombre (grilla = relación general)
-        try:
-            from controllers import estudiante_controller
-            becados = {b.get("dni", "") for b in estudiante_controller.listar_becados()}
-        except Exception:
-            becados = set()
-        try:
-            anio = int(self.combo_grilla_anio.get())
-        except (ValueError, TypeError):
-            anio = 2026
-        filas = cuota_service.grilla_anual(anio)
-        meses = cuota_service.MESES_GRILLA
-        header = ctk.CTkFrame(self.scroll_grilla, fg_color="#3D1559", corner_radius=6)
-        header.pack(fill="x", padx=6, pady=(4, 2))
-        ctk.CTkLabel(header, text="Estudiante", width=220,
-                     font=ctk.CTkFont(size=11, weight="bold"), text_color="white").grid(
-            row=0, column=0, padx=2, pady=6, sticky="w")
-        for j, mes in enumerate(meses):
-            ctk.CTkLabel(header, text=mes, width=55,
-                         font=ctk.CTkFont(size=11, weight="bold"), text_color="white").grid(
-                row=0, column=j + 1, padx=2, pady=6)
-        if not filas:
-            ctk.CTkLabel(self.scroll_grilla, text=f"Sin cuotas en {anio}",
-                         text_color="gray").pack(pady=20)
-            self.label_grilla_status.configure(text="Total: 0")
-            return
-        colores = {"PAGADO": ("X", "green", True), "PARCIAL": (None, "#D97706", True),
-                   "VENCIDO": ("!", "#DC2626", True), "PENDIENTE": ("!", "#9CA3AF", False)}
-        for f in filas:
-            row = ctk.CTkFrame(self.scroll_grilla, fg_color="white", corner_radius=6)
-            row.pack(fill="x", padx=6, pady=1)
-            nombre_grilla = (f"🎓 {f['nombre']}" if f.get("dni", "") in becados
-                             else f["nombre"])
-            ctk.CTkLabel(row, text=nombre_grilla, width=220,
-                         font=ctk.CTkFont(size=11), text_color="#1F0A33").grid(
-                row=0, column=0, padx=2, pady=4, sticky="w")
-            for j in range(1, 13):
-                celda = f["meses"].get(j)
-                if celda is None:
-                    txt, color, negrita = "", "#9CA3AF", False
-                elif celda["estado"] == "PARCIAL":
-                    txt, color, negrita = f"S/{celda['saldo']:.0f}", "#D97706", True
-                else:
-                    txt, color, negrita = colores.get(celda["estado"], ("", "#9CA3AF", False))
-                lbl = ctk.CTkLabel(row, text=txt, width=55,
-                                   font=ctk.CTkFont(size=11, weight="bold" if negrita else "normal"),
-                                   text_color=color)
-                lbl.grid(row=0, column=j, padx=2, pady=4)
-                if celda is not None and celda.get("id_cuota"):
-                    try:
-                        lbl.configure(cursor="hand2")
-                    except Exception:
-                        pass
-                    lbl.bind("<Button-1>",
-                             lambda _e, _c=dict(celda), _n=f["nombre"]:
-                             self._dialog_detalle_grilla(_c, _n),
-                             add="+")
-        self.label_grilla_status.configure(
-            text=f"Total: {len(filas)} estudiante(s) • X=cancelado • S/=adelanto • !=pendiente/vencido")
-
-    def _dialog_detalle_grilla(self, celda, nombre):
-        top = ctk.CTkToplevel(self)
-        top.title(f"Cuota {celda.get('periodo', '')} - {nombre}")
-        top.geometry("420x360")
-        try:
-            top.transient(self)
-        except Exception:
-            pass
-        cuerpo = ctk.CTkFrame(top, fg_color="transparent")
-        cuerpo.pack(fill="both", expand=True, padx=12, pady=12)
-        ctk.CTkLabel(cuerpo, text=f"{nombre} • {celda.get('periodo', '')}",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color="#3D1559").pack(anchor="w", pady=(0, 8))
-        for et, val in (
-                ("Estado", celda.get("estado", "")),
-                ("Total", f"S/{float(celda.get('monto_total', 0) or 0):.2f}"),
-                ("Pagado", f"S/{float(celda.get('monto_pagado', 0) or 0):.2f}"),
-                ("Saldo", f"S/{float(celda.get('saldo', 0) or 0):.2f}"),
-                ("Vence", celda.get("fecha_vencimiento", "") or "—")):
-            fila = ctk.CTkFrame(cuerpo, fg_color="transparent")
-            fila.pack(fill="x", pady=1)
-            ctk.CTkLabel(fila, text=f"{et}:", width=90, anchor="w",
-                         font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color="#3D1559").pack(side="left")
-            ctk.CTkLabel(fila, text=str(val), anchor="w",
-                         font=ctk.CTkFont(size=12)).pack(side="left")
-        ctk.CTkLabel(cuerpo, text="Pagos aplicados:",
-                     font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color="#3D1559").pack(anchor="w", pady=(10, 4))
-        try:
-            pagos = matricula_controller.obtener_pagos_por_cuota(celda["id_cuota"])
-        except Exception:
-            pagos = []
-        if not pagos:
-            ctk.CTkLabel(cuerpo, text="Sin pagos aplicados",
-                         text_color="gray").pack(anchor="w")
-        for p in pagos:
-            ctk.CTkLabel(
-                cuerpo,
-                text=(f"• {p.get('numero_recibo', '—')} • {p.get('fecha_pago', '')} • "
-                      f"S/{float(p.get('monto_pagado', 0) or 0):.2f} • {p.get('metodo_pago', '')}"),
-                font=ctk.CTkFont(size=11), anchor="w",
-                justify="left").pack(anchor="w")
-
-    @staticmethod
     def _abrir_tarifas_modulo(tab=None, tipo=None):
         try:
             from utils import event_bus
@@ -909,131 +822,15 @@ class MatriculaView(ctk.CTkFrame):
             pass
 
     def _ver_cuotas(self, mat):
-        # Historial por alumno: la matrícula es el primer pago que genera
-        # las mensualidades; aquí se ven todas sus matrículas y cuotas.
-        self.tabview.set("Cuotas")
-        self._cargar_combo_matriculas()
+        # Las mensualidades viven en su módulo: navegar con preselección.
         try:
+            from utils import event_bus
             id_est = mat.get("id_estudiante")
             if not id_est and mat.get("id_matricula"):
                 det = matricula_controller.obtener_matricula(mat["id_matricula"]) or {}
                 id_est = det.get("id_estudiante")
-            for key, val in self._matriculas_map.items():
-                if val == id_est:
-                    self.combo_matricula_cuotas.set(key)
-                    self._cargar_cuotas(key)
-                    break
+            event_bus.publish("abrir_modulo", modulo="mensualidades",
+                              params={"id_estudiante": id_est})
         except Exception:
             pass
 
-    def _cargar_combo_matriculas(self):
-        from controllers import estudiante_controller
-        try:
-            estudiantes = estudiante_controller.listar_estudiantes() or []
-        except Exception:
-            estudiantes = []
-        nombres = [f"{e.get('nombres', '')} {e.get('apellidos', '')}".strip()
-                   or f"DNI {e.get('dni', '')}" for e in estudiantes]
-        self.combo_matricula_cuotas.configure(
-            values=nombres if nombres else ["Sin estudiantes"])
-        self._matriculas_map = {n: e["id_estudiante"] for n, e in zip(nombres, estudiantes)}
-
-    def _cargar_cuotas(self, selection):
-        from controllers import estudiante_controller
-        for widget in self.scroll_cuotas.winfo_children():
-            widget.destroy()
-
-        id_est = self._matriculas_map.get(selection)
-        if not id_est:
-            return
-
-        try:
-            est = estudiante_controller.obtener_estudiante(id_est) or {}
-        except Exception:
-            est = {}
-        estado_est = str(est.get("estado", "") or "")
-        if estado_est in ("REINGRESANTE", "RETIRADO"):
-            ctk.CTkLabel(
-                self.scroll_cuotas,
-                text=("🔄 Reingresante: historial con varias matrículas"
-                      if estado_est == "REINGRESANTE" else
-                      "📁 Retirado: historial archivado (se conserva)"),
-                font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#7C3AED").pack(anchor="w", padx=6, pady=(4, 0))
-
-        try:
-            matriculas = matricula_controller.obtener_por_estudiante(id_est) or []
-        except Exception:
-            matriculas = []
-        if not matriculas:
-            ctk.CTkLabel(
-                self.scroll_cuotas, text="Sin matrículas registradas",
-                text_color="gray",
-            ).pack(pady=10)
-            return
-
-        for mat in matriculas:
-            try:
-                becas = matricula_controller.obtener_becas_por_matricula(
-                    mat["id_matricula"])
-                txt_beca = ", ".join(b.get("beca_nombre", "") for b in becas if b.get("beca_nombre"))
-            except Exception:
-                txt_beca = ""
-            head = (f"Matrícula #{mat.get('id_matricula')} • "
-                    f"{mat.get('tarifa_nombre', '') or 'Tarifa'} • "
-                    f"Inicio {mat.get('fecha_inicio', '')} • {mat.get('estado', '')}"
-                    + (f" • 🎓 {txt_beca}" if txt_beca else ""))
-            ctk.CTkLabel(self.scroll_cuotas, text=head,
-                         font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color="#3D1559").pack(anchor="w", padx=6, pady=(8, 2))
-            try:
-                cuotas = matricula_controller.obtener_cuotas_por_matricula(
-                    mat["id_matricula"])
-            except Exception:
-                cuotas = []
-            if not cuotas:
-                ctk.CTkLabel(self.scroll_cuotas, text="Sin cuotas registradas",
-                             text_color="gray").pack(anchor="w", padx=12)
-                continue
-            for cuota in cuotas:
-                self._card_cuota(self.scroll_cuotas, cuota)
-
-    def _card_cuota(self, parent, cuota):
-        card = ctk.CTkFrame(parent)
-        card.pack(fill="x", padx=5, pady=3)
-
-        color = {"PENDIENTE": "gray", "PARCIAL": "orange",
-                 "PAGADO": "green", "VENCIDO": "red"}.get(cuota["estado"], "gray")
-
-        ctk.CTkLabel(
-            card,
-            text=f"{cuota['periodo']} | S/{cuota['monto_total']:.2f} | "
-                 f"Pagado: S/{cuota['monto_pagado']:.2f} | Saldo: S/{cuota['saldo']:.2f}",
-            font=ctk.CTkFont(size=12),
-        ).pack(side="left", padx=10, pady=8)
-
-        ctk.CTkLabel(
-            card, text=cuota["estado"], text_color=color,
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).pack(side="right", padx=10)
-
-        # Detalle de pagos aplicados (recibo/fecha/método/monto)
-        from utils.ui_helpers import agregar_detalle_expandible
-        toggle_btn, _, _ = agregar_detalle_expandible(
-            card, lambda frame, _c=cuota: self._poblar_detalle_cuota(frame, _c))
-        toggle_btn.pack(anchor="e", padx=10, pady=(0, 8))
-
-    @staticmethod
-    def _poblar_detalle_cuota(frame, cuota):
-        from utils.ui_helpers import linea_detalle
-        try:
-            pagos = matricula_controller.obtener_pagos_por_cuota(cuota["id_cuota"])
-        except Exception:
-            pagos = []
-        if not pagos:
-            linea_detalle(frame, "Pagos", "Sin pagos aplicados")
-            return
-        for p in pagos:
-            linea_detalle(
-                frame, f"{p.get('numero_recibo', '—')} • {p.get('fecha_pago', '')}",
-                f"S/{float(p.get('monto_pagado', 0) or 0):.2f} • {p.get('metodo_pago', '')}")

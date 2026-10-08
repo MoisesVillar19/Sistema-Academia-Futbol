@@ -117,7 +117,7 @@ def verificar_actualizacion() -> dict | None:
             GITHUB_API_URL,
             headers=HEADERS_GITHUB,
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with _abrir_url(req, timeout=20) as resp:
             if resp.status != 200:
                 ultimo_error = f"GitHub API respondió {resp.status}"
                 return None
@@ -128,6 +128,12 @@ def verificar_actualizacion() -> dict | None:
             ultimo_error = "Respuesta sin tag_name"
             return None
 
+        try:
+            from utils.logger import logger as _log
+            _log.info(f"Updater: local={__version__} vs remota={tag} "
+                      f"(comparar={comparar_versiones(__version__, tag)})")
+        except Exception:
+            pass
         if comparar_versiones(__version__, tag) >= 0:
             _fusionar_estado({
                 "ultima_verificacion": datetime.now().isoformat(),
@@ -211,6 +217,56 @@ def _formatear_bytes(n: int) -> str:
     if n < 1024 * 1024:
         return f"{n/1024:.1f} KB"
     return f"{n/1024/1024:.1f} MB"
+
+
+def _contexto_ssl():
+    """Contexto TLS con certifi si está disponible (redes con SSL estricto)."""
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        try:
+            return ssl.create_default_context()
+        except Exception:
+            return None
+
+
+def _abrir_url(req, timeout: int, intentos: int = 3):
+    """urlopen con reintentos y backoff (redes lentas/proxy)."""
+    global ultimo_error
+    last_exc = None
+    ctx = _contexto_ssl()
+    for intento in range(intentos):
+        try:
+            if ctx is not None:
+                return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            # 5xx reintentable, 4xx no
+            if e.code is not None and 500 <= e.code < 600 and intento < intentos - 1:
+                last_exc = e
+                time.sleep(1.5 * (intento + 1))
+                continue
+            raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last_exc = e
+            if intento < intentos - 1:
+                time.sleep(1.5 * (intento + 1))
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+
+
+def es_actualizacion_valida(info: dict | None) -> bool:
+    """Nunca ofrece downgrade: solo versiones estrictamente mayores."""
+    if not info or not info.get("version"):
+        return False
+    try:
+        return comparar_versiones(__version__, str(info["version"])) < 0
+    except Exception:
+        return False
 
 
 class _DescargaCancelada(Exception):
@@ -415,6 +471,194 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
 
 def descargar_setup_y_ejecutar(url_setup: str, callback_progreso=None) -> bool:
     return descargar_y_actualizar(url_setup, callback_progreso=callback_progreso)
+
+
+# Rutas dentro del ZIP que jamás se sobrescriben (BD, config, logs, backups).
+_PROTEGIDOS_UPDATE = (
+    "config.ini", "config_visual.json",
+    "database/academia.db", "logs/", "backups/",
+)
+
+
+def descargar_zip_temporal(url_descarga: str, callback_progreso=None,
+                            debe_cancelar=None) -> str | None:
+    """Solo descarga el ZIP a un temporal y retorna su ruta (sin extraer).
+
+    Lo usa el flujo automático: la extracción la hace el actualizador
+    externo cuando la app ya está cerrada (el EXE en uso no se puede
+    sobrescribir desde la app abierta).
+    """
+    global ultimo_error
+    ultimo_error = ""
+    try:
+        req = urllib.request.Request(url_descarga, headers=HEADERS_DOWNLOAD)
+        last_exc = None
+        for intento in range(3):
+            try:
+                with _abrir_url(req, timeout=60) as resp:
+                    if resp.status not in (200, 206):
+                        raise urllib.error.HTTPError(
+                            url_descarga, resp.status, resp.reason or "Error",
+                            resp.headers, None)
+                    total = int(resp.headers.get("Content-Length", 0) or 0)
+                    ruta_temp = tempfile.mkdtemp(prefix="academia_update_")
+                    ruta_zip = os.path.join(ruta_temp, "update.zip")
+                    leidos = 0
+                    inicio = time.time()
+                    ultimo_update = inicio
+                    with open(ruta_zip, "wb") as out:
+                        while True:
+                            if debe_cancelar is not None:
+                                try:
+                                    if debe_cancelar():
+                                        raise _DescargaCancelada()
+                                except _DescargaCancelada:
+                                    raise
+                                except Exception:
+                                    pass
+                            chunk = resp.read(8192 * 4)
+                            if not chunk:
+                                break
+                            out.write(chunk)
+                            leidos += len(chunk)
+                            ahora = time.time()
+                            if callback_progreso and (ahora - ultimo_update > 0.15):
+                                transcurrido = ahora - inicio
+                                vel = leidos / transcurrido if transcurrido > 0 else 0
+                                try:
+                                    callback_progreso(leidos, total, vel)
+                                except TypeError:
+                                    try:
+                                        callback_progreso(leidos, total)
+                                    except Exception:
+                                        pass
+                                ultimo_update = ahora
+                    if not zipfile.is_zipfile(ruta_zip):
+                        raise ValueError("El archivo descargado no es un ZIP válido")
+                    if total and leidos != total:
+                        raise ValueError(f"Descarga truncada: {leidos}/{total} bytes")
+                    if callback_progreso:
+                        try:
+                            callback_progreso(leidos, total or leidos, 0)
+                        except TypeError:
+                            try:
+                                callback_progreso(leidos, total or leidos)
+                            except Exception:
+                                pass
+                    return ruta_zip
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
+                    ConnectionError, OSError, ValueError) as e:
+                last_exc = e
+                if intento < 2:
+                    time.sleep(1.5 * (intento + 1))
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        return None
+    except _DescargaCancelada:
+        ultimo_error = "Descarga cancelada por el usuario."
+        return None
+    except urllib.error.HTTPError as e:
+        ultimo_error = f"HTTP {e.code} {e.reason} al descargar."
+        return None
+    except urllib.error.URLError as e:
+        ultimo_error = f"Error de red: {e.reason}. Verifique internet / firewall / proxy."
+        return None
+    except TimeoutError:
+        ultimo_error = "Tiempo agotado (timeout 60s). Reintente."
+        return None
+    except Exception as e:
+        ultimo_error = f"Error inesperado: {e}"
+        return None
+
+
+def aplicar_zip_al_salir(ruta_zip: str, version: str) -> bool:
+    """Programa la aplicación del ZIP cuando la app se cierre.
+
+    Genera un actualizador externo (.bat + .ps1) que espera el cierre,
+    extrae excluyendo BD/config/logs/backups y relanza la app.
+    Retorna True si el actualizador quedó lanzado (la app debe cerrarse).
+    """
+    global ultimo_error
+    ultimo_error = ""
+    try:
+        ruta_app = _obtener_ruta_app()
+        exe_path = os.path.join(ruta_app, APP_EXE_NAME)
+        dir_temp = os.path.dirname(os.path.abspath(ruta_zip))
+        ps1 = os.path.join(dir_temp, "aplicar_update.ps1")
+        bat = os.path.join(dir_temp, "aplicar_update.bat")
+        pid = os.getpid()
+        with open(ps1, "w", encoding="utf-8") as f:
+            f.write(
+                "param([int]$PidApp)\n"
+                "$ErrorActionPreference = 'Stop'\n"
+                f"$zip = '{ruta_zip}'\n"
+                f"$dest = '{ruta_app}'\n"
+                f"$exe = '{exe_path}'\n"
+                "$protegidos = @("
+                + ";".join(f"'{p}'" for p in _PROTEGIDOS_UPDATE)
+                + ")\n"
+                "while (Get-Process -Id $PidApp -ErrorAction SilentlyContinue) "
+                "{ Start-Sleep -Milliseconds 500 }\n"
+                "Start-Sleep -Seconds 1\n"
+                "Add-Type -AssemblyName System.IO.Compression.FileSystem\n"
+                "$zipFs = [IO.Compression.ZipFile]::OpenRead($zip)\n"
+                "try {\n"
+                "  foreach ($e in $zipFs.Entries) {\n"
+                "    if ($e.FullName.EndsWith('/')) { continue }\n"
+                "    $low = $e.FullName.ToLower().Replace('\\','/')\n"
+                "    $skip = $false\n"
+                "    foreach ($p in $protegidos) {\n"
+                "      $pl = $p.ToLower()\n"
+                "      if ($pl.EndsWith('/') ) { if ($low.StartsWith($pl)) { $skip = $true; break } }\n"
+                "      elseif ($low -eq $pl) { $skip = $true; break }\n"
+                "    }\n"
+                "    if ($skip) { continue }\n"
+                "    $target = Join-Path $dest ($e.FullName -replace '/', [IO.Path]::DirectorySeparatorChar)\n"
+                "    $full = [IO.Path]::GetFullPath($target)\n"
+                "    if ($full -ne [IO.Path]::GetFullPath($dest) -and "
+                "-not $full.StartsWith([IO.Path]::GetFullPath($dest) + [IO.Path]::DirectorySeparatorChar)) { continue }\n"
+                "    $dir = Split-Path $full -Parent\n"
+                "    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory $dir -Force | Out-Null }\n"
+                "    [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $full, $true)\n"
+                "  }\n"
+                "} finally { $zipFs.Dispose() }\n"
+                "if (Test-Path $exe) { Start-Process $exe }\n"
+            )
+        with open(bat, "w", encoding="utf-8") as f:
+            f.write(
+                "@echo off\n"
+                f"start \"\" /min powershell -NoProfile -ExecutionPolicy Bypass -File \"{ps1}\" -PidApp {pid}\n"
+            )
+        import subprocess
+        subprocess.Popen(
+            ["cmd", "/c", bat], shell=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "DETACHED_PROCESS", 0),
+        )
+        _fusionar_estado({
+            "update_programado_version": version,
+            "ultima_verificacion": datetime.now().isoformat(),
+        })
+        return True
+    except Exception as e:
+        ultimo_error = f"No se pudo programar la actualización: {e}"
+        return False
+
+
+def salir_app() -> None:
+    """Cierra la app (el actualizador externo continúa solo)."""
+    try:
+        close = getattr(sys.modules.get("database.connection"), "close_connection", None)
+    except Exception:
+        close = None
+    try:
+        if close:
+            close()
+    except Exception:
+        pass
+    sys.exit(0)
 
 
 def reiniciar_app() -> None:

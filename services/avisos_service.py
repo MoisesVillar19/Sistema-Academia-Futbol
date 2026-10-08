@@ -37,7 +37,31 @@ def _sin_apoderado_principal() -> list[dict]:
     return pendientes
 
 
+_AVISOS_CACHE: list[dict] = []
+_AVISOS_TS = 0.0
+_AVISOS_TTL_SEG = 60
+
+
 def obtener_avisos() -> list[dict]:
+    """Cacheado 60s: los banners de cada módulo lo piden al abrir."""
+    global _AVISOS_CACHE, _AVISOS_TS
+    import time
+    ahora = time.time()
+    if _AVISOS_CACHE and ahora - _AVISOS_TS < _AVISOS_TTL_SEG:
+        return [dict(a) for a in _AVISOS_CACHE]
+    avisos = _calcular_avisos()
+    _AVISOS_CACHE = [dict(a) for a in avisos]
+    _AVISOS_TS = ahora
+    return avisos
+
+
+def invalidar_cache_avisos() -> None:
+    global _AVISOS_CACHE, _AVISOS_TS
+    _AVISOS_CACHE = []
+    _AVISOS_TS = 0.0
+
+
+def _calcular_avisos() -> list[dict]:
     avisos = []
     try:
         n_comp = len(pago_repository.obtener_sin_comprobante(limit=1000))
@@ -105,6 +129,57 @@ def obtener_avisos() -> list[dict]:
             "severidad": "media",
             "ir": {"modulo": "matriculas", "params": {}},
         })
+    avisos.extend(_avisos_pago_profesores())
+    return avisos
+
+
+def _avisos_pago_profesores() -> list[dict]:
+    """Recordatorio de pago a profesores según frecuencia configurada.
+
+    Sin tabla nueva: usa el último egreso PROFESOR por responsable.
+    """
+    from datetime import datetime
+    from repositories import egreso_repository
+    from services import configuracion_service
+    try:
+        frec, dias = configuracion_service.obtener_frecuencia_profesores()
+    except Exception:
+        frec, dias = "MENSUAL", 30
+    try:
+        filas = egreso_repository.ultimo_por_responsable("PROFESOR")
+    except Exception as e:
+        logger.warning(f"Aviso pago profesores no disponible: {e}")
+        return []
+    hoy = datetime.now().date()
+    avisos = []
+    if not filas:
+        if not _omitido("pago_profesores"):
+            avisos.append({
+                "codigo": "pago_profesores",
+                "modulo": "egresos",
+                "texto": "Sin pagos a profesores registrados (frecuencia: "
+                         f"{frec.lower()})",
+                "cantidad": 0,
+                "severidad": "media",
+                "ir": {"modulo": "egresos", "params": {"tab": "Profesores"}},
+            })
+        return avisos
+    for f in filas:
+        resp = (f.get("responsable") or "").strip() or "profesor"
+        try:
+            ultima = datetime.strptime(str(f.get("ultima_fecha", ""))[:10], "%Y-%m-%d").date()
+            atraso = (hoy - ultima).days
+        except (ValueError, TypeError):
+            continue
+        if atraso >= dias and not _omitido("pago_profesores", "responsable", resp):
+            avisos.append({
+                "codigo": "pago_profesores",
+                "modulo": "egresos",
+                "texto": f"Pago a {resp} pendiente (último hace {atraso} días)",
+                "cantidad": atraso,
+                "severidad": "media",
+                "ir": {"modulo": "egresos", "params": {"tab": "Profesores"}},
+            })
     return avisos
 
 
@@ -135,11 +210,29 @@ def listar_bajo_stock() -> list[dict]:
 def omitir_aviso(codigo: str, motivo: str, origen_tipo: str = "",
                  origen_id: int = 0, id_usuario: int | None = None) -> None:
     aviso_repository.omitir(codigo, origen_tipo, origen_id, motivo, id_usuario)
+    invalidar_cache_avisos()
+    try:
+        from services import auditoria_service
+        auditoria_service.registrar_log(
+            id_usuario if id_usuario is not None else auditoria_service.id_usuario_sesion(),
+            "aviso_omitido", origen_id, "OMITIR_AVISO",
+            "", f"{codigo}/{origen_tipo}:{motivo}")
+    except Exception:
+        pass
 
 
 def reactivar_aviso(codigo: str, origen_tipo: str = "",
                     origen_id: int = 0) -> None:
     aviso_repository.reactivar(codigo, origen_tipo, origen_id)
+    invalidar_cache_avisos()
+    try:
+        from services import auditoria_service
+        auditoria_service.registrar_log(
+            auditoria_service.id_usuario_sesion(),
+            "aviso_omitido", origen_id, "REACTIVAR_AVISO",
+            "", f"{codigo}/{origen_tipo}")
+    except Exception:
+        pass
 
 
 def listar_omitidos() -> list[dict]:

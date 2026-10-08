@@ -10,9 +10,9 @@ def test_form_sin_extras_con_uniforme(crear_vista, usuario_admin):
     from views.matriculas.matricula_view import MatriculaView
     vista = crear_vista(MatriculaView)
     assert not hasattr(vista, "frame_productos")
-    assert vista.combo_uniforme.cget("values") == [
-        "Entrenamiento", "Competencia", "Ninguno"]
-    assert vista.combo_uniforme.get() == "Entrenamiento"
+    assert vista.var_incluye_uniforme.get() is False
+    assert vista.seg_tipo_uniforme is not None
+    assert vista.combo_talla_uniforme is not None
 
 
 def test_regalo_nuevo_sigue_intacto():

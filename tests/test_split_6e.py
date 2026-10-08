@@ -54,7 +54,7 @@ def test_matricula_sin_extras_usa_uniforme(crear_vista, usuario_admin):
     vista = crear_vista(MatriculaView)
     assert not hasattr(vista, "frame_productos")
     assert not hasattr(vista, "_recargar_productos")
-    assert vista.combo_uniforme.get() == "Entrenamiento"
+    assert vista.var_incluye_uniforme.get() is False
 
 
 def test_ventas_filtro_categoria(crear_vista, usuario_admin):

@@ -101,6 +101,11 @@ def obtener_cuotas_por_matricula(id_matricula: int) -> list[dict]:
     return cuota_service.obtener_cuotas_por_matricula(id_matricula)
 
 
+def editar_cuota(id_cuota: int, data: dict) -> tuple[bool, str]:
+    """Edición manual de mensualidad (corrección de pase de datos)."""
+    return cuota_service.editar_cuota(id_cuota, data)
+
+
 def obtener_pagos_por_cuota(id_cuota: int) -> list[dict]:
     """Detalle de pagos aplicados a una cuota (recibo/fecha/método/monto)."""
     return pago_service.obtener_detalles_por_cuota(id_cuota)

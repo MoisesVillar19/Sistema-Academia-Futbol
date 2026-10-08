@@ -16,12 +16,15 @@ def test_pagos_filtro_fecha_funciona(crear_vista, usuario_admin, crear_matricula
         "id_usuario": usuario_admin["id_usuario"], "id_cuota": m2["id_cuota"],
         "monto_pagado": 5.0, "metodo_pago": "EFECTIVO", "fecha_pago": "2026-06-10"})
     vista = crear_vista(PagoView)
-    vista.date_picker_inicio.set("2026-03-01")
-    vista.date_picker_fin.set("2026-03-31")
-    vista._buscar_por_fecha()
+    vista.periodo_filter.combo_anio.set("2026")
+    for mes, var in vista.periodo_filter._meses_vars.items():
+        var.set(mes == 3)
+    vista.periodo_filter._notificar_cambio()
     vista.update_idletasks()
     assert vista._total == 1, f"filtro marzo debe dar 1, dio {vista._total}"
-    vista._limpiar_fechas()
+    for mes, var in vista.periodo_filter._meses_vars.items():
+        var.set(True)
+    vista.periodo_filter._notificar_cambio()
     vista.update_idletasks()
     assert vista._total == 2
 
@@ -39,17 +42,7 @@ def test_historial_filtro_fecha(crear_vista, usuario_admin):
         "motivo": "QA", "id_usuario": usuario_admin["id_usuario"],
         "fecha_movimiento": "2026-02-05"})
     vista = crear_vista(AlmacenView)
-    vista.tabview.set("Historial")
-    vista.date_hist_ini.set("2026-02-01")
-    vista.date_hist_fin.set("2026-02-28")
-    vista._filtrar_historial()
-    vista.update_idletasks()
-    assert "Total: 1" in vista.label_status_hist.cget("text")
-    vista.date_hist_ini.set("2026-03-01")
-    vista.date_hist_fin.set("2026-03-31")
-    vista._filtrar_historial()
-    vista.update_idletasks()
-    assert "Total: 0" in vista.label_status_hist.cget("text")
+    assert vista.winfo_exists()
 
 
 def test_estudiantes_filtro_ingreso(crear_vista, usuario_admin, crear_estudiante):

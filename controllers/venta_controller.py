@@ -16,8 +16,15 @@ def registrar_venta(data: dict) -> tuple[bool, str, int | None]:
     return ok, msg, vid
 
 
-def listar_ventas(fecha_inicio: str | None = None, fecha_fin: str | None = None, tipo_venta: str | None = None) -> list[dict]:
-    return venta_service.listar_ventas(fecha_inicio, fecha_fin, tipo_venta)
+def listar_ventas(fecha_inicio: str | None = None, fecha_fin: str | None = None, tipo_venta: str | None = None,
+                  anio: int | None = None, meses: list[int] | None = None,
+                  orden: str | None = None) -> list[dict]:
+    return venta_service.listar_ventas(fecha_inicio, fecha_fin, tipo_venta, anio, meses, orden)
+
+
+def editar_venta(id_venta: int, data: dict) -> tuple[bool, str]:
+    """Edición acotada de venta (fecha/método/comprobante)."""
+    return venta_service.editar_venta(id_venta, data)
 
 
 CODIGOS_UNIFORME = {
@@ -28,28 +35,9 @@ PRECIO_UNIFORME_REF = 70.0
 
 
 def _asegurar_producto_uniforme(tipo: str) -> tuple[bool, str, int | None]:
-    """Producto COM/ENT por código; lo crea si falta (primera categoría)."""
-    from services import inventario_service
-    from repositories import producto_repository
-    codigo, nombre, _tv = CODIGOS_UNIFORME[tipo]
-    prod = producto_repository.obtener_por_codigo(codigo)
-    if prod:
-        return True, "OK", prod["id_producto"]
-    try:
-        cats = inventario_service.listar_categorias()
-    except Exception:
-        cats = []
-    if not cats:
-        return False, "Sin categorías de producto para crear el uniforme", None
-    ok, msg, id_prod = inventario_service.crear_producto({
-        "id_categoria_producto": cats[0]["id_categoria_producto"],
-        "nombre": nombre, "codigo": codigo, "canal": "TIENDITA",
-        "tipo_empaque": "Unidad", "precio_venta": PRECIO_UNIFORME_REF,
-        "stock_inicial": 0,
-    })
-    if not ok:
-        return False, msg, None
-    return True, "OK", id_prod
+    """Delega en el asegurador único (uniforme_service)."""
+    from services import uniforme_service
+    return uniforme_service.asegurar_producto(tipo)
 
 
 def registrar_venta_uniforme(data: dict) -> tuple[bool, str, int | None]:
@@ -87,18 +75,41 @@ def registrar_venta_uniforme(data: dict) -> tuple[bool, str, int | None]:
     })
     if not ok_c:
         return False, msg_c, None
+    id_variante = None
+    if data.get("id_variante"):
+        try:
+            id_variante = int(data["id_variante"])
+        except (TypeError, ValueError):
+            return False, "Talla no válida", None
+        # La precompra también alimenta el stock de la talla (la venta lo
+        # descuenta dentro de la transacción; neto 0 como el stock global).
+        try:
+            from repositories import almacen_repository, stock_almacen_repository
+            alm = almacen_repository.obtener_por_nombre("Principal")
+            stock_almacen_repository.upsert_stock(
+                id_prod, id_variante, alm["id_almacen"] if alm else 1, None, 1)
+        except Exception:
+            pass
     _codigo, _nombre, tipo_venta = CODIGOS_UNIFORME[tipo]
+    item = {"id_producto": id_prod, "cantidad": 1, "precio_unitario": precio}
+    if id_variante:
+        item["id_variante"] = id_variante
     return registrar_venta({
         "id_estudiante": data["id_estudiante"], "id_usuario": id_usuario,
         "tipo_venta": tipo_venta, "metodo_pago": metodo,
-        "items": [{"id_producto": id_prod, "cantidad": 1,
-                   "precio_unitario": precio}],
+        "items": [item],
         "monto_total": precio, "fecha_venta": fecha,
     })
 
 
 def obtener_venta(id_venta: int) -> dict | None:
     return venta_service.obtener_venta(id_venta)
+
+
+def listar_uniformes(limit: int = 200, anio: int | None = None,
+                     meses: list[int] | None = None,
+                     orden: str | None = None) -> list[dict]:
+    return venta_service.listar_uniformes(limit, anio, meses, orden)
 
 
 def resumen_campeonatos() -> list[dict]:

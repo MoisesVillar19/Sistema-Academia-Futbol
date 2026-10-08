@@ -23,6 +23,8 @@ def crear_tarifa(data: dict) -> tuple[bool, str, int | None]:
         monto=monto,
         descripcion=data.get("descripcion", ""),
         observaciones=data.get("observaciones", ""),
+        fecha_vigencia_desde=data.get("fecha_vigencia_desde", ""),
+        fecha_vigencia_hasta=data.get("fecha_vigencia_hasta", ""),
     )
 
     id_tarifa = tarifa_repository.insertar(tarifa)
@@ -50,9 +52,18 @@ def editar_tarifa(id_tarifa: int, data: dict) -> tuple[bool, str]:
         monto=data.get("monto", tarifa["monto"]),
         descripcion=data.get("descripcion", tarifa.get("descripcion", "")),
         observaciones=data.get("observaciones", tarifa.get("observaciones", "")),
+        fecha_vigencia_desde=data.get("fecha_vigencia_desde", tarifa.get("fecha_vigencia_desde", "")),
+        fecha_vigencia_hasta=data.get("fecha_vigencia_hasta", tarifa.get("fecha_vigencia_hasta", "")),
         activo=data.get("activo", tarifa["activo"]),
     )
     tarifa_repository.actualizar(tarifa_obj)
+    auditoria_service.registrar_update(
+        id_usuario=1,
+        tabla="tarifa",
+        id_registro=id_tarifa,
+        valores_anteriores=f"nombre={tarifa['nombre']}, monto={tarifa['monto']}",
+        valores_nuevos=f"nombre={tarifa_obj.nombre}, monto={tarifa_obj.monto}",
+    )
 
     nuevo_activo = data.get("activo", tarifa["activo"])
     if nuevo_activo != tarifa["activo"]:
@@ -88,6 +99,11 @@ def listar_tarifas_por_categoria(id_categoria: int) -> list[dict]:
 
 def listar_tarifas_activas(tipo: str | None = None) -> list[dict]:
     return tarifa_repository.obtener_activas(tipo=tipo)
+
+
+def obtener_tarifa_vigente(tipo: str, fecha: str) -> dict | None:
+    """Obtiene la tarifa vigente para un tipo en una fecha dada."""
+    return tarifa_repository.obtener_vigente(tipo, fecha)
 
 
 def listar_tarifas_inactivas() -> list[dict]:

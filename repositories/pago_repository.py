@@ -98,14 +98,28 @@ def sumar_por_fecha(fecha_inicio: str, fecha_fin: str) -> float:
     return row["total"] if row else 0.0
 
 
+def sumar_por_metodo(fecha_inicio: str, fecha_fin: str) -> dict:
+    """Suma pagos por método de pago en un período."""
+    rows = fetch_all(
+        """SELECT metodo_pago, COALESCE(SUM(monto_total), 0) as total
+           FROM pago WHERE fecha_pago BETWEEN ? AND ? AND activo = 1
+           GROUP BY metodo_pago""",
+        (fecha_inicio, fecha_fin),
+    )
+    return {r["metodo_pago"]: r["total"] for r in rows}
+
+
 def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
                     fecha_inicio: str | None = None,
-                    fecha_fin: str | None = None) -> tuple[list[dict], int]:
+                    fecha_fin: str | None = None,
+                    anio: int | None = None,
+                    meses: list[int] | None = None,
+                    orden: str | None = None) -> tuple[list[dict], int]:
     """Búsqueda SQL real (recibo/método/documento/nombres) con paginación.
 
     fecha_inicio/fin filtran por fecha_pago (los date pickers de la vista).
-    El viejo truco q="fecha:..a.." nunca funcionó como rango: se ignora
-    explícitamente para no ensuciar la búsqueda de texto.
+    anio/meses filtran por período (checkboxes de meses + combo de año).
+    orden: "DESC" (más nuevo) o "ASC" (más antiguo).
     """
     base = """
         FROM pago p
@@ -129,11 +143,19 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
     if fecha_fin:
         base += " AND p.fecha_pago <= ?"
         params.append(fecha_fin)
+    if anio:
+        base += " AND strftime('%Y', p.fecha_pago) = ?"
+        params.append(str(anio))
+    if meses:
+        placeholders = ",".join("?" for _ in meses)
+        base += f" AND strftime('%m', p.fecha_pago) IN ({placeholders})"
+        params.extend([f"{m:02d}" for m in meses])
     cnt = fetch_one(f"SELECT COUNT(DISTINCT p.id_pago) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
+    order_by = "p.fecha_pago DESC" if orden != "ASC" else "p.fecha_pago ASC"
     rows = fetch_all(
         f"""SELECT DISTINCT p.*, u.username, per.dni, per.nombres, per.apellidos {base}
-            ORDER BY p.fecha_pago DESC LIMIT ? OFFSET ?""",
+            ORDER BY {order_by} LIMIT ? OFFSET ?""",
         tuple(params + [limit, offset]),
     )
     return rows, total

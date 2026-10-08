@@ -433,6 +433,12 @@ def _actualizar_fila_existente(fila: dict, mapping: dict, id_usuario: int,
         except Exception:
             pass
     res["detalle"] = f"Estudiante {dni_final} actualizado"
+    try:
+        auditoria_service.registrar_update(
+            id_usuario, "persona", per["id_persona"],
+            f"dni={per['dni']}", f"dni={dni_final} (re-importación)")
+    except Exception:
+        pass
 
     # Apoderado solo si trae DNI y el estudiante no tiene ninguno
     data_apoderado = {}
@@ -620,6 +626,12 @@ def _asegurar_tarifa_generica(monto: float, activas: list | None = None) -> dict
         return None
     for t in tarifa_repository.obtener_activas():
         if t.get("id_tarifa") == id_tar:
+            try:
+                auditoria_service.registrar_insert(
+                    auditoria_service.id_usuario_sesion(), "tarifa", id_tar,
+                    f"{nombre} S/{monto:g} (creada por importación)")
+            except Exception:
+                pass
             return t
     return None
 
@@ -693,6 +705,7 @@ def _retrotraer_primera_cuota(id_matricula: int, inicio: str) -> None:
         dia = int(str(c.get("fecha_vencimiento", "") or "")[8:10])
     except (ValueError, TypeError):
         pass
+    antes_per = c.get("periodo", "")
     cuota_repository.actualizar(Cuota(
         id_cuota=c["id_cuota"], id_matricula=c["id_matricula"],
         periodo=per,
@@ -701,6 +714,12 @@ def _retrotraer_primera_cuota(id_matricula: int, inicio: str) -> None:
         monto_mora=c.get("monto_mora", 0), saldo=c.get("saldo", c["monto_total"]),
         estado=c.get("estado", "PENDIENTE"), activo=c.get("activo", 1),
     ))
+    try:
+        auditoria_service.registrar_update(
+            auditoria_service.id_usuario_sesion(), "cuota", c["id_cuota"],
+            f"periodo={antes_per}", f"periodo={per} (retrotraída a INICIO por importación)")
+    except Exception:
+        pass
 
 
 def _importar_matricula_fila(fila: dict, mapping: dict, id_usuario: int,
@@ -911,7 +930,14 @@ def _asegurar_categoria_tienda(nombre: str) -> int:
     for c in row:
         if c["nombre"].lower() == nombre.lower():
             return c["id_categoria_producto"]
-    return categoria_producto_repository.insertar(CategoriaProducto(nombre=nombre))
+    nuevo = categoria_producto_repository.insertar(CategoriaProducto(nombre=nombre))
+    try:
+        auditoria_service.registrar_insert(
+            auditoria_service.id_usuario_sesion(), "categoria_producto", nuevo,
+            f"{nombre} (creada por importación)")
+    except Exception:
+        pass
+    return nuevo
 
 
 def importar_tienda(filas: list[dict], id_usuario: int = 1,
@@ -1507,22 +1533,11 @@ def validar_filas_uniformes(filas: list[dict], mapeo: dict | None = None) -> tup
 
 
 def _asegurar_producto_uniforme(tipo: str) -> int:
-    """Producto por código (CAMISETA-ENT / UNIFORME-COM); lo crea si falta."""
-    from repositories import producto_repository
-    from services import inventario_service
-    codigo, nombre, _tv = PRODUCTOS_UNIFORME[tipo]
-    prod = producto_repository.obtener_por_codigo(codigo)
-    if prod:
-        return prod["id_producto"]
-    cats = inventario_service.listar_categorias()
-    id_cat = cats[0]["id_categoria_producto"]
-    ok, msg, id_prod = inventario_service.crear_producto({
-        "id_categoria_producto": id_cat, "nombre": nombre, "codigo": codigo,
-        "canal": "TIENDITA", "tipo_empaque": "Unidad",
-        "precio_venta": PRECIO_UNIFORME_REF, "stock_inicial": 0,
-    })
+    """Producto por código; lo crea si falta (delegado único)."""
+    from services import uniforme_service
+    ok, msg, id_prod = uniforme_service.asegurar_producto(tipo)
     if not ok or not id_prod:
-        raise ErrorFilaImportacion(f"No se pudo crear producto {codigo}: {msg}")
+        raise ErrorFilaImportacion(msg)
     return id_prod
 
 
@@ -1564,11 +1579,23 @@ def importar_uniformes(filas: list[dict], id_usuario: int = 1,
                 })
                 if not ok_c:
                     raise ErrorFilaImportacion(msg_c)
+                id_variante = fila.get("id_variante")
+                try:
+                    id_variante = int(id_variante) if id_variante else None
+                except (TypeError, ValueError):
+                    raise ErrorFilaImportacion("Talla no válida")
+                item_uni = {"id_producto": id_prod, "cantidad": 1,
+                            "precio_unitario": monto}
+                if id_variante:
+                    from repositories import almacen_repository, stock_almacen_repository
+                    alm = almacen_repository.obtener_por_nombre("Principal")
+                    stock_almacen_repository.upsert_stock(
+                        id_prod, id_variante, alm["id_almacen"] if alm else 1, None, 1)
+                    item_uni["id_variante"] = id_variante
                 ok_v, msg_v, _ = venta_service.registrar_venta({
                     "id_estudiante": id_est, "id_usuario": id_usuario,
                     "tipo_venta": tipo_venta, "metodo_pago": metodo,
-                    "items": [{"id_producto": id_prod, "cantidad": 1,
-                               "precio_unitario": monto}],
+                    "items": [item_uni],
                     "monto_total": monto, "fecha_venta": fecha,
                 })
                 if not ok_v:

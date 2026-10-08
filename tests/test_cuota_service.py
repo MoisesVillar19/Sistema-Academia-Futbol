@@ -213,3 +213,40 @@ def test_obtener_vencidas():
 def test_obtener_por_vencer():
     result = cuota_service.obtener_por_vencer(dias=7)
     assert isinstance(result, list)
+
+
+def test_editar_cuota_corrige_monto_y_recalcula_saldo():
+    from repositories import cuota_repository
+    id_est, id_mat = _crear_estudiante_con_matricula()
+    id_cuota = cuota_service.crear_cuota(
+        id_matricula=id_mat, monto_total=100.0,
+        fecha_vencimiento='2026-08-15', periodo='2026-08')
+    ok, msg = cuota_service.editar_cuota(id_cuota, {'monto_total': 150.0})
+    assert ok, msg
+    c = cuota_repository.obtener_por_id(id_cuota)
+    assert c['monto_total'] == 150.0 and c['saldo'] == 150.0
+
+
+def test_editar_cuota_rechaza_total_menor_a_pagado():
+    from repositories import cuota_repository
+    id_est, id_mat = _crear_estudiante_con_matricula()
+    id_cuota = cuota_service.crear_cuota(
+        id_matricula=id_mat, monto_total=100.0,
+        fecha_vencimiento='2026-08-15', periodo='2026-08')
+    cuota_service.actualizar_pago(id_cuota, 40.0)
+    ok, msg = cuota_service.editar_cuota(id_cuota, {'monto_total': 30.0})
+    assert not ok and 'pagado' in msg.lower()
+    ok, msg = cuota_service.editar_cuota(
+        id_cuota, {'monto_total': 120.0, 'estado': 'PARCIAL'})
+    assert ok, msg
+    c = cuota_repository.obtener_por_id(id_cuota)
+    assert c['saldo'] == 80.0 and c['estado'] == 'PARCIAL'
+
+
+def test_editar_cuota_fecha_invalida():
+    id_est, id_mat = _crear_estudiante_con_matricula()
+    id_cuota = cuota_service.crear_cuota(
+        id_matricula=id_mat, monto_total=100.0,
+        fecha_vencimiento='2026-08-15', periodo='2026-08')
+    ok, _ = cuota_service.editar_cuota(id_cuota, {'fecha_vencimiento': 'no-fecha'})
+    assert not ok

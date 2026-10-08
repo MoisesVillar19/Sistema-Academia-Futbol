@@ -7,14 +7,17 @@ def insertar(tarifa: Tarifa) -> int:
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO tarifa
-           (id_categoria, nombre, monto, descripcion, observaciones, activo)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (id_categoria, nombre, monto, descripcion, observaciones,
+            fecha_vigencia_desde, fecha_vigencia_hasta, activo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             tarifa.id_categoria,
             tarifa.nombre,
             tarifa.monto,
             tarifa.descripcion,
             tarifa.observaciones,
+            tarifa.fecha_vigencia_desde,
+            tarifa.fecha_vigencia_hasta,
             tarifa.activo,
         ),
     )
@@ -53,12 +56,28 @@ def obtener_activas(tipo: str | None = None) -> list[dict]:
     return fetch_all(sql, tuple(params))
 
 
+def obtener_vigente(tipo: str, fecha: str) -> dict | None:
+    """Obtiene la tarifa vigente para un tipo en una fecha dada."""
+    return fetch_one(
+        """SELECT t.*, c.nombre as categoria_nombre, c.tipo as categoria_tipo
+           FROM tarifa t
+           JOIN categoria c ON t.id_categoria = c.id_categoria
+           WHERE c.tipo = ? AND t.activo = 1
+           AND (t.fecha_vigencia_desde IS NULL OR t.fecha_vigencia_desde <= ?)
+           AND (t.fecha_vigencia_hasta IS NULL OR t.fecha_vigencia_hasta >= ?)
+           ORDER BY t.fecha_vigencia_desde DESC
+           LIMIT 1""",
+        (tipo, fecha, fecha),
+    )
+
+
 def actualizar(tarifa: Tarifa) -> None:
     conn = get_connection()
     conn.execute(
         """UPDATE tarifa SET
            id_categoria = ?, nombre = ?, monto = ?,
-           descripcion = ?, observaciones = ?, activo = ?
+           descripcion = ?, observaciones = ?,
+           fecha_vigencia_desde = ?, fecha_vigencia_hasta = ?, activo = ?
            WHERE id_tarifa = ?""",
         (
             tarifa.id_categoria,
@@ -66,6 +85,8 @@ def actualizar(tarifa: Tarifa) -> None:
             tarifa.monto,
             tarifa.descripcion,
             tarifa.observaciones,
+            tarifa.fecha_vigencia_desde,
+            tarifa.fecha_vigencia_hasta,
             tarifa.activo,
             tarifa.id_tarifa,
         ),

@@ -4,11 +4,29 @@ from utils.dates import get_today
 from datetime import datetime, timedelta
 
 
-def obtener_indicadores() -> dict:
-    cuota_service.actualizar_estados_vencidos()
+_ULTIMA_MORA_TS = 0.0
+_MORA_INTERVALO_SEG = 3600
 
-    alumnos_activos = estudiante_repository.obtener_todos(activo=1)
-    total_activos = len(alumnos_activos)
+
+def _mora_si_toca() -> None:
+    """La marcación de vencidos escribe BD+auditoría: como máximo 1 vez/hora."""
+    global _ULTIMA_MORA_TS
+    import time
+    ahora = time.time()
+    if ahora - _ULTIMA_MORA_TS < _MORA_INTERVALO_SEG:
+        return
+    _ULTIMA_MORA_TS = ahora
+    try:
+        cuota_service.actualizar_estados_vencidos()
+    except Exception as e:
+        from utils.logger import logger as _log
+        _log.warning(f"Dashboard mora diferida fallo: {e}")
+
+
+def obtener_indicadores() -> dict:
+    _mora_si_toca()
+
+    total_activos = estudiante_repository.contar_activos()
 
     cuotas_vencidas = cuota_service.obtener_vencidas()
     total_vencidas = len(cuotas_vencidas)

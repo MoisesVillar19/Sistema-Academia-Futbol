@@ -175,11 +175,18 @@ def test_lote_fifo_descuento():
     })
     assert ok
     alm = fetch_one("SELECT id_almacen FROM almacen WHERE nombre='Principal'")
-    # 2 lotes: uno vence 2026-10-01 (5 unidades), otro 2026-12-01 (5)
+    # 2 lotes vigentes con fechas relativas a hoy (el test con fechas fijas
+    # 2026 caduca al pasar el reloj y deja de ser FIFO-vigente).
+    from datetime import date, timedelta
+    from utils.dates import get_today
+    hoy = date.fromisoformat(get_today())
+    cad1 = (hoy + timedelta(days=60)).isoformat()
+    cad2 = (hoy + timedelta(days=90)).isoformat()
+    ing = (hoy - timedelta(days=30)).isoformat()
     from repositories import lote_repository
     from models.lote import Lote
-    lote_repository.insertar(Lote(id_producto=id_prod, id_almacen=alm["id_almacen"], codigo_lote="L1", fecha_ingreso="2026-09-01", fecha_caducidad="2026-10-01", cantidad=5, stock_restante=5))
-    lote_repository.insertar(Lote(id_producto=id_prod, id_almacen=alm["id_almacen"], codigo_lote="L2", fecha_ingreso="2026-09-01", fecha_caducidad="2026-12-01", cantidad=5, stock_restante=5))
+    lote_repository.insertar(Lote(id_producto=id_prod, id_almacen=alm["id_almacen"], codigo_lote="L1", fecha_ingreso=ing, fecha_caducidad=cad1, cantidad=5, stock_restante=5))
+    lote_repository.insertar(Lote(id_producto=id_prod, id_almacen=alm["id_almacen"], codigo_lote="L2", fecha_ingreso=ing, fecha_caducidad=cad2, cantidad=5, stock_restante=5))
     vigentes = lote_repository.obtener_vigentes(id_prod)
     assert vigentes[0]["codigo_lote"] == "L1"  # FIFO
     usados = lote_repository.descontar_fifo(id_prod, None, alm["id_almacen"], 6)

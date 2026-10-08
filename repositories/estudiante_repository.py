@@ -112,6 +112,11 @@ def contar_nuevos_es_nuevo(activo: int = 1) -> int:
     return row["total"] if row else 0
 
 
+def contar_activos() -> int:
+    row = fetch_one("SELECT COUNT(*) as total FROM estudiante WHERE activo=1")
+    return row["total"] if row else 0
+
+
 def listar_nuevos_por_periodo(fecha_inicio: str, fecha_fin: str) -> list[dict]:
     return fetch_all(
         """SELECT e.*, p.dni, p.nombres, p.apellidos, p.fecha_nacimiento,

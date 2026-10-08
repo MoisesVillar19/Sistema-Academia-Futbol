@@ -42,8 +42,7 @@ def _fecha_vencimiento_valida(periodo: str, dia: int) -> str:
 
 
 def crear_cuota(id_matricula: int, monto_total: float, fecha_vencimiento: str,
-               periodo: str) -> int:
-    # Monto 0 (beca completa): nace PAGADA para no ensuciar Vencidas/grilla.
+               periodo: str, origen: str = "MANUAL") -> int:
     estado_inicial = CUOTA_PAGADO if round(float(monto_total or 0), 2) <= 0 else CUOTA_PENDIENTE
     cuota = Cuota(
         id_matricula=id_matricula,
@@ -53,12 +52,17 @@ def crear_cuota(id_matricula: int, monto_total: float, fecha_vencimiento: str,
         monto_pagado=0,
         saldo=monto_total,
         estado=estado_inicial,
+        origen=origen,
     )
-    return cuota_repository.insertar(cuota)
+    id_cuota = cuota_repository.insertar(cuota)
+    auditoria_service.registrar_insert(
+        auditoria_service.id_usuario_sesion(), "cuota", id_cuota,
+        f"matricula={id_matricula}, periodo={periodo}, total={monto_total}, origen={origen}")
+    return id_cuota
 
 
 def generar_siguiente_cuota(id_matricula: int, monto_base: float,
-                            dia_vencimiento: int) -> tuple[bool, str, int | None]:
+                            dia_vencimiento: int, origen: str = "MANUAL") -> tuple[bool, str, int | None]:
     cuotas = cuota_repository.obtener_por_matricula(id_matricula)
 
     if cuotas:
@@ -83,6 +87,7 @@ def generar_siguiente_cuota(id_matricula: int, monto_base: float,
         monto_total=monto_base,
         fecha_vencimiento=fecha_venc,
         periodo=siguiente_periodo,
+        origen=origen,
     )
 
     return True, "Cuota generada correctamente", id_cuota
@@ -153,6 +158,7 @@ def _generar_siguiente_cuota_automatica(cuota_pagada: dict) -> None:
         id_matricula=cuota_pagada["id_matricula"],
         monto_base=monto_base,
         dia_vencimiento=matricula.get("dia_vencimiento", 1),
+        origen="GENERADA",
     )
 
 
@@ -229,6 +235,15 @@ def obtener_cuotas_pendientes(id_matricula: int) -> list[dict]:
     return cuota_repository.obtener_pendientes_por_matricula(id_matricula)
 
 
+def obtener_todas_pendientes() -> list[dict]:
+    return cuota_repository.obtener_todas_pendientes()
+
+
+def obtener_por_cobrar(limit: int = 200) -> list[dict]:
+    """Cuotas con saldo para la pestaña Mensualidades de Cobros."""
+    return cuota_repository.obtener_por_cobrar(limit)
+
+
 def anular_cuota(id_cuota: int, motivo: str = "") -> tuple[bool, str]:
     """Anula cuota pendiente sin pagos (importación histórica). No toca pagadas."""
     from models.cuota import Cuota
@@ -244,6 +259,68 @@ def anular_cuota(id_cuota: int, motivo: str = "") -> tuple[bool, str]:
         auditoria_service.id_usuario_sesion(), "cuota", id_cuota,
         f"estado={cuota.get('estado')}", f"activo=0 ({motivo or 'anulación'})")
     return True, "Cuota anulada"
+
+
+def editar_cuota(id_cuota: int, data: dict) -> tuple[bool, str]:
+    """Edición manual de mensualidad (corrección de pase de datos).
+
+    Campos: monto_total, fecha_vencimiento, periodo, estado, activo.
+    Mantiene invariante saldo = total − pagado; exige total ≥ pagado.
+    Estado se recalcula si no se indica y hay saldo. Con auditoría.
+    """
+    from models.cuota import Cuota
+    from services import auditoria_service
+    cuota = cuota_repository.obtener_por_id(id_cuota)
+    if not cuota:
+        return False, "Cuota no encontrada"
+    try:
+        total = round(float(data.get("monto_total", cuota["monto_total"])), 2)
+    except (TypeError, ValueError):
+        return False, "Monto total no válido"
+    if total < 0:
+        return False, "El monto total no puede ser negativo"
+    pagado = round(float(cuota.get("monto_pagado", 0) or 0), 2)
+    if total < pagado:
+        return False, f"El total (S/{total:.2f}) no puede ser menor a lo pagado (S/{pagado:.2f})"
+    saldo = round(total - pagado, 2)
+    estado = str(data.get("estado", "") or "").strip().upper() or None
+    if estado is None:
+        estado = CUOTA_PAGADO if saldo <= 0 else (
+            CUOTA_PARCIAL if pagado > 0 else cuota.get("estado", CUOTA_PENDIENTE))
+    if estado not in (CUOTA_PENDIENTE, CUOTA_PARCIAL, CUOTA_PAGADO, CUOTA_VENCIDO):
+        return False, "Estado no válido"
+    if estado == CUOTA_PAGADO and saldo > 0:
+        return False, "No se puede marcar PAGADO con saldo pendiente"
+    if estado in (CUOTA_PENDIENTE, CUOTA_VENCIDO) and pagado > 0:
+        estado = CUOTA_PARCIAL
+    fecha_venc = str(data.get("fecha_vencimiento", "") or "").strip() or cuota["fecha_vencimiento"]
+    try:
+        datetime.strptime(fecha_venc, "%Y-%m-%d")
+    except ValueError:
+        return False, "Fecha de vencimiento no válida (AAAA-MM-DD)"
+    periodo = str(data.get("periodo", "") or "").strip() or cuota["periodo"]
+    try:
+        datetime.strptime(periodo, "%Y-%m")
+    except ValueError:
+        return False, "Periodo no válido (AAAA-MM)"
+    try:
+        activo = int(data.get("activo", cuota.get("activo", 1)))
+        activo = 1 if activo else 0
+    except (TypeError, ValueError):
+        return False, "Activo no válido"
+    antes = (f"total={cuota['monto_total']}, venc={cuota['fecha_vencimiento']}, "
+             f"periodo={cuota['periodo']}, estado={cuota['estado']}, activo={cuota.get('activo', 1)}")
+    obj = Cuota(
+        id_cuota=id_cuota, id_matricula=cuota["id_matricula"], periodo=periodo,
+        fecha_vencimiento=fecha_venc, monto_total=total, monto_pagado=pagado,
+        monto_mora=cuota.get("monto_mora", 0), saldo=saldo, estado=estado,
+        origen=cuota.get("origen", "MANUAL"), activo=activo,
+    )
+    cuota_repository.actualizar(obj)
+    auditoria_service.registrar_update(
+        auditoria_service.id_usuario_sesion(), "cuota", id_cuota, antes,
+        f"total={total}, venc={fecha_venc}, periodo={periodo}, estado={estado}, activo={activo} (edición manual)")
+    return True, "Mensualidad actualizada correctamente"
 
 
 def contar_por_estado(estado: str) -> int:

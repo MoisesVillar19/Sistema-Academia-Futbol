@@ -250,12 +250,17 @@ class App(ctk.CTk):
             _btn("👤  Estudiantes", self._mostrar_estudiantes, indent=True)
         if _can("matriculas"):
             _btn("📋  Matrículas", self._mostrar_matriculas, indent=True)
+        if _can("mensualidades"):
+            _btn("🗓️  Mensualidades", self._mostrar_mensualidades, indent=True)
+
         _header("FINANZAS")
         if _can("pagos"):
-            _btn("💰  Pagos", self._mostrar_pagos, indent=True)
+            _btn("💰  Cobros", self._mostrar_pagos, indent=True)
         # Fase 6b: Ventas vive dentro de Tiendita (sin entrada propia)
+        # Campeonatos/Profesores fuera del sidebar hasta v1.4 (eran stubs).
         if _can("egresos"):
             _btn("💸  Egresos", self._mostrar_egresos, indent=True)
+
         _header("ALMACÉN")
         # Fase 6b: split estanco (secretaria solo Tiendita, Almacén solo ADMIN)
         if _can("tiendita"):
@@ -264,6 +269,9 @@ class App(ctk.CTk):
             _btn("🎽  Uniformes", self._mostrar_uniformes, indent=True)
         if _can("almacen"):
             _btn("📦  Almacén", self._mostrar_almacen, indent=True)
+        if _can("compras"):
+            _btn("🛍️  Compras", self._mostrar_compras, indent=True)
+
         _header("ANÁLISIS")
         if _can("reportes"):
             _btn("📈  Reportes", self._mostrar_reportes, indent=True)
@@ -423,6 +431,11 @@ class App(ctk.CTk):
         from views.matriculas.matricula_view import MatriculaView
         MatriculaView(self.contenido).pack(fill="both", expand=True)
 
+    def _mostrar_mensualidades(self, id_estudiante=None):
+        self._limpiar_contenido()
+        from views.mensualidades.mensualidad_view import MensualidadView
+        MensualidadView(self.contenido, id_estudiante=id_estudiante).pack(fill="both", expand=True)
+
     def _mostrar_pagos(self):
         self._limpiar_contenido()
         from views.pagos.pago_view import PagoView
@@ -442,6 +455,16 @@ class App(ctk.CTk):
         self._limpiar_contenido()
         from views.almacen.almacen_view import AlmacenView
         AlmacenView(self.contenido).pack(fill="both", expand=True)
+
+    def _mostrar_compras(self):
+        self._limpiar_contenido()
+        from views.almacen.almacen_view import AlmacenView
+        vista = AlmacenView(self.contenido)
+        vista.pack(fill="both", expand=True)
+        try:
+            vista.tabview.set("Registrar Compra")
+        except Exception:
+            pass
 
     def _mostrar_importar(self):
         self._limpiar_contenido()
@@ -497,9 +520,10 @@ class App(ctk.CTk):
     def _ir_modulo(self, modulo, params):
         # E3: avisos navegables al origen (mismo patrón que abrir_tarifas).
         rutas = {
-            "pagos": (self._mostrar_pagos, "Pagos"),
+            "pagos": (self._mostrar_pagos, "Cobros"),
             "estudiantes": (self._mostrar_estudiantes, "Estudiantes"),
             "matriculas": (self._mostrar_matriculas, "Matrículas"),
+            "mensualidades": (self._mostrar_mensualidades, "Mensualidades"),
             "tiendita": (self._mostrar_tiendita, "Tiendita"),
             "uniformes": (self._mostrar_uniformes, "Uniformes"),
             "almacen": (self._mostrar_almacen, "Almacén"),

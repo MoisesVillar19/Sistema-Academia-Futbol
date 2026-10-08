@@ -33,6 +33,17 @@ def test_db():
     from database.seed import seed_database
     create_tables()
     seed_database()
+    # Cachés en memoria fuera de la BD: resetear por test.
+    try:
+        from services import avisos_service
+        avisos_service.invalidar_cache_avisos()
+    except Exception:
+        pass
+    try:
+        from services import dashboard_service
+        dashboard_service._ULTIMA_MORA_TS = 0.0
+    except Exception:
+        pass
 
     yield
 

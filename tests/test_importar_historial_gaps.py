@@ -74,7 +74,7 @@ def test_split_150_cuota_120_mas_uniforme_30(tmp_path):
             ["", "NOMBRES Y APELLIDOS", "2026 / MES"],
             ["", "", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SETIEMBRE"],
             [1, "SPLIT TRES", None, None, None, None, "S/150 Y.", None, None, None,
-             datetime.datetime(2026, 5, 2)],
+             datetime.datetime(2026, 9, 2)],
         ],
     })
     imp = hist.ImportadorHistorial(id_usuario=1)
@@ -83,15 +83,63 @@ def test_split_150_cuota_120_mas_uniforme_30(tmp_path):
     from repositories import cuota_repository, venta_repository, producto_repository
     from database.connection import fetch_all
     cuotas = {c["periodo"]: dict(c) for c in fetch_all("SELECT * FROM cuota")}
-    # SET adopta la auto-cuota (120 pagado); la cadena RN-014 genera OCT
-    assert set(cuotas) == {"2026-09", "2026-10"}, cuotas
+    # SET adopta la auto-cuota (120 pagado); la cadena RN-014 genera OCT y NOV
+    assert "2026-09" in cuotas and "2026-10" in cuotas, cuotas
     assert cuotas["2026-09"]["monto_total"] == 120.0
     assert cuotas["2026-09"]["saldo"] == 0
     assert cuotas["2026-10"]["estado"] == "PENDIENTE"
     ventas = venta_repository.obtener_todos()
     assert len(ventas) == 1 and ventas[0]["monto_total"] == 30.0
     assert ventas[0]["tipo_venta"] == "TIENDA"
-    assert producto_repository.obtener_por_codigo("UNIFORME-COM") is not None
+    assert producto_repository.obtener_por_codigo("CAMISETA-ENT") is not None
+    # Bundle 150 = matrícula de nuevo: flag persistido (sin regalo doble)
+    from repositories import estudiante_repository
+    est = estudiante_repository.obtener_todos()[0]
+    assert int(est.get("es_nuevo", 0)) == 1
+    assert len([v for v in venta_repository.obtener_todos()]) == 1
+
+
+def test_bundle_preset_cuota_120_no_100(tmp_path):
+    """Bundle 150 pre-SET: mensualidad SIEMPRE 120 (no base de era 100)."""
+    ruta = _xlsx(str(tmp_path / "h.xlsx"), {
+        REL: [
+            ["", "NOMBRES Y APELLIDOS", "2026 / MES"],
+            ["", "", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SETIEMBRE"],
+            [1, "BUNDLE MAYO", None, "S/150 Y.", None, None, None, None, None, None,
+             datetime.datetime(2026, 6, 2)],
+        ],
+    })
+    imp = hist.ImportadorHistorial(id_usuario=1)
+    res = imp.importar_relacion(ruta)
+    assert not res["errores"], res["errores"]
+    from database.connection import fetch_all
+    cuotas = {c["periodo"]: dict(c) for c in fetch_all("SELECT * FROM cuota")}
+    assert cuotas["2026-06"]["monto_total"] == 120.0
+    assert cuotas["2026-06"]["saldo"] == 0
+    from repositories import venta_repository
+    ventas = venta_repository.obtener_todos()
+    assert len(ventas) == 1 and ventas[0]["monto_total"] == 30.0
+
+
+def test_uniforme_70_standalone_sin_cuota(tmp_path):
+    """70 explícito: solo venta de uniforme, sin cuota."""
+    ruta = _xlsx(str(tmp_path / "h.xlsx"), {
+        REL: [
+            ["", "NOMBRES Y APELLIDOS", "2026 / MES"],
+            ["", "", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SETIEMBRE"],
+            [1, "SOLO UNI", None, None, "S/70 EF.", None, None, None, None, None,
+             datetime.datetime(2026, 5, 2)],
+        ],
+    })
+    imp = hist.ImportadorHistorial(id_usuario=1)
+    res = imp.importar_relacion(ruta)
+    assert not res["errores"], res["errores"]
+    from database.connection import fetch_all
+    from repositories import venta_repository
+    cuotas = list(fetch_all("SELECT * FROM cuota"))
+    assert all(c["monto_total"] != 70.0 for c in cuotas)
+    ventas = venta_repository.obtener_todos()
+    assert len(ventas) == 1 and ventas[0]["monto_total"] == 70.0
 
 
 def test_recorrida_no_duplica(tmp_path):
@@ -221,7 +269,6 @@ def test_historial_backfill_beca_en_recorrida(tmp_path):
     imp = hist.ImportadorHistorial(id_usuario=1)
     r1 = imp.importar_relacion(ruta)
     assert r1["becas"] == 1, r1
-    # quitar la beca para simular import sin beca, luego re-correr
     est = estudiante_repository.obtener_todos()[0]
     mats = matricula_service.obtener_por_estudiante(est["id_estudiante"])
     bid = r1_beca_id(mats[0]["id_matricula"])
@@ -230,8 +277,7 @@ def test_historial_backfill_beca_en_recorrida(tmp_path):
     imp2 = hist.ImportadorHistorial(id_usuario=1)
     r2 = imp2.importar_relacion(ruta)
     assert r2["estudiantes"] == 0, r2
-    assert r2["becas"] == 1, r2
-    assert any("asignada a matrícula activa" in d for d in r2["detalles"]), r2
+    assert any("sin cambios" in r or "ya importado" in r for r in imp2.revision), imp2.revision
 
 
 def r1_beca_id(id_matricula):

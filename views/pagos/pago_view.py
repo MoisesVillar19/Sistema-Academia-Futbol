@@ -48,35 +48,56 @@ class PagoView(ctk.CTkFrame):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.tab_lista = self.tabview.add("Pagos")
-        self.tab_form = self.tabview.add("Registrar Pago")
+        self.tab_lista = self.tabview.add("Historial")
+        self.tab_form = self.tabview.add("Registrar cobro")
+        self.tab_mens = self.tabview.add("Mensualidades")
+        self.tab_camp = self.tabview.add("Campeonatos")
         self.tab_morosos = self.tabview.add("Morosos")
 
         self._crear_tab_lista()
         self._crear_tab_formulario()
+        self._crear_tab_mensualidades()
+        self._crear_tab_campeonatos()
         self._crear_tab_morosos()
+        # Pestañas pesadas con carga perezosa (no bloquear la apertura).
+        self._tabs_cargadas = {"Historial", "Registrar cobro", "Morosos"}
+        try:
+            self.tabview.configure(command=self._on_tab_cobros)
+        except Exception:
+            pass
+
+    def _on_tab_cobros(self):
+        try:
+            actual = self.tabview.get()
+        except Exception:
+            return
+        if actual in getattr(self, "_tabs_cargadas", set()):
+            return
+        self._tabs_cargadas.add(actual)
+        try:
+            if actual == "Mensualidades":
+                self._cargar_pendientes_cobro()
+            elif actual == "Campeonatos":
+                self._cargar_camp_listas()
+        except Exception:
+            pass
 
     def _crear_tab_lista(self):
         header = ctk.CTkFrame(self.tab_lista, fg_color="white", corner_radius=10, border_width=1, border_color="#E5E7EB")
         header.pack(fill="x", padx=8, pady=8)
 
-        ctk.CTkLabel(header, text="💰 Historial de Pagos", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1F0A33").pack(side="left", padx=12, pady=10)
-        ctk.CTkLabel(header, text="Pagos registrados y filtros por fecha", font=ctk.CTkFont(size=12), text_color="#6B5B7B").pack(side="left", padx=10)
+        ctk.CTkLabel(header, text="💰 Historial de Cobros", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1F0A33").pack(side="left", padx=12, pady=10)
+        ctk.CTkLabel(header, text="Cobros registrados y filtros por fecha", font=ctk.CTkFont(size=12), text_color="#6B5B7B").pack(side="left", padx=10)
         from utils.ui_helpers import crear_boton_interactivo
         crear_boton_interactivo(header, text="+ Nuevo Pago", width=130, height=36, command=self._nuevo_pago, fg_color="#7C3AED").pack(side="right", padx=8, pady=8)
 
         filtros = ctk.CTkFrame(self.tab_lista, fg_color="white", corner_radius=10, border_width=1, border_color="#E5E7EB")
         filtros.pack(fill="x", padx=8, pady=6)
 
-        self.date_picker_inicio = DatePicker(filtros, label_text="Fecha Inicio:", default="start_of_month")
-        self.date_picker_inicio.pack(side="left", padx=(12, 10))
+        from widgets.periodo_filter import PeriodoFilter
+        self.periodo_filter = PeriodoFilter(filtros, on_change=self._on_periodo_cambio)
+        self.periodo_filter.pack(fill="x", padx=10, pady=5)
 
-        self.date_picker_fin = DatePicker(filtros, label_text="Fecha Fin:", default="today")
-        self.date_picker_fin.pack(side="left", padx=(0, 10))
-
-        from utils.ui_helpers import crear_boton_interactivo
-        crear_boton_interactivo(filtros, text="🔍 Buscar", width=90, command=self._buscar_por_fecha, fg_color="#7C3AED").pack(side="left", padx=5)
-        crear_boton_interactivo(filtros, text="🧹 Limpiar", width=90, fg_color="#E5E7EB", hover_color="#DDD6E5", text_color="#1F0A33", command=self._limpiar_fechas).pack(side="left", padx=5)
         ctk.CTkLabel(filtros, text="|", text_color="#E5E7EB").pack(side="left", padx=8)
         self.entry_busqueda = ctk.CTkEntry(filtros, placeholder_text="🔍 Buscar por documento, recibo o método...", width=260, border_color="#DDD6E5")
         self.entry_busqueda.pack(side="left", padx=5)
@@ -152,7 +173,7 @@ class PagoView(ctk.CTkFrame):
         self.date_pago = DatePicker(cuerpo2, label_text="Fecha de pago:", default="today")
         self.date_pago.pack(anchor="w", pady=(0, 5))
 
-        ctk.CTkLabel(cuerpo2, text="Comprobante foto (obligatorio si YAPE/PLIN/TRANSFERENCIA)", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        ctk.CTkLabel(cuerpo2, text="Comprobante foto (opcional)", font=ctk.CTkFont(size=12)).pack(anchor="w")
         comp_frame = ctk.CTkFrame(cuerpo2, fg_color="transparent")
         comp_frame.pack(fill="x", anchor="w", pady=2)
         self.btn_comprobante = ctk.CTkButton(comp_frame, text="📎 Seleccionar comprobante", width=200, command=self._elegir_comprobante)
@@ -179,13 +200,185 @@ class PagoView(ctk.CTkFrame):
 
         ctk.CTkButton(
             btn_frame, text="Cancelar", width=100, fg_color="gray",
-            command=lambda: self.tabview.set("Pagos"),
+            command=lambda: self.tabview.set("Historial"),
         ).pack(side="left", padx=5)
 
         ctk.CTkButton(
             btn_frame, text="🧹 Limpiar", width=90, fg_color="#6B7280", hover_color="#4B5563",
             command=self._limpiar_form_pago,
         ).pack(side="left", padx=5)
+
+    def _crear_tab_mensualidades(self):
+        from utils.ui_helpers import crear_seccion, crear_boton_interactivo
+        sec = crear_seccion(
+            self.tab_mens, titulo="Cobrar mensualidades", icono="🧾",
+            descripcion="Cuotas con saldo. «Cobrar» precarga el formulario.",
+            nro=1)
+        crear_boton_interactivo(sec, text="Actualizar", width=110,
+                                command=self._cargar_pendientes_cobro,
+                                fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
+        self.scroll_pendientes = ctk.CTkScrollableFrame(self.tab_mens)
+        self.scroll_pendientes.pack(fill="both", expand=True, padx=5, pady=5)
+        self.label_pendientes = ctk.CTkLabel(self.tab_mens, text="Entra a la pestaña para cargar...",
+                                             font=ctk.CTkFont(size=12))
+        self.label_pendientes.pack(pady=3)
+
+    def _cargar_pendientes_cobro(self):
+        from utils.ui_helpers import crear_tabla_densa
+        for w in self.scroll_pendientes.winfo_children():
+            w.destroy()
+        try:
+            cuotas = pago_controller.listar_cuotas_por_cobrar()
+        except Exception:
+            cuotas = []
+        cols = [("Estudiante", 200), ("Periodo", 85), ("Saldo", 85),
+                ("Vence", 95), ("Estado", 90)]
+        filas, dets = [], []
+        for c in cuotas:
+            nombre = f"{c.get('nombres', '')} {c.get('apellidos', '')}".strip()
+            try:
+                saldo = f"S/{float(c.get('saldo', 0) or 0):.2f}"
+            except (TypeError, ValueError):
+                saldo = str(c.get("saldo", ""))
+            filas.append([nombre, str(c.get("periodo", "")), saldo,
+                          str(c.get("fecha_vencimiento", "")), str(c.get("estado", ""))])
+            dets.append(lambda frame, _c=dict(c): self._detalle_pendiente(frame, _c))
+        crear_tabla_densa(self.scroll_pendientes, cols, filas, dets, cap=100)
+        self.label_pendientes.configure(text=f"Total: {len(filas)} cuota(s) con saldo")
+
+    def _detalle_pendiente(self, frame, cuota):
+        from utils.ui_helpers import linea_detalle, crear_boton_interactivo
+        linea_detalle(frame, "DNI", cuota.get("dni", ""))
+        linea_detalle(frame, "Saldo", f"S/{float(cuota.get('saldo', 0) or 0):.2f}")
+        crear_boton_interactivo(
+            frame, text="Cobrar aquí", width=120,
+            command=lambda: self._cobrar_cuota(
+                cuota.get("id_matricula"), cuota.get("id_cuota")),
+            fg_color="#7C3AED").pack(anchor="w", padx=10, pady=6)
+
+    def _cobrar_cuota(self, id_matricula, id_cuota):
+        """Precarga el formulario con la cuota (mismo registrar_pago)."""
+        try:
+            self._cargar_combo_estudiantes()
+            for key, val in (self._matriculas_map or {}).items():
+                if val == id_matricula:
+                    self.combo_estudiante.set(key)
+                    self._cargar_combo_cuotas(key)
+                    break
+            for key, val in (self._cuotas_map or {}).items():
+                if val == id_cuota:
+                    self.combo_cuota.set(key)
+                    break
+            try:
+                from repositories import cuota_repository
+                c = cuota_repository.obtener_por_id(id_cuota) or {}
+                self.entry_monto.delete(0, "end")
+                self.entry_monto.insert(0, f"{float(c.get('saldo', 0) or 0):.2f}")
+            except Exception:
+                pass
+            self.tabview.set("Registrar cobro")
+        except Exception:
+            pass
+
+    def _crear_tab_campeonatos(self):
+        from utils.ui_helpers import crear_seccion, crear_boton_interactivo
+        from widgets.date_picker import DatePicker
+        sec = crear_seccion(
+            self.tab_camp, titulo="Cobrar campeonato", icono="🏆",
+            descripcion="División (tarifa) → jala el monto. El campeonato como entidad llega en v1.4.",
+            nro=1)
+        cuerpo = ctk.CTkFrame(sec, fg_color="transparent")
+        cuerpo.pack(fill="x", padx=10, pady=(0, 8))
+        ctk.CTkLabel(cuerpo, text="Estudiante *").pack(anchor="w")
+        self.combo_est_camp = ctk.CTkComboBox(cuerpo, width=400, values=["Cargando..."])
+        self.combo_est_camp.pack(anchor="w", pady=3)
+        ctk.CTkLabel(cuerpo, text="División (tarifa) *").pack(anchor="w")
+        self.combo_tarifa_camp = ctk.CTkComboBox(
+            cuerpo, width=400, values=["Cargando..."],
+            command=self._on_tarifa_camp_cobro)
+        self.combo_tarifa_camp.pack(anchor="w", pady=3)
+        ctk.CTkLabel(cuerpo, text="Monto S/ *").pack(anchor="w")
+        self.entry_monto_camp = ctk.CTkEntry(cuerpo, width=150, placeholder_text="0.00")
+        self.entry_monto_camp.pack(anchor="w", pady=3)
+        ctk.CTkLabel(cuerpo, text="Método").pack(anchor="w")
+        self.combo_metodo_camp = ctk.CTkComboBox(
+            cuerpo, width=200, values=["EFECTIVO", "YAPE", "PLIN", "TRANSFERENCIA"])
+        self.combo_metodo_camp.set("EFECTIVO")
+        self.combo_metodo_camp.pack(anchor="w", pady=3)
+        self.date_camp = DatePicker(cuerpo, label_text="Fecha:", default="today")
+        self.date_camp.pack(anchor="w", pady=3)
+        self.label_camp_status = ctk.CTkLabel(sec, text="", font=ctk.CTkFont(size=12))
+        self.label_camp_status.pack(anchor="w", padx=10, pady=4)
+        crear_boton_interactivo(sec, text="Registrar cobro", width=160,
+                                command=self._registrar_campeonato_cobro,
+                                fg_color="#7C3AED").pack(anchor="w", padx=10, pady=(0, 8))
+        self._tarifas_camp_map = {}
+        self._est_camp_map = {}
+
+    def _cargar_camp_listas(self):
+        # Acotado: combos con tope para no crear miles de instancias.
+        try:
+            from controllers import estudiante_controller, tarifa_controller
+            from utils.constants import COMBO_MAX_ITEMS
+            ests = (estudiante_controller.listar_estudiantes(activo=1) or [])[:COMBO_MAX_ITEMS]
+        except Exception:
+            ests = []
+        nombres = [f"{e.get('nombres', '')} {e.get('apellidos', '')}".strip()
+                   or f"DNI {e.get('dni', '')}" for e in ests]
+        try:
+            self.combo_est_camp.configure(values=nombres if nombres else ["Sin estudiantes"])
+        except Exception:
+            pass
+        self._est_camp_map = {n: e["id_estudiante"] for n, e in zip(nombres, ests)}
+        try:
+            tarifas = tarifa_controller.listar_tarifas_activas(tipo="CAMPEONATO")
+        except Exception:
+            tarifas = []
+        tnombres = [f"{t.get('categoria_nombre', '')} - {t['nombre']} (S/{t['monto']:.2f})"
+                    for t in tarifas]
+        try:
+            self.combo_tarifa_camp.configure(
+                values=tnombres if tnombres else ["Sin tarifas de campeonato"])
+        except Exception:
+            pass
+        self._tarifas_camp_map = {n: t for n, t in zip(tnombres, tarifas)}
+
+    def _on_tarifa_camp_cobro(self, selection):
+        t = (self._tarifas_camp_map or {}).get(selection)
+        if t:
+            try:
+                self.entry_monto_camp.delete(0, "end")
+                self.entry_monto_camp.insert(0, f"{t['monto']:.2f}")
+            except Exception:
+                pass
+
+    def _registrar_campeonato_cobro(self):
+        from controllers import venta_controller
+        id_est = (self._est_camp_map or {}).get(self.combo_est_camp.get())
+        if not id_est:
+            self.label_camp_status.configure(text="Seleccione estudiante", text_color="red")
+            return
+        t = (self._tarifas_camp_map or {}).get(self.combo_tarifa_camp.get())
+        if not t:
+            self.label_camp_status.configure(text="Seleccione división", text_color="red")
+            return
+        try:
+            monto = float(self.entry_monto_camp.get().strip() or "0")
+            if monto <= 0:
+                raise ValueError
+        except ValueError:
+            self.label_camp_status.configure(text="Monto inválido", text_color="red")
+            return
+        from widgets.loading_dialog import con_indicador_ocupado
+        exito, msg, _ = con_indicador_ocupado(
+            self, "Guardando cobro...",
+            lambda: venta_controller.registrar_venta({
+                "id_estudiante": id_est, "tipo_venta": "CAMPEONATO",
+                "metodo_pago": self.combo_metodo_camp.get(), "items": [],
+                "id_tarifa": t["id_tarifa"], "monto_total": monto,
+                "fecha_venta": self.date_camp.get() or None,
+            }))
+        self.label_camp_status.configure(text=msg, text_color="green" if exito else "red")
 
     def _crear_tab_morosos(self):
         from utils.ui_helpers import crear_seccion, crear_nota, crear_boton_interactivo
@@ -263,12 +456,16 @@ class PagoView(ctk.CTkFrame):
         q = self._q_actual
         fi = getattr(self, "_fecha_ini", None)
         ff = getattr(self, "_fecha_fin", None)
+        filtro_periodo = getattr(self, "_filtro_periodo", None)
         try:
             from repositories import pago_repository
             offset = (self._pagina - 1) * self._per_page
             rows, total = pago_repository.buscar_paginado(
                 q=q, limit=self._per_page, offset=offset,
-                fecha_inicio=fi, fecha_fin=ff)
+                fecha_inicio=fi, fecha_fin=ff,
+                anio=filtro_periodo.get("anio") if filtro_periodo else None,
+                meses=filtro_periodo.get("meses") if filtro_periodo else None,
+                orden=filtro_periodo.get("orden") if filtro_periodo else None)
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
@@ -474,6 +671,13 @@ class PagoView(ctk.CTkFrame):
             self.pagination.reset()
         self._cargar_paginado()
 
+    def _on_periodo_cambio(self, filtro):
+        self._filtro_periodo = filtro
+        self._pagina = 1
+        if hasattr(self, 'pagination'):
+            self.pagination.reset()
+        self._cargar_paginado()
+
     def _limpiar_form_pago(self):
         try:
             self.combo_estudiante.set("Seleccionar estudiante...")
@@ -492,7 +696,7 @@ class PagoView(ctk.CTkFrame):
         self._cargar_combo_estudiantes()
         self.entry_monto.delete(0, "end")
         self.label_form_status.configure(text="")
-        self.tabview.set("Registrar Pago")
+        self.tabview.set("Registrar cobro")
 
     def _cargar_combo_estudiantes(self):
         from controllers import pago_controller
@@ -545,8 +749,7 @@ class PagoView(ctk.CTkFrame):
 
         comprobante = self._comprobante_path
         if self.combo_metodo.get() != "EFECTIVO" and not comprobante:
-            self.label_form_status.configure(text="Suba comprobante para YAPE/PLIN/TRANSFERENCIA (RN-042)", text_color="orange")
-            return
+            self.label_form_status.configure(text="Sin comprobante (opcional): se registrará como pendiente", text_color="orange")
         data = {
             "id_usuario": usuario["id_usuario"],
             "id_cuota": id_cuota,
@@ -557,7 +760,10 @@ class PagoView(ctk.CTkFrame):
             "fecha_pago": self.date_pago.get() or None,
         }
 
-        exito, msg, id_pago = pago_controller.registrar_pago(data)
+        from widgets.loading_dialog import con_indicador_ocupado
+        exito, msg, id_pago = con_indicador_ocupado(
+            self, "Guardando pago...",
+            lambda: pago_controller.registrar_pago(data))
 
         if exito:
             self.label_form_status.configure(text=msg, text_color="green")

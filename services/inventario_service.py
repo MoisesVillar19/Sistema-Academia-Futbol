@@ -415,6 +415,11 @@ def registrar_movimiento(data: dict) -> tuple[bool, str, int | None]:
     )
 
     logger.info(f"Movimiento registrado: {tipo_movimiento} x{cantidad} producto={id_producto}")
+    try:
+        from services import avisos_service as _av
+        _av.invalidar_cache_avisos()
+    except Exception:
+        pass
     return True, f"Movimiento registrado. Stock: {stock_nuevo}", id_movimiento
 
 

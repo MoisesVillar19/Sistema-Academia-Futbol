@@ -26,7 +26,10 @@ def obtener_por_id(id_egreso: int) -> dict | None:
     return fetch_one("SELECT * FROM egreso WHERE id_egreso = ?", (id_egreso,))
 
 
-def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None) -> list[dict]:
+def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None,
+                  anio: int | None = None, meses: list[int] | None = None,
+                  orden: str | None = None, conceptos: list[str] | None = None,
+                  limit: int | None = None) -> list[dict]:
     sql = "SELECT * FROM egreso WHERE 1=1"
     params: list = []
     if fecha_inicio:
@@ -35,8 +38,30 @@ def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None)
     if fecha_fin:
         sql += " AND fecha <= ?"
         params.append(fecha_fin)
-    sql += " ORDER BY fecha DESC"
+    if anio:
+        sql += " AND strftime('%Y', fecha) = ?"
+        params.append(str(anio))
+    if meses:
+        sql += " AND strftime('%m', fecha) IN (%s)" % ",".join("?" for _ in meses)
+        params.extend([f"{m:02d}" for m in meses])
+    if conceptos:
+        sql += " AND concepto IN (%s)" % ",".join("?" for _ in conceptos)
+        params.extend(conceptos)
+    sql += " ORDER BY fecha %s" % ("ASC" if orden == "ASC" else "DESC")
+    if limit:
+        sql += " LIMIT ?"
+        params.append(limit)
     return fetch_all(sql, tuple(params))
+
+
+def ultimo_por_responsable(concepto: str = "PROFESOR") -> list[dict]:
+    """Último egreso por responsable para un concepto (recordatorio)."""
+    return fetch_all(
+        """SELECT responsable, MAX(fecha) as ultima_fecha, COUNT(*) as n
+           FROM egreso WHERE concepto = ? AND activo = 1
+           GROUP BY responsable""",
+        (concepto,),
+    )
 
 
 def sumar_por_periodo(fecha_inicio: str, fecha_fin: str) -> float:

@@ -266,9 +266,13 @@ class ImportadorHistorial:
         return resto
 
     def _venta_resto_uniforme(self, id_est, monto, txt, per, nombre):
-        """Resto de celda bundled → venta UNIFORME-COM (adelanto)."""
+        """Resto de celda bundled → venta UNIFORME (adelanto). Detecta tipo por texto."""
         from services import inventario_service, venta_service
-        id_prod = self._asegurar_uniforme("COM")
+        tipo = "ENT"
+        txt_norm = norm(txt)
+        if "COM" in txt_norm or "COMPETENCIA" in txt_norm:
+            tipo = "COM"
+        id_prod = self._asegurar_uniforme(tipo)
         metodo = getattr(self, "_resto_metodo", None) or "EFECTIVO"
         fecha = fecha_en(txt) or f"{per}-01"
         inventario_service.registrar_compra({
@@ -287,9 +291,39 @@ class ImportadorHistorial:
         })
         if ok:
             self.res["ventas"] += 1
-            self.res["detalles"].append(f"{nombre} {per}: S/{monto:.2f} a uniforme (adelanto)")
+            self.res["detalles"].append(f"{nombre} {per}: S/{monto:.2f} a uniforme {tipo} (adelanto)")
         else:
             self.res["errores"].append(f"{nombre} {per}: venta uniforme ({msg})")
+
+    def _venta_uniforme_standalone(self, id_est, monto, txt, per, nombre, partes):
+        """Uniforme comprado aparte (70): venta sin cuota."""
+        from services import inventario_service, venta_service
+        tipo = "ENT"
+        txt_norm = norm(txt)
+        if "COM" in txt_norm or "COMPETENCIA" in txt_norm:
+            tipo = "COM"
+        id_prod = self._asegurar_uniforme(tipo)
+        metodo = next((mm for _, mm in partes if mm), None) or "EFECTIVO"
+        fecha = fecha_en(txt) or f"{per}-01"
+        inventario_service.registrar_compra({
+            "id_producto": id_prod, "cantidad": 1, "monto_total": monto,
+            "metodo_pago": "EFECTIVO", "motivo": "Importación Excel",
+            "id_usuario": self.id_usuario,
+        })
+        ok, msg, _ = venta_service.registrar_venta({
+            "id_estudiante": id_est, "id_usuario": self.id_usuario,
+            "tipo_venta": "TIENDA", "metodo_pago": metodo,
+            "items": [{"id_producto": id_prod, "cantidad": 1,
+                       "precio_unitario": monto}],
+            "monto_total": monto,
+            "observacion": f"Importación Excel: uniforme standalone {nombre} {per}",
+            "fecha_venta": fecha,
+        })
+        if ok:
+            self.res["ventas"] += 1
+            self.res["detalles"].append(f"{nombre} {per}: uniforme {tipo} S/{monto:.2f} (standalone)")
+        else:
+            self.res["errores"].append(f"{nombre} {per}: venta uniforme standalone ({msg})")
 
     def _id_estudiante_por_nombre(self, nombre: str) -> int | None:
         """ID por match EXACTO normalizado (idempotencia en re-corridas).
@@ -363,11 +397,21 @@ class ImportadorHistorial:
                     monto_total=round(total, 2), monto_pagado=0,
                     monto_mora=c0.get("monto_mora", 0),
                     saldo=round(total, 2),
-                    estado=c0.get("estado", "PENDIENTE"), activo=1,
+                    estado=c0.get("estado", "PENDIENTE"),
+                    origen="IMPORTADA", activo=1,
                 ))
+                try:
+                    from services import auditoria_service
+                    auditoria_service.registrar_update(
+                        auditoria_service.id_usuario_sesion(),
+                        "cuota", c0["id_cuota"],
+                        f"total={c0.get('monto_total')}",
+                        f"total={round(total, 2)} (adoptada por importación histórica)")
+                except Exception:
+                    pass
             return c0["id_cuota"], False
         id_cuota = cuota_service.crear_cuota(
-            id_mat, round(total, 2), f"{per}-01", per)
+            id_mat, round(total, 2), f"{per}-01", per, origen="IMPORTADA")
         return id_cuota, True
 
     def _fila_relacion(self, vals, fill):
@@ -446,12 +490,20 @@ class ImportadorHistorial:
                 self.res["detalles"].append(
                     f"{nombre}: INICIO {ini} posterior a pagos; manda {per_min}")
         es_nuevo = False
+        total_primero = 0.0
         if marcas:
             primer_mes = min(marcas)
             total_primero = sum(m for m, _ in marcas[primer_mes][1] if m) or 0
+            base_prim = cuota_service.monto_mensualidad(f"2026-{primer_mes:02d}")
             mes_ini = int(fecha_ini[5:7])
-            if primer_mes <= 8 and total_primero >= 120 and mes_ini >= primer_mes:
+            if mes_ini >= primer_mes and (
+                (primer_mes <= 8 and total_primero >= 120)  # regla pre-SET
+                or total_primero > base_prim  # bundle 150 = matrícula de nuevo (120 + 30 uniforme)
+            ):
                 es_nuevo = True
+        # NOTA: se persiste DESPUÉS de crear la matrícula (ver abajo): si el
+        # flag estuviera en 1 al matricular, RN-051 regalaría una camiseta
+        # extra además de la venta de 30 del bundle (doble uniforme).
         tarifa = self._tarifa_mensualidad()
         if not tarifa:
             raise RuntimeError("Sin tarifa para matricular")
@@ -478,6 +530,18 @@ class ImportadorHistorial:
             self.res["matriculas"] += 1
         else:
             self.res["detalles"].append(f"{nombre} → matrícula activa existente")
+        if es_nuevo:
+            # El flag se calculaba pero nunca se persistía: dashboard/reportes
+            # (nuevos vs antiguos) no veían a estos estudiantes. Se persiste
+            # aquí (post-matrícula) para no disparar el regalo RN-051: en el
+            # flujo de importación el uniforme va por venta, no por regalo.
+            try:
+                from services import estudiante_service as _es_nuevo
+                _es_nuevo.editar_estudiante(id_est, {"es_nuevo": 1})
+                self.res["detalles"].append(
+                    f"{nombre}: marcado NUEVO (matrícula S/{total_primero:.0f} con uniforme)")
+            except Exception as e:
+                self.revision.append(f"{nombre}: no se pudo marcar nuevo ({e})")
         # Tarifa por era del INICIO (cuotas existentes intactas).
         try:
             from services import importar_service as _imp_svc
@@ -500,16 +564,24 @@ class ImportadorHistorial:
             per = f"2026-{mes:02d}"
             base = cuota_service.monto_mensualidad(per)  # escala central (F0)
             total = sum(m for m, _ in partes if m) or base
+            if round(total, 2) == round(PRECIO_UNIFORME, 2) and any(m for m, _ in partes):
+                # Compra standalone de uniforme (70): solo venta, sin cuota.
+                self._venta_uniforme_standalone(id_est, total, txt, per, nombre, partes)
+                continue
             if total > base:
-                # Celda bundled (150 = 120 mensualidad + 30 uniforme): la
-                # cuota va por tarifa del mes y el resto es adelanto de
-                # uniforme (venta UNIFORME-COM). Adopta auto-cuota si existe.
-                id_cuota, creada = self._adoptar_o_crear_cuota(id_mat, per, base)
+                # Celda bundled matrícula nuevo (150 = 120 mensualidad + 30
+                # uniforme): la mensualidad es SIEMPRE 120 (no la base de era)
+                # y el resto va a uniforme. Adopta auto-cuota si existe.
+                mensual = 120.0
+                id_cuota, creada = self._adoptar_o_crear_cuota(id_mat, per, mensual)
                 if creada:
                     self.res["cuotas"] += 1
                 resto = self._pagar_con_partes(
-                    id_cuota, partes, base, txt, per, f"{nombre} {per}")
+                    id_cuota, partes, mensual, txt, per, f"{nombre} {per}")
                 if resto > 0:
+                    if round(resto, 2) != 30.0:
+                        self.revision.append(
+                            f"{nombre} {per}: resto a uniforme S/{resto:.2f} (esperado 30)")
                     self._venta_resto_uniforme(
                         id_est, resto, txt, per, nombre)
             else:
@@ -667,31 +739,10 @@ class ImportadorHistorial:
 
     # ── VENTA UNIFORME ──
     def _asegurar_uniforme(self, tipo: str):
-        from services import inventario_service
-        codigo = "CAMISETA-ENT" if tipo == "ENT" else "UNIFORME-COM"
-        from repositories import producto_repository
-        prod = producto_repository.obtener_por_codigo(codigo)
-        if prod:
-            return prod["id_producto"]
-        cats = inventario_service.listar_categorias()
-        id_cat = cats[0]["id_categoria_producto"]
-        id_tipo = None
-        try:
-            from controllers import tipo_uniforme_controller
-            for t in tipo_uniforme_controller.listar_tipos():
-                if ("ENTRENAMIENTO" in norm(t["nombre"]) and tipo == "ENT") or \
-                   ("COMPETENCIA" in norm(t["nombre"]) and tipo == "COM"):
-                    id_tipo = t["id_tipo_uniforme"]
-        except Exception:
-            pass
-        ok, _, id_prod = inventario_service.crear_producto({
-            "id_categoria_producto": id_cat,
-            "nombre": "Camiseta Entrenamiento" if tipo == "ENT" else "Uniforme Competencia",
-            "codigo": codigo, "canal": "TIENDITA", "precio_venta": PRECIO_UNIFORME,
-            "id_tipo_uniforme": id_tipo, "stock_inicial": 0,
-        })
-        if not ok:
-            raise RuntimeError(f"No se pudo crear {codigo}")
+        from services import uniforme_service
+        ok, msg, id_prod = uniforme_service.asegurar_producto(tipo)
+        if not ok or not id_prod:
+            raise RuntimeError(msg)
         return id_prod
 
     def importar_venta_uniforme(self, ruta: str) -> dict:

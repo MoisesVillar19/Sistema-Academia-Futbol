@@ -45,6 +45,17 @@ class EgresoView(ctk.CTkFrame):
             pass
         self.seg_vista.pack(anchor="e", padx=10, pady=(0, 8))
         crear_nota(sec, "Tip: cada tarjeta se expande inline con el detalle completo.")
+        from widgets.periodo_filter import PeriodoFilter
+        self.periodo_egresos = PeriodoFilter(sec, on_change=self._on_periodo_egresos)
+        self.periodo_egresos.pack(fill="x", padx=10, pady=(0, 8))
+        self.seg_concepto = ctk.CTkSegmentedButton(
+            sec, values=["Todos", "Profesores", "Operativos", "Campeonatos"],
+            command=lambda v: self._cargar_egresos())
+        try:
+            self.seg_concepto.set("Todos")
+        except Exception:
+            pass
+        self.seg_concepto.pack(anchor="w", padx=10, pady=(0, 8))
         self.scroll = ctk.CTkScrollableFrame(self.tab_lista)
         self.scroll.pack(fill="both", expand=True, padx=5, pady=5)
         self.label_lista_status = ctk.CTkLabel(self.tab_lista, text="", font=ctk.CTkFont(size=13, weight="bold"), text_color="#6B5B7B")
@@ -114,13 +125,35 @@ class EgresoView(ctk.CTkFrame):
         self.label_reporte.pack(anchor="w", pady=5)
         ctk.CTkButton(frame, text="Calcular", command=self._calcular).pack(anchor="w", pady=5)
 
+    def _on_periodo_egresos(self, filtro):
+        self._filtro_egresos = filtro
+        self._cargar_egresos()
+
     def _cargar_egresos(self):
         from utils.ui_helpers import crear_card_interactiva, agregar_detalle_expandible, linea_detalle, crear_lista_vacia
         for w in self.scroll.winfo_children():
             w.destroy()
-        egresos = egreso_controller.listar_egresos()
+        from utils.constants import TABLA_MAX_FILAS
+        fp = getattr(self, "_filtro_egresos", None) or {}
+        try:
+            grupo = self.seg_concepto.get()
+        except Exception:
+            grupo = "Todos"
+        mapa_grupos = {
+            "Profesores": ["PROFESOR"],
+            "Operativos": ["PERSONAL", "VIATICOS"],
+            "Campeonatos": ["ARBITRAJE", "CAMPEONATO_FIJO"],
+        }
+        egresos = egreso_controller.listar_egresos(
+            anio=fp.get("anio"), meses=fp.get("meses"), orden=fp.get("orden"),
+            conceptos=mapa_grupos.get(grupo), limit=TABLA_MAX_FILAS)
         if hasattr(self, "label_lista_status"):
-            self.label_lista_status.configure(text=f"Total: {len(egresos)} egreso(s)")
+            try:
+                subtotal = round(sum(float(e.get("monto", 0) or 0) for e in egresos), 2)
+                self.label_lista_status.configure(
+                    text=f"Total: {len(egresos)} egreso(s) • S/{subtotal:.2f} ({grupo})")
+            except Exception:
+                self.label_lista_status.configure(text=f"Total: {len(egresos)} egreso(s)")
         if not egresos:
             crear_lista_vacia(self.scroll, "No hay egresos", "Registra el primero en la pestaña Registrar Egreso")
             return

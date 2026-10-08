@@ -49,7 +49,22 @@ def obtener_por_id(id_venta: int) -> dict | None:
     return fetch_one("SELECT * FROM venta WHERE id_venta = ?", (id_venta,))
 
 
-def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None, tipo_venta: str | None = None) -> list[dict]:
+def actualizar_campos(id_venta: int, fecha_venta: str, metodo_pago: str,
+                       comprobante_path: str | None) -> None:
+    """Edición acotada: fecha/método/comprobante (sin tocar ítems/stock)."""
+    conn = get_connection()
+    conn.execute(
+        """UPDATE venta SET fecha_venta = ?, metodo_pago = ?,
+           comprobante_path = ? WHERE id_venta = ?""",
+        (fecha_venta, metodo_pago, comprobante_path, id_venta),
+    )
+    conn.commit()
+
+
+def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None,
+                  tipo_venta: str | None = None, anio: int | None = None,
+                  meses: list[int] | None = None,
+                  orden: str | None = None) -> list[dict]:
     sql = "SELECT * FROM venta WHERE activo = 1"
     params: list = []
     if fecha_inicio:
@@ -61,7 +76,13 @@ def obtener_todos(fecha_inicio: str | None = None, fecha_fin: str | None = None,
     if tipo_venta:
         sql += " AND tipo_venta = ?"
         params.append(tipo_venta)
-    sql += " ORDER BY fecha_venta DESC"
+    if anio:
+        sql += " AND strftime('%Y', fecha_venta) = ?"
+        params.append(str(anio))
+    if meses:
+        sql += " AND strftime('%m', fecha_venta) IN (%s)" % ",".join("?" for _ in meses)
+        params.extend([f"{m:02d}" for m in meses])
+    sql += " ORDER BY fecha_venta %s" % ("ASC" if orden == "ASC" else "DESC")
     return fetch_all(sql, tuple(params))
 
 
@@ -118,6 +139,35 @@ def ganancia_por_metodo(fecha_inicio: str, fecha_fin: str) -> list[dict]:
            GROUP BY v.metodo_pago""",
         (fecha_inicio, fecha_fin),
     )
+
+
+def obtener_uniformes(limit: int = 200, anio: int | None = None,
+                      meses: list[int] | None = None,
+                      orden: str | None = None) -> list[dict]:
+    """Ventas de uniforme en 1 query (estudiante + producto incluidos)."""
+    sql = """SELECT v.*, per.nombres, per.apellidos,
+                    GROUP_CONCAT(p.codigo, ',') AS codigos,
+                    GROUP_CONCAT(p.nombre, ' | ') AS productos_txt,
+                    SUM(d.cantidad) AS cantidad_total
+             FROM venta v
+             JOIN detalle_venta d ON d.id_venta = v.id_venta
+             JOIN producto p ON p.id_producto = d.id_producto
+             LEFT JOIN estudiante e ON e.id_estudiante = v.id_estudiante
+             LEFT JOIN persona per ON per.id_persona = e.id_persona
+             WHERE v.activo = 1
+               AND (v.tipo_venta = 'UNIFORME'
+                    OR p.codigo IN ('UNIFORME-COM', 'CAMISETA-ENT'))"""
+    params: list = []
+    if anio:
+        sql += " AND strftime('%Y', v.fecha_venta) = ?"
+        params.append(str(anio))
+    if meses:
+        sql += " AND strftime('%m', v.fecha_venta) IN (%s)" % ",".join("?" for _ in meses)
+        params.extend([f"{m:02d}" for m in meses])
+    sql += " GROUP BY v.id_venta ORDER BY v.fecha_venta %s LIMIT ?" % (
+        "ASC" if orden == "ASC" else "DESC")
+    params.append(limit)
+    return fetch_all(sql, tuple(params))
 
 
 def detalle_ventas_por_producto(fecha_inicio: str, fecha_fin: str) -> list[dict]:

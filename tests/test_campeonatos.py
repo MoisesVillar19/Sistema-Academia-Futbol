@@ -60,10 +60,6 @@ def test_campeonato_inscribe_estudiante(usuario_admin, crear_estudiante):
 
 
 def test_tab_campeonatos_render(crear_vista, usuario_admin):
-    from views.ventas.venta_view import VentaView
-    vista = crear_vista(VentaView)
-    assert vista.tab_camp.winfo_exists()
-    assert vista.combo_est_camp.winfo_exists()
-    assert vista.combo_tarifa_camp2.winfo_exists()
-    assert vista.scroll_resumen.winfo_exists()
-    assert vista.scroll_camp.winfo_exists()
+    from views.campeonatos.campeonato_view import CampeonatoView
+    vista = crear_vista(CampeonatoView)
+    assert vista.winfo_exists()
