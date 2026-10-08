@@ -382,13 +382,30 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
         ruta_app = _obtener_ruta_app()
         archivos_bloqueados: list[str] = []
         ruta_zip = ruta_descarga
+        version_instalada = None
 
         with zipfile.ZipFile(ruta_zip, "r") as zf:
             nombres = zf.namelist()
+            # Retrocompat: si TODO viene bajo una sola carpeta raíz
+            # (ZIP mal empaquetado, caso v1.1.0), absorberla.
+            raices = {n.split("/")[0].split("\\")[0] for n in nombres if n.strip("/\\")}
+            prefijo = ""
+            if len(raices) == 1:
+                unica = next(iter(raices))
+                if not any(n.strip("/\\") == unica for n in nombres):
+                    prefijo = unica
             for nombre in nombres:
-                if nombre.endswith("/"):
+                if nombre.endswith("/") or nombre.endswith("\\"):
                     continue
-                lower = nombre.lower()
+                rel = nombre
+                if prefijo:
+                    norm = nombre.replace("\\", "/")
+                    if norm == prefijo or not norm.startswith(prefijo + "/"):
+                        continue
+                    rel = norm[len(prefijo) + 1:]
+                if not rel.strip("/\\"):
+                    continue
+                lower = rel.lower()
                 if lower in ("config.ini", "config_visual.json"):
                     continue
                 if lower.startswith("database/academia.db") or lower.startswith("database\\academia.db"):
@@ -399,7 +416,7 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
                     continue
                 if lower.startswith("backups/") or lower.startswith("backups\\"):
                     continue
-                destino = os.path.join(ruta_app, nombre)
+                destino = os.path.join(ruta_app, rel)
                 # normalizar separadores zip (siempre /)
                 destino = os.path.normpath(destino)
                 # seguridad: no salir de ruta_app (zip-slip; exige separador)
@@ -410,6 +427,16 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
                 try:
                     with zf.open(nombre) as src, open(destino, "wb") as dst:
                         shutil.copyfileobj(src, dst)
+                    if version_instalada is None and (
+                            rel.replace("\\", "/") == "VERSION"
+                            or rel.replace("\\", "/").endswith("/VERSION")):
+                        try:
+                            with open(destino, "r", encoding="utf-8") as vf:
+                                version_instalada = vf.read().strip() or None
+                        except Exception:
+                            pass
+                except IsADirectoryError:
+                    continue
                 except PermissionError as e:
                     # EXE en ejecución en Windows → no se puede sobrescribir
                     archivos_bloqueados.append(nombre)
@@ -434,7 +461,7 @@ def descargar_y_actualizar(url_descarga: str, callback_progreso=None,
 
         _fusionar_estado({
             "ultima_verificacion": datetime.now().isoformat(),
-            "actualizado_version": __version__,
+            "actualizado_version": version_instalada or "desconocida",
             "rechazado_version": "",
         })
 

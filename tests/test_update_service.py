@@ -173,3 +173,38 @@ def test_descarga_zip_ok_preserva_config_y_db(monkeypatch, tmp_path):
     assert (app / "config.ini").read_text(encoding="utf-8") == "MIO"
     assert not (app / "database" / "academia.db").exists()
     assert not (tmp_path / "evil.txt").exists()
+
+
+def test_zip_con_carpeta_raiz_se_absorbe(monkeypatch, tmp_path):
+    """ZIP mal empaquetado (caso v1.1.0): todo bajo una carpeta raíz."""
+    _aislar(monkeypatch, tmp_path)
+    app = tmp_path / "app"
+    (app / "config.ini").write_text("MIO", encoding="utf-8")
+    buf = _io.BytesIO()
+    with _zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("AcademiaFutbol/VERSION", "1.0.7")
+        zf.writestr("AcademiaFutbol/database/academia.db", "BINARIO")
+    payload = buf.getvalue()
+    monkeypatch.setattr("urllib.request.urlopen",
+                        lambda req, timeout=60: _FakeResp(payload))
+    ok = update_service.descargar_y_actualizar("http://x/AcademiaFutbol-v1.0.7.zip")
+    assert ok, update_service.ultimo_error
+    assert (app / "VERSION").read_text(encoding="utf-8") == "1.0.7"
+    assert not (app / "AcademiaFutbol").exists()
+    assert not (app / "database" / "academia.db").exists()
+    estado = update_service._cargar_estado()
+    assert estado.get("actualizado_version") == "1.0.7"
+
+
+def test_actualizado_version_guarda_la_nueva(monkeypatch, tmp_path):
+    _aislar(monkeypatch, tmp_path)
+    app = tmp_path / "app"
+    buf = _io.BytesIO()
+    with _zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("VERSION", "9.9.9")
+    payload = buf.getvalue()
+    monkeypatch.setattr("urllib.request.urlopen",
+                        lambda req, timeout=60: _FakeResp(payload))
+    ok = update_service.descargar_y_actualizar("http://x/AcademiaFutbol-v9.9.9.zip")
+    assert ok, update_service.ultimo_error
+    assert update_service._cargar_estado().get("actualizado_version") == "9.9.9"
