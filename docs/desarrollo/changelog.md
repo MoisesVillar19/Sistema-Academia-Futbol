@@ -3,6 +3,29 @@
 > **Unificado 2026-10-09** desde `docs/changelog.md` + este archivo. Este es el canónico.
 > `docs/changelog.md` solo redirige aquí. Línea de tiempo: `TIMELINE.md`.
 
+## v1.2.2 - 2026-10-10 (updater SSL + ZIP plano + retiro anula actual)
+
+### Updater (error SSL)
+- `certifi` empaquetado en el exe (`_contexto_ssl` ya lo prefería; faltaba la
+  dependencia). TLS con bundle propio en PCs escolares.
+- Si persiste SSL: revisar fecha/hora del PC, firewall con inspección TLS y
+  conexión a internet (la red LAN sola no alcanza a GitHub).
+
+### Actualización (ZIP no cambiaba versión)
+- Causa: el ZIP v1.2.1 traía carpeta raíz y la extracción (manual o automática
+  al salir) anidaba `app/AcademiaFutbol/...` sin tocar el exe.
+- Fix: `_normalizar_zip_sin_raiz()` aplana el ZIP antes del actualizador
+  externo + ZIP v1.2.2 empaquetado plano (contenido en raíz, verificado).
+- En la PC afectada: borrar la subcarpeta anidada si existe antes de actualizar.
+
+### Retiros (deuda fantasma de 40+ retirados)
+- Al retirar (manual o importación) se anula solo la cuota actual pendiente sin
+  pagos (activo=0 + auditoría); anteriores y parciales se conservan.
+- Diálogo con check activado por defecto mostrando la cuota exacta.
+- Reingreso no reactiva la anulada; la nueva matrícula genera cuotas frescas.
+- Deuda histórica de retirados se conserva (decisión negocio v1.2.2).
+- Suite `tests/test_retiro_anula_cuota.py` (6) + 3 tests de normalización ZIP.
+
 ## v1.2.1 - 2026-10-10 (hotfix uniformes N tipos, sin DDL)
 
 ### Bug

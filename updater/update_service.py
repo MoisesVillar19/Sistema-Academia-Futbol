@@ -600,6 +600,36 @@ def descargar_zip_temporal(url_descarga: str, callback_progreso=None,
         return None
 
 
+def _normalizar_zip_sin_raiz(ruta_zip: str) -> str:
+    """Si TODO el ZIP cuelga de una sola carpeta raíz, devuelve copia plana.
+
+    El actualizador externo (.ps1) extrae tal cual; sin esto un ZIP con raíz
+    anidaría `ruta_app/<raíz>/...` y la versión no cambiaría (caso v1.2.1).
+    Si ya es plano, retorna la misma ruta sin copiar.
+    """
+    with zipfile.ZipFile(ruta_zip, "r") as zf:
+        nombres = zf.namelist()
+    raices = {n.split("/")[0].split("\\")[0] for n in nombres if n.strip("/\\")}
+    if len(raices) != 1:
+        return ruta_zip
+    unica = next(iter(raices))
+    if any(n.strip("/\\") == unica for n in nombres):
+        return ruta_zip
+    destino = os.path.join(os.path.dirname(os.path.abspath(ruta_zip)), "update_flat.zip")
+    with zipfile.ZipFile(ruta_zip, "r") as zin, \
+            zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            norm = item.filename.replace("\\", "/")
+            if norm == unica or not norm.startswith(unica + "/"):
+                continue
+            rel = norm[len(unica) + 1:]
+            if not rel.strip("/"):
+                continue
+            with zin.open(item) as src:
+                zout.writestr(rel, src.read())
+    return destino
+
+
 def aplicar_zip_al_salir(ruta_zip: str, version: str) -> bool:
     """Programa la aplicación del ZIP cuando la app se cierre.
 
@@ -612,6 +642,8 @@ def aplicar_zip_al_salir(ruta_zip: str, version: str) -> bool:
     try:
         ruta_app = _obtener_ruta_app()
         exe_path = os.path.join(ruta_app, APP_EXE_NAME)
+        # v1.2.2: aplanar raíz única antes de generar el .ps1 (no anida).
+        ruta_zip = _normalizar_zip_sin_raiz(ruta_zip)
         dir_temp = os.path.dirname(os.path.abspath(ruta_zip))
         ps1 = os.path.join(dir_temp, "aplicar_update.ps1")
         bat = os.path.join(dir_temp, "aplicar_update.bat")

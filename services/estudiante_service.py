@@ -160,11 +160,49 @@ def editar_estudiante(id_estudiante: int, data: dict) -> tuple[bool, str]:
     return True, "Estudiante actualizado correctamente"
 
 
+def cuota_actual_anulable(id_estudiante: int) -> dict | None:
+    """Cuota actual pendiente sin pagos del estudiante (para retiro).
+
+    Actual = la más reciente en PENDIENTE/VENCIDO/PARCIAL, de cualquiera de
+    sus matrículas. Solo se anula si no tiene pagos: anteriores y parciales
+    se conservan (decisión v1.2.2).
+    """
+    from repositories import matricula_repository, cuota_repository
+    candidatas = []
+    try:
+        matriculas = matricula_repository.obtener_por_estudiante(id_estudiante) or []
+    except Exception:
+        return None
+    for m in matriculas:
+        try:
+            cuotas = cuota_repository.obtener_por_matricula(m["id_matricula"]) or []
+        except Exception:
+            continue
+        for c in cuotas:
+            if c.get("activo", 1) == 0:
+                continue
+            if c.get("estado") not in ("PENDIENTE", "VENCIDO", "PARCIAL"):
+                continue
+            candidatas.append(c)
+    if not candidatas:
+        return None
+    candidatas.sort(key=lambda c: (str(c.get("periodo", "")),
+                                   str(c.get("fecha_vencimiento", "")),
+                                   int(c.get("id_cuota", 0) or 0)))
+    actual = candidatas[-1]
+    if float(actual.get("monto_pagado", 0) or 0) > 0:
+        return None
+    return actual
+
+
 def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
-                     fecha: str | None = None) -> tuple[bool, str]:
+                     fecha: str | None = None,
+                     anular_cuota_actual: bool = True) -> tuple[bool, str]:
     """Ciclo único: retirar = estado RETIRADO + archivar (activo=0).
 
     No hay borrado físico; el reingreso lo revierte todo.
+    v1.2.2: con anular_cuota_actual=True se anula (activo=0) solo la cuota
+    pendiente sin pagos más reciente; anteriores y parciales se conservan.
     """
     from repositories import matricula_repository
 
@@ -200,12 +238,27 @@ def registrar_retiro(id_estudiante: int, id_usuario: int = 1,
     )
 
     logger.info(f"Estudiante retirado: ID={id_estudiante}")
+    aviso_cuota = ""
+    if anular_cuota_actual:
+        try:
+            from services import cuota_service
+            actual = cuota_actual_anulable(id_estudiante)
+            if actual:
+                ok_c, _ = cuota_service.anular_cuota(
+                    actual["id_cuota"], f"retiro estudiante {id_estudiante}")
+                if ok_c:
+                    aviso_cuota = (f"; cuota {actual.get('periodo')} "
+                                   f"(S/{float(actual.get('saldo', 0) or 0):.2f}) anulada")
+            else:
+                aviso_cuota = "; sin cuotas pendientes para anular"
+        except Exception as e:
+            logger.warning(f"No se pudo anular cuota al retirar {id_estudiante}: {e}")
     try:
         from services import avisos_service as _av
         _av.invalidar_cache_avisos()
     except Exception:
         pass
-    return True, "Retiro registrado correctamente"
+    return True, f"Retiro registrado correctamente{aviso_cuota}"
 
 
 def registrar_reingreso(id_estudiante: int, id_usuario: int = 1) -> tuple[bool, str]:

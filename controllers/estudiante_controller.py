@@ -49,8 +49,11 @@ def editar_estudiante(id_estudiante: int, data: dict) -> tuple[bool, str]:
     return estudiante_service.editar_estudiante(id_estudiante, data)
 
 
-def registrar_retiro(id_estudiante: int, fecha: str | None = None) -> tuple[bool, str]:
-    return estudiante_service.registrar_retiro(id_estudiante, id_usuario=_get_id_usuario(), fecha=fecha)
+def registrar_retiro(id_estudiante: int, fecha: str | None = None,
+                   anular_cuota: bool = True) -> tuple[bool, str]:
+    return estudiante_service.registrar_retiro(
+        id_estudiante, id_usuario=_get_id_usuario(), fecha=fecha,
+        anular_cuota_actual=anular_cuota)
 
 
 def registrar_reingreso(id_estudiante: int) -> tuple[bool, str]:

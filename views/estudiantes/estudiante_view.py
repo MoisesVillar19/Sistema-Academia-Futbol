@@ -768,11 +768,66 @@ class EstudianteView(ctk.CTkFrame):
             messagebox.showwarning("Retirar estudiante",
                                    f"Fecha inválida ({fecha}); use AAAA-MM-DD.")
             return
-        exito, msg = estudiante_controller.registrar_retiro(est["id_estudiante"], fecha)
+        anular = True
+        try:
+            from services import estudiante_service
+            actual = estudiante_service.cuota_actual_anulable(est["id_estudiante"])
+        except Exception:
+            actual = None
+        if actual is not None:
+            anular = self._dialog_anular_cuota(
+                actual.get("periodo"),
+                float(actual.get("saldo", 0) or 0))
+            if anular is None:
+                return
+        exito, msg = estudiante_controller.registrar_retiro(
+            est["id_estudiante"], fecha, anular_cuota=anular)
         if not exito:
             messagebox.showwarning("Retirar estudiante", msg)
+        else:
+            messagebox.showinfo("Retirar estudiante", msg)
         self._cargar_estudiantes()
         self._cargar_combo_estudiantes()
+
+    def _dialog_anular_cuota(self, periodo, saldo) -> bool | None:
+        """Check activado por defecto: anular solo la cuota actual.
+
+        Retorna True/False, o None si se cancela el retiro.
+        """
+        import customtkinter as ctk
+        res: dict = {}
+        top = ctk.CTkToplevel(self)
+        top.title("Anular cuota actual")
+        top.geometry("420x210")
+        try:
+            top.transient(self)
+            top.grab_set()
+        except Exception:
+            pass
+        ctk.CTkLabel(
+            top, text=f"Cuota pendiente actual: {periodo} (S/{saldo:.2f})",
+            font=ctk.CTkFont(weight="bold")).pack(pady=(14, 4))
+        ctk.CTkLabel(
+            top, text="Anteriores y parciales se conservan.",
+            font=ctk.CTkFont(size=11), text_color="#6B5B7B").pack()
+        var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(top, text="Anular esta cuota con el retiro",
+                        variable=var).pack(pady=12)
+        btnf = ctk.CTkFrame(top, fg_color="transparent")
+        btnf.pack(pady=6)
+
+        def _ok():
+            res["v"] = bool(var.get())
+            top.destroy()
+
+        def _cancel():
+            top.destroy()
+
+        ctk.CTkButton(btnf, text="Cancelar retiro", fg_color="gray",
+                      command=_cancel).pack(side="left", padx=5)
+        ctk.CTkButton(btnf, text="Continuar", command=_ok).pack(side="left", padx=5)
+        top.wait_window()
+        return res.get("v")
 
     def _reingreso(self, est):
         from tkinter import messagebox

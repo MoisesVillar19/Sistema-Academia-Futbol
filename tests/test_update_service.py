@@ -208,3 +208,38 @@ def test_actualizado_version_guarda_la_nueva(monkeypatch, tmp_path):
     ok = update_service.descargar_y_actualizar("http://x/AcademiaFutbol-v9.9.9.zip")
     assert ok, update_service.ultimo_error
     assert update_service._cargar_estado().get("actualizado_version") == "9.9.9"
+
+
+def _zip_en_disco(tmp_path, entradas):
+    ruta = tmp_path / "origen.zip"
+    with _zipfile.ZipFile(str(ruta), "w") as zf:
+        for nombre, contenido in entradas:
+            zf.writestr(nombre, contenido)
+    return str(ruta)
+
+
+def test_normalizar_zip_con_raiz_aplana(tmp_path):
+    """v1.2.2: el actualizador externo (.ps1) extrae tal cual; si el ZIP trae
+    raíz única se aplana antes para no anidar (caso v1.2.1 manual)."""
+    ruta = _zip_en_disco(tmp_path, [
+        ("AcademiaFutbol/VERSION", "1.2.2"),
+        ("AcademiaFutbol/_internal/app.dat", "x"),
+        ("AcademiaFutbol/config.ini", "NUEVO"),
+    ])
+    plana = update_service._normalizar_zip_sin_raiz(ruta)
+    assert plana != ruta
+    with _zipfile.ZipFile(plana, "r") as zf:
+        nombres = zf.namelist()
+    assert "VERSION" in nombres
+    assert "AcademiaFutbol/VERSION" not in nombres
+    assert not any(n.startswith("AcademiaFutbol/") for n in nombres)
+
+
+def test_normalizar_zip_plano_no_copia(tmp_path):
+    ruta = _zip_en_disco(tmp_path, [("VERSION", "1.2.2"), ("a/b.txt", "x")])
+    assert update_service._normalizar_zip_sin_raiz(ruta) == ruta
+
+
+def test_normalizar_zip_multi_raiz_no_cambia(tmp_path):
+    ruta = _zip_en_disco(tmp_path, [("A/x.txt", "x"), ("B/y.txt", "y")])
+    assert update_service._normalizar_zip_sin_raiz(ruta) == ruta
