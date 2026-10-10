@@ -64,6 +64,10 @@ def ejecutar_importacion(filas: list[dict], mapeo: dict | None = None,
                          resoluciones: dict | None = None) -> tuple[bool, str, dict]:
     if not filas:
         return False, "No hay datos para importar", {}
+    from services import edicion_service
+    ok, msg = edicion_service.exigir_libre("la importación")
+    if not ok:
+        return False, msg, {"errores": [msg]}
 
     id_usuario = auth_service.id_usuario_sesion_or_system()
     notas: list[str] = []
@@ -135,6 +139,10 @@ def importar_historial_excel(ruta: str) -> tuple[bool, str, dict]:
     import os
     if not ruta or not os.path.isfile(ruta):
         return False, "Archivo no encontrado", {}
+    from services import edicion_service
+    ok, msg = edicion_service.exigir_libre("la importación del historial")
+    if not ok:
+        return False, msg, {"errores": [msg]}
     from services import importar_historial
     id_usuario = auth_service.id_usuario_sesion_or_system()
     try:

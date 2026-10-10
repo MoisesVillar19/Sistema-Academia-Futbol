@@ -221,6 +221,7 @@ python -m pytest tests/test_validators.py::test_validate_dni_valid -v
 | `tests/test_uniformes_n_tipos.py` | Creado v1.2.1 (2026-10-10) - 18 tests: tipos_vendibles dinámico, slug UNI-XXX único, CRUD producto uniforme, venta con talla, independencia Tiendita/Almacén/Ventas, combos dinámicos Uniformes/Matrícula, importador con tipos nuevos y choques de código |
 | `tests/test_retiro_anula_cuota.py` | Creado v1.2.2 (2026-10-10) - 6 tests: anula solo actual sin pagos, conserva anteriores/parciales, flag opt-out, reingreso no reactiva, UI propaga check |
 | `tests/test_update_service.py` | +3 tests v1.2.2: normalización ZIP con raíz única (aplana), plano y multi-raíz intactos |
+| `tests/test_edicion_exclusiva.py` | Creado v1.2.3 (2026-10-10) - 10 tests: activar solo ADMIN, bloqueo import/historial/restore ajenos, liberar dueño/ADMIN, stale 2h, cobros no afectados |
 
 ---
 

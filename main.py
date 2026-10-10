@@ -308,12 +308,45 @@ class App(ctk.CTk):
         ).pack(side="bottom", pady=15, padx=12)
 
         # ── Contenido principal ────────────────────────────────────
-        self.contenido = ctk.CTkFrame(self, fg_color=COLOR_BG)
-        self.contenido.pack(side="right", fill="both", expand=True)
+        self._panel = ctk.CTkFrame(self, fg_color=COLOR_BG)
+        self._panel.pack(side="right", fill="both", expand=True)
+        self._banner_ee = ctk.CTkLabel(
+            self._panel, text="", font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#FEF3C7", text_color="#92400E", corner_radius=0)
+        self._ee_after_id = None
+        self.contenido = ctk.CTkFrame(self._panel, fg_color=COLOR_BG)
+        self.contenido.pack(fill="both", expand=True)
 
         self._suscribir_navegacion()
         self._mostrar_placeholder()
         self._programar_backup()
+        self._vigilar_edicion()
+
+    def _vigilar_edicion(self):
+        # Banner de edición exclusiva ajena (poll liviano 30s, 1 fila).
+        try:
+            if not self.winfo_exists():
+                return
+            from services import edicion_service
+            st = edicion_service.estado()
+            if st.get("activo"):
+                if edicion_service.es_mia():
+                    txt = f"🔒 Tienes la edición exclusiva ({st.get('motivo')}). Libérala al terminar."
+                else:
+                    txt = (f"🔒 Edición exclusiva en {st.get('pc')} por {st.get('username')} "
+                           f"({st.get('motivo')}). Cobros y consultas libres; evita importar o editar masivo.")
+                self._banner_ee.configure(text=txt)
+                if not self._banner_ee.winfo_ismapped():
+                    self._banner_ee.pack(fill="x", padx=0, pady=0)
+            else:
+                if self._banner_ee.winfo_ismapped():
+                    self._banner_ee.pack_forget()
+        except Exception:
+            pass
+        try:
+            self._ee_after_id = self.after(30000, self._vigilar_edicion)
+        except Exception:
+            self._ee_after_id = None
 
     def _crear_backup_manual(self):
         from tkinter import messagebox
@@ -593,6 +626,12 @@ class App(ctk.CTk):
         try:
             self._cancelar_timers()
             try:
+                from services import edicion_service
+                if edicion_service.es_mia():
+                    edicion_service.liberar()
+            except Exception:
+                pass
+            try:
                 import matplotlib.pyplot as plt
                 plt.close("all")
             except Exception:
@@ -655,6 +694,51 @@ def verificar_acceso_bd() -> None:
     sys.exit(1)
 
 
+def verificar_bd_valida() -> None:
+    """Guardián anti-corrupta (caso 2026-10-10): si el archivo existe pero no
+    es SQLite válido, avisar con ruta de recuperación y salir SIN tocarlo."""
+    from utils.constants import DB_PATH
+    ruta = os.path.abspath(DB_PATH)
+    if not os.path.isfile(ruta):
+        return  # primera vez: se crea al iniciar
+    try:
+        with open(ruta, "rb") as f:
+            cabecera = f.read(16)
+        tam = os.path.getsize(ruta)
+    except Exception:
+        return  # el flujo normal mostrará el error real
+    if tam >= 100 and cabecera == b"SQLite format 3\x00":
+        return
+    # último backup disponible para orientar la recuperación
+    candidato = ""
+    try:
+        import glob
+        base = os.path.dirname(ruta)
+        cands = sorted(glob.glob(os.path.join(base, "BackupsAcademia", "academia_*.db"))
+                       + glob.glob(os.path.join(base, "backups", "academia_*.db")))
+        if cands:
+            candidato = f"\n\nÚltimo backup visible:\n{cands[-1]}"
+    except Exception:
+        pass
+    msg = (f"La base de datos está dañada (no es un archivo SQLite válido):\n{ruta}\n"
+           f"Tamaño: {tam} bytes.\n\n"
+           "NO se modificó nada. Pasos:\n"
+           "1. Cierre la app en TODAS las PCs.\n"
+           "2. Renombre ese archivo a academia.db.danada-[fecha] (no lo borre).\n"
+           "3. Copie el último backup bueno como academia.db.\n"
+           "4. Abra primero en esta PC y verifique." + candidato)
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        r = tk.Tk()
+        r.withdraw()
+        messagebox.showerror("Base de datos dañada", msg)
+        r.destroy()
+    except Exception:
+        print(msg)
+    sys.exit(1)
+
+
 def _dialogo_fatal(mensaje: str) -> None:
     try:
         import tkinter as tk
@@ -674,6 +758,8 @@ def main() -> None:
         registrar_fase("inicio")
         verificar_acceso_bd()
         registrar_fase("acceso_bd_ok")
+        verificar_bd_valida()
+        registrar_fase("bd_valida_ok")
         initialize_system()
         registrar_fase("bd_lista")
         app = App()

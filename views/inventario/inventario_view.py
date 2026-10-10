@@ -964,9 +964,20 @@ class InventarioView(ctk.CTkFrame):
             data["canal"] = self._canal
 
         if self._id_producto_editando:
-            exito, msg = inventario_controller.editar_producto(self._id_producto_editando, data)
+            _op = lambda: (*inventario_controller.editar_producto(
+                self._id_producto_editando, data), None)
         else:
-            exito, msg, _ = inventario_controller.crear_producto(data)
+            _op = lambda: inventario_controller.crear_producto(data)
+        try:
+            from widgets.loading_dialog import con_indicador_ocupado
+            exito, msg, _ = con_indicador_ocupado(self, "Guardando…", _op)
+        except Exception as e:
+            try:
+                from utils.logger import logger as _log
+                _log.error(f"Guardar producto fallo: {e}")
+            except Exception:
+                pass
+            exito, msg = False, f"No se pudo guardar: {e}"
 
         if exito:
             self.label_form_status.configure(text=msg, text_color="green")

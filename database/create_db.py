@@ -409,6 +409,15 @@ CREATE TABLE IF NOT EXISTS aviso_omitido (
     activo INTEGER DEFAULT 1,
     UNIQUE(codigo, origen_tipo, origen_id)
 );
+
+CREATE TABLE IF NOT EXISTS edicion_exclusiva (
+    id_edicion INTEGER PRIMARY KEY CHECK (id_edicion = 1),
+    activo INTEGER NOT NULL DEFAULT 0,
+    pc TEXT NOT NULL DEFAULT '',
+    username TEXT NOT NULL DEFAULT '',
+    motivo TEXT NOT NULL DEFAULT '',
+    desde TEXT NOT NULL DEFAULT ''
+);
 """
 
 INDEXES_SQL = """

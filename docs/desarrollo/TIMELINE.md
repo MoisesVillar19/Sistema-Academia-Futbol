@@ -29,6 +29,7 @@ TIMELINE.md (este índice cronológico)
 | 2026-10-08 | v1.2.0 consolidación | release 642/642 | [ver](linea-tiempo/2026-10-08_v1.2-consolidacion.md) | `changelog.md` |
 | 2026-10-10 | v1.2.1 hotfix uniformes N tipos | release 662/662 | [ver](linea-tiempo/2026-10-10_v1.2.1-uniformes-n-tipos.md) | `changelog.md`, `tests/test_uniformes_n_tipos.py` |
 | 2026-10-10 | v1.2.2 updater SSL + ZIP plano + retiro anula actual | release | [ver](linea-tiempo/2026-10-10_v1.2.2-updater-retiro.md) | `changelog.md`, `tests/test_retiro_anula_cuota.py` |
+| 2026-10-10 | v1.2.3 edición exclusiva anti-corrupción | release | [ver](linea-tiempo/2026-10-10_v1.2.3-edicion-exclusiva.md) | `changelog.md`, `tests/test_edicion_exclusiva.py` |
 
 ## Vigentes (no son historia)
 

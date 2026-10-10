@@ -3,6 +3,29 @@
 > **Unificado 2026-10-09** desde `docs/changelog.md` + este archivo. Este es el canónico.
 > `docs/changelog.md` solo redirige aquí. Línea de tiempo: `TIMELINE.md`.
 
+## v1.2.3 - 2026-10-10 (edición exclusiva anti-corrupción en red)
+
+### Causa (incidente 2026-10-10)
+- Dos PCs admin escribiendo a la vez (importación + edición de productos)
+  truncaron `academia.db` a 0 bytes (`file is not a database` al arrancar).
+  Recuperado desde backup; regla operativa + bloqueo en app.
+
+### Edición exclusiva (una sola PC en edición masiva)
+- Nueva tabla `edicion_exclusiva` (1 fila: pc/usuario/motivo/desde) + service
+  con activar (solo ADMIN), liberar (dueño o ADMIN) y expiración stale 2h.
+- Importaciones (normal + historial) y restauración de backup se RECHAZAN con
+  bandera ajena activa (mensaje con PC/usuario/motivo). Cobros, ventas,
+  matrículas y consultas nunca se bloquean.
+- Banner persistente en la app (poll 30s) + card en Configuración → Respaldo
+  con Activar/Liberar. Auto-liberación al cerrar limpio.
+- Regla: edición masiva de a una PC con bandera; cobros/consultas libres.
+
+### Anti-congelamiento y arranque
+- Guardado de producto con indicador "Guardando…" (antes parecía colgada en
+  contención de red). El cierre de sesión no toca la BD (era espera, no cuelgue).
+- Arranque valida cabecera SQLite: si el archivo no es BD válida, mensaje con
+  pasos de recuperación (renombrar, copiar backup, abrir secuencial) sin tocar nada.
+
 ## v1.2.2 - 2026-10-10 (updater SSL + ZIP plano + retiro anula actual)
 
 ### Updater (error SSL)

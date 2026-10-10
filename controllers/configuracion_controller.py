@@ -79,6 +79,10 @@ def verificar_backup(ruta: str) -> tuple[bool, str]:
 def restaurar_backup(ruta: str, pin: str) -> tuple[bool, str]:
     if not puede_acceder():
         return False, "Solo ADMIN"
+    from services import edicion_service
+    ok, msg = edicion_service.exigir_libre("la restauración")
+    if not ok:
+        return False, msg
     from services import backup_service
     return backup_service.restaurar_backup(ruta, pin)
 

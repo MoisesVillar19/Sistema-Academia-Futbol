@@ -206,6 +206,60 @@ class ConfiguracionView(ctk.CTkFrame):
                 ctk.CTkLabel(sec5, text="No hay backups aún", text_color="gray", font=ctk.CTkFont(size=11)).pack(anchor="w", padx=10)
         except Exception:
             pass
+        # v1.2.3: edición exclusiva (una sola PC en edición masiva a la vez)
+        try:
+            from services import edicion_service
+            _ee = ctk.CTkFrame(sec5, fg_color="#FEF3C7", corner_radius=8)
+            _ee.pack(fill="x", padx=10, pady=(8, 4))
+            ctk.CTkLabel(_ee, text="🔒 Edición exclusiva (red: evita corrupción por ediciones simultáneas)",
+                         font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(6, 0))
+            self.label_ee_estado = ctk.CTkLabel(_ee, text="", font=ctk.CTkFont(size=11),
+                                                justify="left", wraplength=600)
+            self.label_ee_estado.pack(anchor="w", padx=10)
+            _ee_btns = ctk.CTkFrame(_ee, fg_color="transparent")
+            _ee_btns.pack(anchor="w", padx=10, pady=(2, 8))
+            _btn_path(_ee_btns, text="🔒 Activar (importar/editar masivo)", width=220,
+                       command=self._ee_activar, fg_color="#7C3AED",
+                       hover_color="#6D28D9", text_color="white").pack(side="left", padx=(0, 5))
+            _btn_path(_ee_btns, text="🔓 Liberar", width=110,
+                       command=self._ee_liberar, fg_color="#E5E7EB",
+                       hover_color="#DDD6E5", text_color="#1F0A33").pack(side="left", padx=5)
+            self._ee_refrescar()
+        except Exception:
+            pass
+
+    def _ee_refrescar(self):
+        try:
+            from services import edicion_service
+            self.label_ee_estado.configure(text=edicion_service.descripcion_estado())
+        except Exception:
+            pass
+
+    def _ee_activar(self):
+        from tkinter import messagebox
+        from tkinter import simpledialog
+        motivo = simpledialog.askstring(
+            "Edición exclusiva", "Motivo (ej. importación historial):",
+            initialvalue="edición masiva", parent=self)
+        if motivo is None:
+            return
+        try:
+            from services import edicion_service
+            ok, msg = edicion_service.activar((motivo or "").strip() or "edición masiva")
+        except Exception as e:
+            ok, msg = False, str(e)
+        (messagebox.showinfo if ok else messagebox.showwarning)("Edición exclusiva", msg)
+        self._ee_refrescar()
+
+    def _ee_liberar(self):
+        from tkinter import messagebox
+        try:
+            from services import edicion_service
+            ok, msg = edicion_service.liberar()
+        except Exception as e:
+            ok, msg = False, str(e)
+        (messagebox.showinfo if ok else messagebox.showwarning)("Edición exclusiva", msg)
+        self._ee_refrescar()
 
     def _render_catalogos(self):
         badge = "CATÁLOGOS" if getattr(self, "_solo_catalogos", False) else "ADMIN"
