@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-09-21_inventario-ux-ejecutado.md` · Índice: `../TIMELINE.md`.
+
 # Plan Inventario UX + Búsquedas + Perfil + Config granular + Botones Guardar
 
 > Estado: EJECUTADO 2026-09-21 (bloques A → C → B → D, commit por bloque,
@@ -97,3 +99,4 @@ verde antes de pasar al siguiente. Release ZIP solo al cerrar D.
   exigiendo `configuracion` (ADMIN).
 - D3: sección Apariencia ganó botón propio "Guardar apariencia" para que
   solo-catálogos pueda persistirla sin el Guardar global (oculto sin permiso).
+

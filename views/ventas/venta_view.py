@@ -132,12 +132,14 @@ class VentaView(ctk.CTkFrame):
                                 fg_color="#7C3AED").pack(anchor="w", padx=10, pady=(2, 8))
 
     def _cargar_productos(self):
-        # Fase 6b: ventas solo Tiendita (guard también en venta_service)
+        # Fase 6b: ventas solo Tiendita (guard también en venta_service).
+        # v1.2.1: sin uniformes (viven en su módulo).
         try:
             prods = inventario_controller.listar_por_canal("TIENDITA", activo=1)
         except Exception:
             prods = [p for p in inventario_controller.listar_productos(activo=1)
                      if p.get("canal") == "TIENDITA"]
+        prods = [p for p in prods if p.get("id_tipo_uniforme") is None]
         cat_id = getattr(self, "_filtro_categoria_id", None)
         if cat_id is not None:
             prods = [p for p in prods if p.get("id_categoria_producto") == cat_id]

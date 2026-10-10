@@ -218,6 +218,7 @@ python -m pytest tests/test_validators.py::test_validate_dni_valid -v
 | `tests/test_pago_service.py` | Creado - 7 tests |
 | `tests/test_login.py` | Creado - 6 tests |
 | `tests/test_matriculas.py` | Creado - 6 tests |
+| `tests/test_uniformes_n_tipos.py` | Creado v1.2.1 (2026-10-10) - 18 tests: tipos_vendibles dinámico, slug UNI-XXX único, CRUD producto uniforme, venta con talla, independencia Tiendita/Almacén/Ventas, combos dinámicos Uniformes/Matrícula, importador con tipos nuevos y choques de código |
 
 ---
 

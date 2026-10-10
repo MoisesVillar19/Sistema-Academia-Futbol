@@ -14,15 +14,21 @@ docs/
 │   ├── casos_uso.md                   # Actores y flujos (estudiante, apoderado, pago, venta)
 │   └── convenciones_codigo.md         # snake_case, PascalCase, dataclass, logging
 │
-├── desarrollo/           # Planes y evolución
-│   ├── roadmap.md                     # Hitos por versión (antes road_map.md)
-│   ├── plan_sprints.md
-│   ├── plan_implementacion.md
+├── desarrollo/           # Evolución por línea de tiempo (ver TIMELINE.md)
+│   ├── TIMELINE.md                    # Índice cronológico (árbol de cambios por fecha)
+│   ├── linea-tiempo/                  # Un resumen por hito (YYYY-MM-DD_slug.md)
+│   ├── archivo/                       # Históricos superados/ejecutados (solo lectura)
+│   ├── roadmap.md                     # Hacia dónde va el producto (vigente)
+│   ├── plan_sprints.md                # Cómo se trabaja por sprints (vigente)
+│   ├── changelog.md                   # Qué trae cada release (canónico)
 │   ├── cambios_RN_v2.md               # Delta v2 flexible (precios, uniformes, OneDrive)
+│   ├── plan_dayanna_v2.1.md           # v2.1: es_nuevo, conceptos, permisos secretaria
+│   ├── plan_accion_cierre.md          # Backlog v1.3→v1.5 (diseño)
 │   ├── plan_deuda_tecnica.md          # Deuda crítica/media/baja y sprints
-│   ├── changelog.md
-│   ├── sprint7_estado.md / sprint10_plan.md
-│   └── diagnostico_usabilidad.md
+│   ├── plan_inventario_escalable.md   # Diseño futuro inventario (tallas/lotes/sedes)
+│   └── plan_red_lan.md + red_lan_evaluacion.md  # Red LAN: diseño + evaluación
+│
+├── changelog.md            # Redirect → desarrollo/changelog.md (canónico)
 │
 ├── testing/              # Calidad
 │   └── tests_registro.md              # Cobertura, fixtures, markers
@@ -41,6 +47,7 @@ docs/
 ### Cómo navegar
 
 - **¿Nueva regla?** → `sistema/reglas_negocio.md` (RN) → `sistema/arquitectura_bd.md` (DDL) → `sistema/diccionario_datos.md`.
+- **¿Qué cambió y cuándo?** → `desarrollo/TIMELINE.md` (línea de tiempo por fecha) → `desarrollo/linea-tiempo/` (resumen) → `desarrollo/archivo/` (detalle histórico).
 - **¿Nuevo feature?** → `desarrollo/roadmap.md` → `desarrollo/plan_sprints.md` → `desarrollo/plan_dayanna_v2.1.md` (v2.1 documentado: es_nuevo, conceptos sin redundancia, permisos secretaria).
 - **¿Deploy?** → `despliegue/despliegue_produccion.md` + `setup_onedrive.bat` (raíz).
 - **¿Uso?** → `manuales/manual_sistema.md`.

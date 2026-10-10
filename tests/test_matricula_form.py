@@ -105,7 +105,7 @@ def test_venta_uniforme_valida(usuario_admin, crear_estudiante):
     eid = crear_estudiante()
     ok, msg, _ = venta_controller.registrar_venta_uniforme({
         "id_estudiante": eid, "tipo": "XXX"})
-    assert not ok and "COM o ENT" in msg
+    assert not ok and "no válido" in msg and "ENT" in msg
     ok, msg, _ = venta_controller.registrar_venta_uniforme({
         "id_estudiante": None, "tipo": "ENT"})
     assert not ok

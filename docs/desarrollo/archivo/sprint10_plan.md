@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-08-01_sprints-7-10-estabilizacion.md` · Índice: `../TIMELINE.md`.
+
 # Sprint 10 — Estabilización
 
 **Fecha:** 2026-08-01
@@ -771,3 +773,4 @@ def _on_login_success(self, usuario):
 | 1 | Mejorar error handling en `main.py` | Usar `messagebox.showerror()` en vez de `print()` para errores críticos |
 | 2 | Logging en backup/restore | Registrar operaciones de backup/restore en tabla `log` |
 | 3 | Validación en restore | Verificar integridad del archivo SQLite antes de restaurar |
+

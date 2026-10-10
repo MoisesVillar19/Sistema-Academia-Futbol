@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-08-05_retroalimentacion.md` · Índice: `../TIMELINE.md`.
+
 # Documento de Implementación - Retroalimentación AcademiaFutbol
 
 ## Fecha: 2026-08-05
@@ -694,3 +696,4 @@ CREATE TABLE IF NOT EXISTS matricula (
 **Documento generado:** 2026-08-05
 **Última actualización:** 2026-08-05
 **Versión:** 1.0
+

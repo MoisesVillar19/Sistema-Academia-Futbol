@@ -17,6 +17,8 @@ class InventarioView(ctk.CTkFrame):
         # Códigos ocultos en esta vista (Tiendita excluye uniformes COM/ENT,
         # que viven en su sección propia).
         self._excluir_codigos: tuple = ()
+        # v1.2.1: Tiendita excluye TODO producto de Uniformes (N tipos).
+        self._excluir_uniformes: bool = False
         self._categorias_map = {}
         self._productos_map = {}
         self._pagina = 1
@@ -453,9 +455,11 @@ class InventarioView(ctk.CTkFrame):
 
     def _sin_excluidos(self, prods):
         excl = getattr(self, "_excluir_codigos", ())
-        if not excl:
-            return prods
-        return [p for p in prods if p.get("codigo", "") not in excl]
+        if excl:
+            prods = [p for p in prods if p.get("codigo", "") not in excl]
+        if getattr(self, "_excluir_uniformes", False):
+            prods = [p for p in prods if p.get("id_tipo_uniforme") is None]
+        return prods
 
     def _cargar_productos_compra(self):
         try:
@@ -614,7 +618,8 @@ class InventarioView(ctk.CTkFrame):
             rows, total = producto_repository.buscar_paginado(
                 q=self._q_actual, limit=self._per_page, offset=offset,
                 id_categoria_producto=cat_id, canal=self._canal,
-                excluir_codigos=getattr(self, "_excluir_codigos", ()))
+                excluir_codigos=getattr(self, "_excluir_codigos", ()),
+                excluir_uniformes=getattr(self, "_excluir_uniformes", False))
             self._total = total
             if hasattr(self, 'pagination'):
                 self.pagination.set_total(total)
@@ -625,6 +630,8 @@ class InventarioView(ctk.CTkFrame):
                 todos = [p for p in todos if p.get("canal") == self._canal]
             todos = [p for p in todos
                      if p.get("codigo", "") not in getattr(self, "_excluir_codigos", ())]
+            if getattr(self, "_excluir_uniformes", False):
+                todos = [p for p in todos if p.get("id_tipo_uniforme") is None]
             if cat_id is not None:
                 todos = [p for p in todos if p.get("id_categoria_producto") == cat_id]
             if self._q_actual:

@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-08-01_sprints-7-10-estabilizacion.md` · Índice: `../TIMELINE.md`.
+
 # Estado del Proyecto — AcademiaFutbol
 
 **Fecha:** 2026-08-01
@@ -159,3 +161,4 @@
 - Se crea automáticamente al ejecutar `python main.py`
 
 Ver archivo: `docs/sprint10_plan.md`
+

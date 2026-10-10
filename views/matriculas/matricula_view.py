@@ -350,12 +350,13 @@ class MatriculaView(ctk.CTkFrame):
             command=self._on_uniforme_toggle)
         self.check_uniforme.pack(side="left")
         self.seg_tipo_uniforme = ctk.CTkSegmentedButton(
-            fila_uni, values=["Entrenamiento", "Competencia"],
+            fila_uni, values=["Uniforme Entrenamiento"],
             command=self._on_tipo_uniforme)
         try:
-            self.seg_tipo_uniforme.set("Entrenamiento")
+            self.seg_tipo_uniforme.set("Uniforme Entrenamiento")
         except Exception:
             pass
+        self._tipos_uni_map = {"Uniforme Entrenamiento": "ENT"}
         self.combo_talla_uniforme = ctk.CTkComboBox(
             fila_uni, width=140, values=["Sin stock"])
         self.combo_talla_uniforme.pack(side="left", padx=10)
@@ -680,7 +681,7 @@ class MatriculaView(ctk.CTkFrame):
                 try:
                     tipo_u = self.seg_tipo_uniforme.get()
                 except Exception:
-                    tipo_u = "Entrenamiento"
+                    tipo_u = "Uniforme Entrenamiento"
                 talla_u = self.combo_talla_uniforme.get() if hasattr(self, "combo_talla_uniforme") else ""
                 self.label_seleccionados.configure(text=f"Uniforme: {tipo_u} talla {talla_u}")
             else:
@@ -690,7 +691,7 @@ class MatriculaView(ctk.CTkFrame):
 
     def _tipo_uniforme_sel(self) -> str:
         try:
-            return "COM" if self.seg_tipo_uniforme.get() == "Competencia" else "ENT"
+            return self._tipos_uni_map.get(self.seg_tipo_uniforme.get(), "ENT")
         except Exception:
             return "ENT"
 
@@ -703,6 +704,22 @@ class MatriculaView(ctk.CTkFrame):
         self._actualizar_total()
 
     def _refrescar_tallas_uniforme(self):
+        try:
+            from services import uniforme_service
+            tipos = uniforme_service.tipos_vendibles()
+        except Exception:
+            tipos = []
+        if tipos:
+            nombres = [t["nombre"] for t in tipos]
+            self._tipos_uni_map = {t["nombre"]: t["clave"] for t in tipos}
+            try:
+                self.seg_tipo_uniforme.configure(values=nombres)
+                actual = self.seg_tipo_uniforme.get()
+                if actual not in self._tipos_uni_map:
+                    ent = next((t["nombre"] for t in tipos if t["clave"] == "ENT"), nombres[0])
+                    self.seg_tipo_uniforme.set(ent)
+            except Exception:
+                pass
         try:
             from services import uniforme_service
             tallas = uniforme_service.tallas_disponibles(self._tipo_uniforme_sel())
@@ -733,7 +750,11 @@ class MatriculaView(ctk.CTkFrame):
         except Exception:
             pass
         try:
-            self.seg_tipo_uniforme.set("Entrenamiento")
+            nombres_uni = list(getattr(self, "_tipos_uni_map", {}).keys())
+            ent = next((n for n in nombres_uni
+                        if self._tipos_uni_map.get(n) == "ENT"),
+                       nombres_uni[0] if nombres_uni else "Uniforme Entrenamiento")
+            self.seg_tipo_uniforme.set(ent)
         except Exception:
             pass
         self._refrescar_tallas_uniforme()

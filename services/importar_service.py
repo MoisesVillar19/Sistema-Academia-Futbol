@@ -1456,6 +1456,14 @@ PRECIO_UNIFORME_REF = 70.0
 
 
 def _normalizar_tipo_uniforme(raw) -> str | None:
+    # v1.2.1: primero match contra tipos activos (N tipos); luego legacy.
+    try:
+        from services import uniforme_service
+        e = uniforme_service.resolver_tipo(raw)
+        if e:
+            return e["clave"]
+    except Exception:
+        pass
     t = str(raw or "").strip().upper()
     if t in ("COM", "COMPETENCIA", "COMP"):
         return "COM"
@@ -1510,7 +1518,12 @@ def validar_fila_uniformes(fila: dict, idx: int, mapeo: dict | None = None) -> l
     elif not (dni.isdigit() and len(dni) in (8, 9)):
         errores.append(f"Fila {idx}: DNI inválido (8-9 dígitos)")
     if tipo is None:
-        errores.append(f"Fila {idx}: TIPO debe ser COM o ENT")
+        try:
+            from services import uniforme_service
+            validos = ", ".join(x["clave"] for x in uniforme_service.tipos_vendibles()) or "COM o ENT"
+        except Exception:
+            validos = "COM o ENT"
+        errores.append(f"Fila {idx}: TIPO debe ser uno de: {validos}")
     if monto != monto or monto <= 0:
         errores.append(f"Fila {idx}: MONTO debe ser número > 0")
     if metodo:
@@ -1562,8 +1575,16 @@ def importar_uniformes(filas: list[dict], id_usuario: int = 1,
                 if id_est is None:
                     raise ErrorFilaImportacion(motivo)
                 if tipo not in PRODUCTOS_UNIFORME:
-                    raise ErrorFilaImportacion("TIPO debe ser COM o ENT")
-                codigo, _nom, tipo_venta = PRODUCTOS_UNIFORME[tipo]
+                    # v1.2.1: tipos nuevos resuelven por registro dinámico.
+                    from services import uniforme_service
+                    entrada = uniforme_service.resolver_tipo(tipo)
+                    if entrada is None:
+                        raise ErrorFilaImportacion(
+                            f"TIPO debe ser uno de: {', '.join(PRODUCTOS_UNIFORME)}")
+                    codigo, _nom, tipo_venta = (
+                        entrada["codigo"], entrada["nombre"], entrada["tipo_venta"])
+                else:
+                    codigo, _nom, tipo_venta = PRODUCTOS_UNIFORME[tipo]
                 from repositories import producto_repository
                 ya = producto_repository.obtener_por_codigo(codigo)
                 id_prod = _asegurar_producto_uniforme(tipo)

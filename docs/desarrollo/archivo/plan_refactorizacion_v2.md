@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-09-22_refactorizacion-v2-ejecutado.md` · Índice: `../TIMELINE.md`.
+
 # Plan de Refactorización v2 — Tiendita / Almacén + Avisos + Precios Excel
 
 > Estado: EJECUTADO 2026-09-22 (fases 0–8, commit por fase/subfase).
@@ -147,3 +149,4 @@
   `test_ui_smoke.py` (nuevos módulos), `test_roles.py` (nueva matriz).
 - **Sin cambios en:** auditoría (solo lectura), soft-delete, roles base,
   arquitectura por capas (`AGENTS.md` manda).
+

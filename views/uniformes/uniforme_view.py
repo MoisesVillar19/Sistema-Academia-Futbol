@@ -1,7 +1,7 @@
-"""Sección Uniformes: ventas COM (competencia) y ENT (entrenamiento).
+"""Sección Uniformes: N tipos dinámicos (`tipo_uniforme`), independiente.
 
-No van a Tiendita: la tienda vende al público general; aquí solo uniformes
-asociados a estudiantes (adelantos y cancelados, con stock propio).
+No van a Tiendita ni a Almacén: esta sección gestiona sus productos
+(CRUD + tallas + compras + ventas) sin pasar por esos módulos.
 Reutiliza la lógica del tipo de importación Uniformes fila por fila.
 """
 import customtkinter as ctk
@@ -9,8 +9,6 @@ from tkinter import messagebox
 
 from controllers import venta_controller
 from utils.logger import logger
-
-CODIGOS_UNIFORME = ("UNIFORME-COM", "CAMISETA-ENT")
 
 
 class UniformesView(ctk.CTkFrame):
@@ -34,11 +32,14 @@ class UniformesView(ctk.CTkFrame):
 
     def _crear_tab_productos(self):
         from utils.ui_helpers import crear_seccion, crear_boton_interactivo
-        crear_seccion(
+        sec = crear_seccion(
             self.tab_productos, titulo="Productos de uniforme", icono="🎽",
-            descripcion="COM = competencia • ENT = entrenamiento. "
-                        "Tallas con stock; compras en Almacén.",
+            descripcion="Un producto por tipo de uniforme. "
+                        "Tallas con stock; compras aquí mismo.",
             nro=1)
+        crear_boton_interactivo(sec, text="+ Nuevo producto", width=150,
+                                command=self._dialog_nuevo_producto,
+                                fg_color="#7C3AED").pack(anchor="e", padx=10, pady=(0, 8))
         self.scroll_productos = ctk.CTkScrollableFrame(self.tab_productos)
         self.scroll_productos.pack(fill="both", expand=True, padx=5, pady=5)
         self.label_prod_status = ctk.CTkLabel(self.tab_productos, text="",
@@ -87,6 +88,14 @@ class UniformesView(ctk.CTkFrame):
             frame, text="+ Talla", width=120,
             command=lambda: self._dialog_talla_uni(grupo["tipo"]),
             fg_color="#6B7280").pack(anchor="w", padx=10, pady=2)
+        crear_boton_interactivo(
+            frame, text="Registrar Compra", width=120,
+            command=lambda: self._dialog_compra_uni(dict(p)),
+            fg_color="#2563EB").pack(anchor="w", padx=10, pady=2)
+        crear_boton_interactivo(
+            frame, text="Desactivar", width=120,
+            command=lambda: self._desactivar_producto_uni(dict(p)),
+            fg_color="#d9534f").pack(anchor="w", padx=10, pady=2)
 
     def _dialog_precio_uni(self, prod):
         from tkinter import messagebox
@@ -183,12 +192,140 @@ class UniformesView(ctk.CTkFrame):
                       command=top.destroy).pack(side="left", padx=5)
         ctk.CTkButton(btnf, text="Guardar", command=guardar).pack(side="left", padx=5)
 
+    def _dialog_nuevo_producto(self):
+        """CRUD Uniformes: crea tipo (si es nuevo) + producto vinculado."""
+        from tkinter import messagebox
+        from services import uniforme_service
+        top = ctk.CTkToplevel(self)
+        top.title("Nuevo producto de uniforme")
+        top.geometry("400x340")
+        try:
+            top.transient(self)
+        except Exception:
+            pass
+        cuerpo = ctk.CTkFrame(top, fg_color="transparent")
+        cuerpo.pack(fill="both", expand=True, padx=12, pady=12)
+        ctk.CTkLabel(cuerpo, text="Nombre del uniforme *").pack(anchor="w")
+        e_nombre = ctk.CTkEntry(cuerpo, width=300)
+        e_nombre.pack(anchor="w", pady=5)
+        try:
+            existentes = [t["nombre"] for t in uniforme_service.tipos_sin_producto()]
+        except Exception:
+            existentes = []
+        if existentes:
+            ctk.CTkLabel(cuerpo, text="Tipos existentes sin producto: " + ", ".join(existentes),
+                         font=ctk.CTkFont(size=11), text_color="#6B5B7B").pack(anchor="w")
+        ctk.CTkLabel(cuerpo, text="Precio de venta S/ *").pack(anchor="w")
+        e_precio = ctk.CTkEntry(cuerpo, width=150)
+        e_precio.insert(0, "70")
+        e_precio.pack(anchor="w", pady=5)
+        ctk.CTkLabel(cuerpo, text="Stock inicial").pack(anchor="w")
+        e_stock = ctk.CTkEntry(cuerpo, width=150)
+        e_stock.insert(0, "0")
+        e_stock.pack(anchor="w", pady=5)
+        lbl = ctk.CTkLabel(cuerpo, text="")
+        lbl.pack(anchor="w")
+
+        def guardar():
+            try:
+                precio = float(e_precio.get().strip())
+                assert precio > 0
+            except (ValueError, TypeError, AssertionError):
+                lbl.configure(text="Precio no válido", text_color="red")
+                return
+            try:
+                stock = int(e_stock.get().strip() or "0")
+                assert stock >= 0
+            except (ValueError, TypeError, AssertionError):
+                lbl.configure(text="Stock no válido", text_color="red")
+                return
+            ok, msg, _ = uniforme_service.crear_producto_uniforme(
+                e_nombre.get().strip(), precio, stock)
+            if ok:
+                messagebox.showinfo("Uniforme", msg)
+                top.destroy()
+                self._cargar_productos()
+                self._cargar_tipos_combo()
+                self._refrescar_tallas()
+            else:
+                lbl.configure(text=msg, text_color="red")
+
+        btnf = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        btnf.pack(pady=10)
+        ctk.CTkButton(btnf, text="Cancelar", fg_color="gray",
+                      command=top.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(btnf, text="Guardar", command=guardar).pack(side="left", padx=5)
+
+    def _dialog_compra_uni(self, prod):
+        """Entrada de stock al producto de uniforme (Compras de Uniformes)."""
+        from tkinter import messagebox
+        top = ctk.CTkToplevel(self)
+        top.title(f"Compra {prod.get('nombre', '')}")
+        top.geometry("400x360")
+        try:
+            top.transient(self)
+        except Exception:
+            pass
+        cuerpo = ctk.CTkFrame(top, fg_color="transparent")
+        cuerpo.pack(fill="both", expand=True, padx=12, pady=12)
+        ctk.CTkLabel(cuerpo, text="Cantidad (uds) *").pack(anchor="w")
+        e_cant = ctk.CTkEntry(cuerpo, width=150)
+        e_cant.pack(anchor="w", pady=5)
+        ctk.CTkLabel(cuerpo, text="Monto total pagado (S/) *").pack(anchor="w")
+        e_monto = ctk.CTkEntry(cuerpo, width=150)
+        e_monto.pack(anchor="w", pady=5)
+        ctk.CTkLabel(cuerpo, text="Método *").pack(anchor="w")
+        cb_met = ctk.CTkComboBox(cuerpo, width=150, values=["YAPE", "EFECTIVO"])
+        cb_met.set("EFECTIVO")
+        cb_met.pack(anchor="w", pady=5)
+        lbl = ctk.CTkLabel(cuerpo, text="")
+        lbl.pack(anchor="w")
+
+        def guardar():
+            from controllers import inventario_controller
+            try:
+                cant = int(e_cant.get().strip() or "0")
+            except ValueError:
+                cant = 0
+            ok, msg, _ = inventario_controller.registrar_compra({
+                "id_producto": prod["id_producto"], "cantidad": cant,
+                "monto_total": e_monto.get().strip(),
+                "metodo_pago": cb_met.get(),
+                "motivo": "Compra a proveedor (Uniformes)",
+            })
+            if ok:
+                messagebox.showinfo("Compra", msg)
+                top.destroy()
+                self._cargar_productos()
+                self._refrescar_tallas()
+            else:
+                lbl.configure(text=msg, text_color="red")
+
+        btnf = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        btnf.pack(pady=10)
+        ctk.CTkButton(btnf, text="Cancelar", fg_color="gray",
+                      command=top.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(btnf, text="Guardar", command=guardar).pack(side="left", padx=5)
+
+    def _desactivar_producto_uni(self, prod):
+        from tkinter import messagebox
+        from services import uniforme_service
+        if not messagebox.askyesno("Confirmar", f"¿Desactivar '{prod.get('nombre')}'?"):
+            return
+        ok, msg = uniforme_service.desactivar_producto_uniforme(prod.get("id_producto"))
+        if ok:
+            self._cargar_productos()
+            self._cargar_tipos_combo()
+            self._refrescar_tallas()
+        else:
+            messagebox.showerror("Uniforme", msg)
+
     def _crear_tab_lista(self):
         from utils.ui_helpers import crear_seccion
         crear_seccion(
             self.tab_lista, titulo="Ventas de uniforme", icono="🎽",
-            descripcion="COM = competencia (Uniforme Competencia) • ENT = "
-                        "entrenamiento (Camiseta Entrenamiento).",
+            descripcion="Ventas de uniformes por tipo (entrenamiento, "
+                        "competencia y tipos creados).",
             nro=1)
         from widgets.periodo_filter import PeriodoFilter
         self.periodo_uniformes = PeriodoFilter(
@@ -217,9 +354,10 @@ class UniformesView(ctk.CTkFrame):
                                       width=180)
         self.entry_dni.pack(side="left", padx=5)
         self.combo_tipo = ctk.CTkComboBox(
-            cuerpo, values=["COM", "ENT"], width=110, command=self._on_tipo_uniforme)
-        self.combo_tipo.set("COM")
+            cuerpo, values=["Cargando..."], width=220, command=self._on_tipo_uniforme)
         self.combo_tipo.pack(side="left", padx=5)
+        self._tipos_uni_map = {}
+        self._cargar_tipos_combo()
         self.combo_talla = ctk.CTkComboBox(cuerpo, width=150, values=["Sin talla"])
         self.combo_talla.pack(side="left", padx=5)
         self._tallas_map = {}
@@ -240,6 +378,27 @@ class UniformesView(ctk.CTkFrame):
         self.label_form_status.pack(anchor="w", padx=10, pady=4)
 
     # ── datos ──
+    def _cargar_tipos_combo(self):
+        """Tipos vendibles (N tipos). Muestra nombre, guarda clave."""
+        try:
+            from services import uniforme_service
+            tipos = uniforme_service.tipos_vendibles()
+        except Exception:
+            tipos = []
+        nombres = [t["nombre"] for t in tipos]
+        self._tipos_uni_map = {t["nombre"]: t["clave"] for t in tipos}
+        try:
+            self.combo_tipo.configure(values=nombres if nombres else ["Sin tipos"])
+            actual = self.combo_tipo.get()
+            if actual not in self._tipos_uni_map:
+                self.combo_tipo.set(nombres[0] if nombres else "Sin tipos")
+        except Exception:
+            pass
+
+    def _clave_tipo_sel(self) -> str:
+        return self._tipos_uni_map.get(self.combo_tipo.get().strip(),
+                                       self.combo_tipo.get().strip())
+
     @staticmethod
     def _es_uniforme(venta: dict) -> bool:
         if venta.get("tipo_venta") == "UNIFORME":
@@ -248,17 +407,20 @@ class UniformesView(ctk.CTkFrame):
             return False
         try:
             from repositories import detalle_venta_repository
+            from services import uniforme_service
             for d in detalle_venta_repository.obtener_por_venta(venta["id_venta"]):
+                if d.get("id_producto") and uniforme_service.es_producto_uniforme(
+                        d["id_producto"]):
+                    return True
                 prod = (d.get("codigo", "") or "")
                 if not prod:
                     try:
                         from repositories import producto_repository
                         p = producto_repository.obtener_por_id(d["id_producto"])
-                        prod = (p or {}).get("codigo", "")
+                        if p and uniforme_service.es_producto_uniforme(p):
+                            return True
                     except Exception:
                         pass
-                if prod in CODIGOS_UNIFORME:
-                    return True
         except Exception:
             pass
         return False
@@ -300,7 +462,7 @@ class UniformesView(ctk.CTkFrame):
     def _refrescar_tallas(self):
         try:
             from services import uniforme_service
-            tallas = uniforme_service.tallas_disponibles(self.combo_tipo.get().strip())
+            tallas = uniforme_service.tallas_disponibles(self._clave_tipo_sel())
         except Exception:
             tallas = []
         nombres = [f"{t['talla']} (stock {t['stock']})" for t in tallas]
@@ -314,7 +476,7 @@ class UniformesView(ctk.CTkFrame):
     def _registrar(self):
         from services import importar_service
         fila = {"DNI": self.entry_dni.get().strip(),
-                "TIPO": self.combo_tipo.get().strip(),
+                "TIPO": self._clave_tipo_sel(),
                 "MONTO": self.entry_monto.get().strip(),
                 "FECHA": self.entry_fecha.get().strip(),
                 "METODO": self.combo_metodo.get().strip()}

@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-08-02_diagnostico-usabilidad.md` · Índice: `../TIMELINE.md`.
+
 # Diagnóstico de Usabilidad
 
 ## Fecha: 2026-08-02
@@ -258,3 +260,4 @@ El sistema es técnicamente sólido con una arquitectura bien documentada. Las m
 6. Indicadores de carga
 7. Exportación a PDF
 8. Notificaciones push locales
+

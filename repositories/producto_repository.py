@@ -64,6 +64,16 @@ def obtener_por_codigo(codigo: str) -> dict | None:
     )
 
 
+def obtener_por_tipo_uniforme(id_tipo_uniforme: int,
+                              solo_activos: bool = True) -> dict | None:
+    """Producto vinculado a un tipo de uniforme (v1.2.1, N tipos)."""
+    sql = """SELECT * FROM producto WHERE id_tipo_uniforme = ?"""
+    if solo_activos:
+        sql += " AND activo = 1"
+    sql += " ORDER BY id_producto LIMIT 1"
+    return fetch_one(sql, (id_tipo_uniforme,))
+
+
 def obtener_todos(activo: int | None = None) -> list[dict]:
     sql = """
         SELECT p.*, cp.nombre as categoria_nombre
@@ -164,12 +174,14 @@ def actualizar(producto: Producto) -> None:
 def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
                     id_categoria_producto: int | None = None,
                     canal: str | None = None,
-                    excluir_codigos: tuple = ()) -> tuple[list[dict], int]:
+                    excluir_codigos: tuple = (),
+                    excluir_uniformes: bool = False) -> tuple[list[dict], int]:
     """Búsqueda SQL real por nombre/código con paginación (Bloque A3).
 
     Devuelve (rows, total). Solo productos activos.
     ``id_categoria_producto`` filtra por categoría (Bloque B2, opcional).
-    ``excluir_codigos`` oculta códigos (uniformes fuera de Tiendita).
+    ``excluir_codigos`` oculta códigos (legacy uniformes fuera de Tiendita).
+    ``excluir_uniformes`` oculta todo producto de Uniformes (v1.2.1, N tipos).
     """
     base = """
         FROM producto p
@@ -190,6 +202,12 @@ def buscar_paginado(q: str = "", limit: int = 50, offset: int = 0,
     if excluir_codigos:
         base += f" AND p.codigo NOT IN ({','.join('?' * len(excluir_codigos))})"
         params.extend(excluir_codigos)
+    if excluir_uniformes:
+        try:
+            if _tiene_columna(get_connection(), "producto", "id_tipo_uniforme"):
+                base += " AND p.id_tipo_uniforme IS NULL"
+        except Exception:
+            pass
     cnt = fetch_one(f"SELECT COUNT(*) as c {base}", tuple(params))
     total = cnt["c"] if cnt else 0
     rows = fetch_all(
@@ -204,6 +222,16 @@ def soft_delete(id_producto: int) -> None:
     conn = get_connection()
     conn.execute(
         "UPDATE producto SET activo = 0 WHERE id_producto = ?",
+        (id_producto,),
+    )
+    conn.commit()
+
+
+def reactivar(id_producto: int) -> None:
+    """Re-activa un producto desactivado (v1.2.1, evita duplicados)."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE producto SET activo = 1 WHERE id_producto = ?",
         (id_producto,),
     )
     conn.commit()

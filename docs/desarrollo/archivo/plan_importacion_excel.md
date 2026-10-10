@@ -1,3 +1,5 @@
+﻿> **ARCHIVADO — documento histórico.** No usar como guía vigente. Resumen vigente en `../linea-tiempo/2026-09-26_importacion-excel-ejecutado.md` · Índice: `../TIMELINE.md`.
+
 # Plan — Ganancias en Tiendita + Importación del Excel + Filtro Becados
 
 > Estado: EJECUTADO 2026-09-22/26 (A+B+C+D). Ver §Ejecutado y §Nuevo plan abajo.
@@ -427,3 +429,4 @@ ventas, egresos, tarifas, importar, dashboard, reportes, usuarios, configuracion
 auditoria) con: qué hace, reglas RN, flujos UI, seeds/tarifas, tests y releases
 que lo tocaron. Los docs de desarrollo pasarían a `docs/historial/` como bitácora.
 Ejecutarlo es 1 tarea de reordenamiento con índice en `docs/README.md`.
+

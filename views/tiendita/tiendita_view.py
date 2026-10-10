@@ -5,12 +5,14 @@ from views.inventario.inventario_view import InventarioView
 
 
 class TienditaView(InventarioView):
-    # Uniformes COM/ENT viven en su sección propia (no en Tiendita).
+    # Uniformes viven en su sección propia (no en Tiendita).
+    # Legacy: códigos fijos; v1.2.1: todo producto con tipo de uniforme.
     CODIGOS_EXCLUIDOS = ("UNIFORME-COM", "CAMISETA-ENT")
 
     def __init__(self, parent):
         super().__init__(parent, canal="TIENDITA")
         self._excluir_codigos = self.CODIGOS_EXCLUIDOS
+        self._excluir_uniformes = True
         # Tienda: sin filtro por categoría de insumos (vive en Almacén).
         # Todo lo canal TIENDITA (sin uniformes) se muestra junto.
         try:
@@ -188,8 +190,8 @@ class TienditaView(InventarioView):
                     nombre = (p or {}).get("nombre", "")
                 except Exception:
                     nombre = ""
-                # Tienda: sin uniformes
-                if (p or {}).get("codigo") in ("UNIFORME-COM", "CAMISETA-ENT"):
+                # Tienda: sin uniformes (todo producto con tipo de uniforme).
+                if (p or {}).get("id_tipo_uniforme") is not None:
                     continue
                 nombres.append(f"{nombre} x{d.get('cantidad', 0)}")
                 cant += int(d.get("cantidad", 0) or 0)

@@ -27,13 +27,6 @@ def editar_venta(id_venta: int, data: dict) -> tuple[bool, str]:
     return venta_service.editar_venta(id_venta, data)
 
 
-CODIGOS_UNIFORME = {
-    "ENT": ("CAMISETA-ENT", "Camiseta Entrenamiento", "UNIFORME"),
-    "COM": ("UNIFORME-COM", "Uniforme Competencia", "TIENDA"),
-}
-PRECIO_UNIFORME_REF = 70.0
-
-
 def _asegurar_producto_uniforme(tipo: str) -> tuple[bool, str, int | None]:
     """Delega en el asegurador único (uniforme_service)."""
     from services import uniforme_service
@@ -43,16 +36,19 @@ def _asegurar_producto_uniforme(tipo: str) -> tuple[bool, str, int | None]:
 def registrar_venta_uniforme(data: dict) -> tuple[bool, str, int | None]:
     """Venta de uniforme con stock asegurado (pre-compra si falta).
 
-    data: id_estudiante, tipo (COM/ENT), fecha_venta, metodo_pago (def EFECTIVO).
+    data: id_estudiante, tipo (clave legacy COM/ENT o nombre de tipo
+    activo), fecha_venta, metodo_pago (def EFECTIVO).
     El monto sale del precio_venta del producto. Nunca bloquea por stock.
     """
-    from services import inventario_service
+    from services import inventario_service, uniforme_service
     if not auth_service.esta_logueado():
         return False, "Sesión requerida", None
     id_usuario = data.get("id_usuario") or auth_service.id_usuario_sesion_or_system()
-    tipo = str(data.get("tipo", "") or "").strip().upper()
-    if tipo not in CODIGOS_UNIFORME:
-        return False, "Tipo debe ser COM o ENT", None
+    entrada = uniforme_service.resolver_tipo(str(data.get("tipo", "") or ""))
+    if entrada is None:
+        validos = ", ".join(x["clave"] for x in uniforme_service.tipos_vendibles()) or "—"
+        return False, f"Tipo de uniforme no válido. Válidos: {validos}", None
+    tipo = entrada["clave"]
     if not data.get("id_estudiante"):
         return False, "El estudiante es obligatorio", None
     metodo = str(data.get("metodo_pago", "") or "EFECTIVO").strip().upper()
@@ -90,7 +86,7 @@ def registrar_venta_uniforme(data: dict) -> tuple[bool, str, int | None]:
                 id_prod, id_variante, alm["id_almacen"] if alm else 1, None, 1)
         except Exception:
             pass
-    _codigo, _nombre, tipo_venta = CODIGOS_UNIFORME[tipo]
+    _codigo, _nombre, tipo_venta = entrada["codigo"], entrada["nombre"], entrada["tipo_venta"]
     item = {"id_producto": id_prod, "cantidad": 1, "precio_unitario": precio}
     if id_variante:
         item["id_variante"] = id_variante
